@@ -17,10 +17,17 @@ export {
 export {
   clearCachedPublicKey,
   ensurePublicKey,
+  type EnsurePublicKeyOptions,
   getCachedPublicKey,
   getPublicCryptoKey,
+  prepareGlobalPublicKey,
   setCachedPublicKey,
 } from './public-key';
+export {
+  isRequestKeyFailedCode,
+  SecurityResultCode,
+  shouldSkipReAuthForKeyFailure,
+} from './result-codes';
 export {
   applySecurityIdentityHeaders,
   createEncryptedRequestConfig,

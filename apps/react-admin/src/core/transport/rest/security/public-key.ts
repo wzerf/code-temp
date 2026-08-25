@@ -92,16 +92,35 @@ export async function getPublicCryptoKey(): Promise<CryptoKey | undefined> {
   }
 }
 
+export interface EnsurePublicKeyOptions {
+  /**
+   * 强制重新拉取全局公钥，忽略内存/storage 缓存。
+   * 用于未登录（登录页 / 重登）场景：storage 中可能残留上一会话专属公钥，
+   * 若直接复用会导致服务端用全局私钥解不开（Sign/Encrypt RSA decrypt failed）。
+   */
+  force?: boolean;
+}
+
 /**
  * 确保本地有公钥。
- * 优先：内存 → 持久化 storage →（仅皆无时）裸 fetch 全局公钥。
+ * 默认优先：内存 → 持久化 storage →（仅皆无时）裸 fetch 全局公钥。
  * 已登录刷新时不得覆盖 storage 中的会话公钥。
+ * force 时跳过缓存，始终 GET /encrypt/public/key。
  *
  * @param baseURL 如 `/api`
  */
-export async function ensurePublicKey(baseURL: string): Promise<string> {
-  const local = hydrateFromStorage();
-  if (local) return local;
+export async function ensurePublicKey(
+  baseURL: string,
+  options?: EnsurePublicKeyOptions,
+): Promise<string> {
+  if (options?.force) {
+    // 丢弃内存缓存以便重拉；storage 在拿到新钥后再覆盖
+    cachedPublicKeyBase64 = '';
+    cachedPublicCryptoKey = null;
+  } else {
+    const local = hydrateFromStorage();
+    if (local) return local;
+  }
 
   if (inflight) return inflight;
 
@@ -134,4 +153,13 @@ export async function ensurePublicKey(baseURL: string): Promise<string> {
   })();
 
   return inflight;
+}
+
+/**
+ * 登录前准备全局公钥：清会话残留后拉取 `/encrypt/public/key`。
+ * 对齐 Vue `prepareGlobalPublicKey`。
+ */
+export async function prepareGlobalPublicKey(apiBase: string): Promise<string> {
+  clearCachedPublicKey();
+  return ensurePublicKey(apiBase || '/api', { force: true });
 }

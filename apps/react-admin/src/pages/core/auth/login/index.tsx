@@ -1,7 +1,8 @@
-import React, { useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Form, Input, Button, Checkbox, App } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
+import { prepareGlobalPublicKey } from '@/core/transport/rest/security';
 import { useAuthStore } from '@/stores';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import AltchaWidget, { type AltchaWidgetHandle } from './AltchaWidget';
@@ -15,6 +16,11 @@ const Login: React.FC = () => {
   const { message } = App.useApp();
   const [form] = Form.useForm();
   const altchaRef = useRef<AltchaWidgetHandle>(null);
+
+  // 进入登录页即预拉全局公钥，避免复用 storage 中死会话钥（对齐 Vue login.vue）
+  useEffect(() => {
+    void prepareGlobalPublicKey(import.meta.env.VITE_API_URL || '/api');
+  }, []);
 
   /** 登录失败：payload 已被服务端一次性消费，必须重新勾选验证 */
   const resetAltcha = () => {

@@ -15,7 +15,9 @@ import {
   createSecurityRequestInterceptor,
   createSecurityResponseInterceptor,
   getSecurityClientConfig,
+  isRequestKeyFailedCode,
   SECURITY_HEADERS,
+  shouldSkipReAuthForKeyFailure,
 } from './security';
 import { defaultIdGenerator, getDefaultErrorMsg } from './utils';
 import type { RequestClientCallbacks, RequestClientOptions, RequestContentType } from './types';
@@ -28,6 +30,9 @@ class RequestClient {
 
   public download: FileDownloader['download'];
   public upload: FileUploader['upload'];
+
+  /** 并发 401 / 1006 只处理一次，对齐 Vue doReAuthenticate 单飞锁 */
+  private reAuthPromise: Promise<void> | null = null;
 
   // ==========================
   // 静态单例管理
@@ -116,8 +121,34 @@ class RequestClient {
     this.useAuthInterceptor(callbacks);
     // 解密必须在 code/msg/data 解析之前
     this.useSecurityResponseInterceptor();
-    this.useResponseDataInterceptor();
+    // 业务码解析：1006 密钥错误在此触发重认证（HTTP 仍为 200，auth 拦截器看不到）
+    this.useResponseDataInterceptor(callbacks);
     this.useErrorMessageInterceptor(callbacks);
+  }
+
+  /**
+   * 重新认证（单飞）：清会话并回登录。401 与 1006 共用。
+   */
+  private async doReAuthenticate(
+    callbacks: RequestClientCallbacks,
+    reason: string,
+  ): Promise<void> {
+    if (this.reAuthPromise) {
+      return this.reAuthPromise;
+    }
+    this.reAuthPromise = (async () => {
+      console.warn(reason);
+      if (callbacks.onReAuthenticate) {
+        await callbacks.onReAuthenticate(true);
+      } else {
+        console.error(
+          'onReAuthenticate callback not set. Call RequestClient.init() during bootstrap.',
+        );
+      }
+    })().finally(() => {
+      this.reAuthPromise = null;
+    });
+    return this.reAuthPromise;
   }
 
   /**
@@ -208,10 +239,11 @@ class RequestClient {
    *   1) 统一契约包装：`{ code, msg, data }` → 返回 `data` 字段
    *   2) 裸数据：直接返回（如 ALTCHA challenge）
    * 非 2xx 响应抛错，包含原始响应体供上层处理
+   * 业务码 1006（密钥错误）：会话钥失效，对齐 Vue 会话失效 → 清会话回登录
    */
-  private useResponseDataInterceptor() {
+  private useResponseDataInterceptor(callbacks: RequestClientCallbacks) {
     this.addResponseInterceptor({
-      fulfilled: (response) => {
+      fulfilled: async (response) => {
         const { data: responseData, status } = response;
 
         if (status >= 200 && status < 400) {
@@ -236,6 +268,28 @@ class RequestClient {
               (typeof wrapped.msg === 'string' && wrapped.msg) ||
               (typeof wrapped.message === 'string' && wrapped.message) ||
               String(wrapped.code);
+
+            const requestUrl = String(response.config?.url ?? '');
+            if (
+              isRequestKeyFailedCode(wrapped.code) &&
+              !shouldSkipReAuthForKeyFailure(requestUrl)
+            ) {
+              // 先提示密钥错误，再单飞登出（避免并发风暴重复 toast / 重复 forceLogout）
+              callbacks.onError?.(errMsg);
+              await this.doReAuthenticate(
+                callbacks,
+                'Request key failed (1006), redirecting to login...',
+              );
+              throw Object.assign(new Error(errMsg), {
+                code: wrapped.code,
+                msg: wrapped.msg,
+                message: errMsg,
+                response: { data: responseData, status },
+                __handledByResponseInterceptor: true,
+                __handledByAuthInterceptor: true,
+              });
+            }
+
             throw Object.assign(new Error(errMsg), {
               code: wrapped.code,
               msg: wrapped.msg,
@@ -259,14 +313,10 @@ class RequestClient {
     this.addResponseInterceptor(
       authenticateResponseInterceptor({
         doReAuthenticate: async () => {
-          console.warn('Token expired, redirecting to login...');
-          if (callbacks.onReAuthenticate) {
-            await callbacks.onReAuthenticate(true);
-          } else {
-            console.error(
-              'onReAuthenticate callback not set. Call RequestClient.init() during bootstrap.',
-            );
-          }
+          await this.doReAuthenticate(
+            callbacks,
+            'Token expired, redirecting to login...',
+          );
         },
       }),
     );

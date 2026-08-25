@@ -31,7 +31,7 @@ async function _initI18n() {
   RequestClient.init(import.meta.env.VITE_API_URL, {
     getToken: () => useAuthStore.getState().accessToken,
     getLocale: () => i18n.language,
-    // 单 token：401 直接 forceLogout，无前端 refresh
+    // 单 token：401 / 业务码 1006（密钥错误）直接 forceLogout，无前端 refresh
     onReAuthenticate: async () => {
       useAuthStore.getState().forceLogout();
     },

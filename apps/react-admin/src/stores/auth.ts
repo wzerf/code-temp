@@ -6,6 +6,7 @@ import type { UserInfo, LoginRequest } from '@/api/rest/types';
 import { queryClient } from '@/core/query-client';
 import {
   clearCachedPublicKey,
+  prepareGlobalPublicKey,
   setCachedPublicKey,
 } from '@/core/transport/rest/security';
 import { clearAccessMenusCache } from '@/utils/menu-cache';
@@ -145,6 +146,9 @@ export const useAuthStore = create<AuthState>()((set) => ({
     set({ loginLoading: true, error: null });
 
     try {
+      // 登录须用全局公钥：清掉可能残留的会话钥，强制 GET /encrypt/public/key（对齐 Vue）
+      await prepareGlobalPublicKey(import.meta.env.VITE_API_URL || '/api');
+
       // 1. 登录（明文密码），持久化 accessToken；缓存会话专属 publicKey
       const response = await loginApi(params);
       const accessToken = response.accessToken;

@@ -49,7 +49,7 @@ interface RequestClientCallbacks {
   getToken: () => string | null;
   /** 获取当前语言标识（如 zh-CN、en-US） */
   getLocale?: () => string;
-  /** Token 失效时的处理（登出 + 跳转登录页）；单 token 模式下 401 直接触发 */
+  /** Token / 会话钥失效时的处理（登出 + 跳转登录页）；401 与业务码 1006 触发 */
   onReAuthenticate: (redirect?: boolean) => Promise<void>;
   /** 错误消息处理（弹窗、toast 等） */
   onError?: (message: string) => void;

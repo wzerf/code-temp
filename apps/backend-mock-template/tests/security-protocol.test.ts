@@ -450,6 +450,8 @@ describe("java key pair sync", () => {
     "SECURITY_JAVA_KEY_PAIR_URL",
     "SECURITY_RSA_PUBLIC_KEY",
     "SECURITY_RSA_PRIVATE_KEY",
+    "SECURITY_LOCAL_DATA_DIR",
+    "SECURITY_RSA_KEY_FILE",
   ] as const;
   const savedEnv: Record<string, string | undefined> = {};
 
@@ -458,6 +460,8 @@ describe("java key pair sync", () => {
       savedEnv[k] = process.env[k];
       delete process.env[k];
     }
+    // 避免测试误读写包内 .local/
+    process.env.SECURITY_LOCAL_DATA_DIR = "node_modules/.cache/mock-security-test-local";
     resetJavaKeyPairSyncForTest();
     setEncryptKeyPairForTest(null);
   });

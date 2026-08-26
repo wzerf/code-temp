@@ -4,7 +4,10 @@ import type { UserInfo } from "./mock-data";
 
 import { getHeader } from "h3";
 import { randomUUID } from "node:crypto";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
 
+import { ensureLocalDataDir, getLocalDataDir } from "./local-data";
 import { ensureUserSeeds, getMockSysUserList, getUserRoleCodes } from "./mock-data";
 import { generateRsaKeyPair } from "./security/crypto";
 
@@ -13,6 +16,8 @@ const DEFAULT_TIMEOUT_SECONDS = 2592000;
 
 /** java 内省 HTTP 超时（毫秒） */
 const DEFAULT_JAVA_INTROSPECT_TIMEOUT_MS = 3000;
+
+const SESSIONS_FILE_NAME = "sessions.json";
 
 interface SessionRecord {
   userId: number;
@@ -26,6 +31,11 @@ interface SessionRecord {
   privateKeyPem?: string;
 }
 
+interface PersistedSessionsFile {
+  version: 1;
+  sessions: Record<string, SessionRecord>;
+}
+
 export interface CreateSessionResult {
   accessToken: string;
   /** 会话专属公钥（SPKI base64） */
@@ -37,6 +47,84 @@ const sessions = new Map<string, SessionRecord>();
 
 /** 同一 token 并发内省去重 */
 const pendingAdopts = new Map<string, Promise<boolean>>();
+
+let sessionsHydrated = false;
+
+function getSessionsFilePath(): string {
+  return resolve(getLocalDataDir(), SESSIONS_FILE_NAME);
+}
+
+function hydrateSessionsFromDisk(): void {
+  if (sessionsHydrated) return;
+  sessionsHydrated = true;
+
+  const path = getSessionsFilePath();
+  if (!existsSync(path)) return;
+
+  try {
+    const raw = readFileSync(path, "utf8");
+    const json = JSON.parse(raw) as PersistedSessionsFile;
+    if (!json || json.version !== 1 || !json.sessions || typeof json.sessions !== "object") {
+      return;
+    }
+    const t = Date.now();
+    let loaded = 0;
+    for (const [token, record] of Object.entries(json.sessions)) {
+      if (!token || !record || typeof record !== "object") continue;
+      if (
+        !Number.isFinite(record.userId) ||
+        !record.username ||
+        !Number.isFinite(record.expiresAt)
+      ) {
+        continue;
+      }
+      if (record.expiresAt <= t) continue;
+      sessions.set(token, {
+        userId: Number(record.userId),
+        username: String(record.username),
+        expiresAt: Number(record.expiresAt),
+        foreign: record.foreign === true,
+        publicKeyBase64: record.publicKeyBase64,
+        privateKeyPem: record.privateKeyPem,
+      });
+      loaded += 1;
+    }
+    if (loaded > 0) {
+      console.info(`[security] 已从本地文件恢复 ${loaded} 个会话:`, path);
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn("[security] 读取本地会话文件失败:", path, msg);
+  }
+}
+
+function persistSessionsToDisk(): void {
+  hydrateSessionsFromDisk();
+  const path = getSessionsFilePath();
+  try {
+    ensureLocalDataDir();
+    const t = Date.now();
+    const out: PersistedSessionsFile = { version: 1, sessions: {} };
+    for (const [token, record] of sessions) {
+      if (record.expiresAt <= t) {
+        sessions.delete(token);
+        continue;
+      }
+      out.sessions[token] = record;
+    }
+    writeFileSync(path, `${JSON.stringify(out, null, 2)}\n`, "utf8");
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn("[security] 写入本地会话文件失败:", path, msg);
+  }
+}
+
+/** 测试用：清空内存会话并重置落盘状态。 */
+export function resetSessionsForTest(): void {
+  sessions.clear();
+  pendingAdopts.clear();
+  sessionsHydrated = false;
+}
 
 function parseBoolEnv(name: string, defaultValue: boolean): boolean {
   const raw = process.env[name];
@@ -160,23 +248,31 @@ function resolveMockUserForJavaUsername(javaUsername: string) {
 }
 
 function revokeByUserId(userId: number, exceptToken?: string) {
+  hydrateSessionsFromDisk();
+  let changed = false;
   for (const [token, record] of sessions) {
     if (record.userId === userId && token !== exceptToken) {
       sessions.delete(token);
+      changed = true;
     }
   }
+  if (changed) persistSessionsToDisk();
 }
 
 function findActiveTokenByUserId(userId: number): string | null {
+  hydrateSessionsFromDisk();
   const t = now();
+  let pruned = false;
   for (const [token, record] of sessions) {
     if (record.userId === userId && record.expiresAt > t) {
       return token;
     }
     if (record.userId === userId && record.expiresAt <= t) {
       sessions.delete(token);
+      pruned = true;
     }
   }
+  if (pruned) persistSessionsToDisk();
   return null;
 }
 
@@ -186,6 +282,7 @@ function findActiveTokenByUserId(userId: number): string | null {
  * - is-concurrent=false：踢掉该用户其它会话
  */
 export function createSession(user: Pick<UserInfo, "id" | "username">): CreateSessionResult {
+  hydrateSessionsFromDisk();
   const userId = Number(user.id);
   const username = user.username;
 
@@ -202,6 +299,7 @@ export function createSession(user: Pick<UserInfo, "id" | "username">): CreateSe
           record.publicKeyBase64 = pair.publicKeyBase64;
         }
         sessions.set(existing, record);
+        persistSessionsToDisk();
         return {
           accessToken: existing,
           publicKey: record.publicKeyBase64!,
@@ -223,6 +321,7 @@ export function createSession(user: Pick<UserInfo, "id" | "username">): CreateSe
     publicKeyBase64: pair.publicKeyBase64,
     privateKeyPem: pair.privateKeyPem,
   });
+  persistSessionsToDisk();
   return {
     accessToken: token,
     publicKey: pair.publicKeyBase64,
@@ -232,6 +331,7 @@ export function createSession(user: Pick<UserInfo, "id" | "username">): CreateSe
 /** 读取本地会话私钥 PEM（无则 null） */
 export function getSessionPrivateKeyPem(token: string | null | undefined): string | null {
   if (!token) return null;
+  hydrateSessionsFromDisk();
   const record = sessions.get(token);
   if (!record || record.expiresAt <= now()) return null;
   return record.privateKeyPem?.trim() || null;
@@ -246,12 +346,14 @@ export function adoptSessionEncryptKeys(
   keys: { publicKeyBase64: string; privateKeyPem: string },
   user?: { id: number; username: string },
 ): void {
+  hydrateSessionsFromDisk();
   const existing = sessions.get(token);
   if (existing) {
     existing.publicKeyBase64 = keys.publicKeyBase64;
     existing.privateKeyPem = keys.privateKeyPem;
     existing.expiresAt = now() + timeoutMs();
     sessions.set(token, existing);
+    persistSessionsToDisk();
     return;
   }
   const fallbackUser = user ?? {
@@ -266,21 +368,26 @@ export function adoptSessionEncryptKeys(
     publicKeyBase64: keys.publicKeyBase64,
     privateKeyPem: keys.privateKeyPem,
   });
+  persistSessionsToDisk();
 }
 
 /** 将已校验的外部 token 登记为本地会话（绑定 mock 用户 id/username） */
 function registerForeignSession(token: string, user: { id: number; username: string }): void {
+  hydrateSessionsFromDisk();
   sessions.set(token, {
     userId: Number(user.id),
     username: user.username,
     expiresAt: now() + timeoutMs(),
     foreign: true,
   });
+  persistSessionsToDisk();
 }
 
 export function revokeSession(token: string | null | undefined): void {
   if (!token) return;
-  sessions.delete(token);
+  hydrateSessionsFromDisk();
+  if (!sessions.delete(token)) return;
+  persistSessionsToDisk();
 }
 
 export function extractBearerToken(event: H3Event<EventHandlerRequest>): string | null {
@@ -353,10 +460,12 @@ export async function ensureTokenAdopted(token: string | null | undefined): Prom
   if (!token) return;
   if (isMixtureMode()) return;
 
+  hydrateSessionsFromDisk();
   const existing = sessions.get(token);
   if (existing) {
     if (existing.expiresAt > now()) return;
     sessions.delete(token);
+    persistSessionsToDisk();
   }
 
   const introspectUrl = getJavaIntrospectUrl();
@@ -396,6 +505,7 @@ export function verifyAccessToken(
     return null;
   }
 
+  hydrateSessionsFromDisk();
   const record = sessions.get(token);
   if (!record) {
     return null;
@@ -403,17 +513,20 @@ export function verifyAccessToken(
 
   if (record.expiresAt <= now()) {
     sessions.delete(token);
+    persistSessionsToDisk();
     return null;
   }
 
   // 滑动续期
   record.expiresAt = now() + timeoutMs();
   sessions.set(token, record);
+  persistSessionsToDisk();
 
   // 优先 username：foreign 会话已绑定 mock 用户名，避免 java id 误命中
   const sysUser = findSysUserByUsername(record.username) ?? findSysUserById(record.userId);
   if (!sysUser) {
     sessions.delete(token);
+    persistSessionsToDisk();
     return null;
   }
 

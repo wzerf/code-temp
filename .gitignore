@@ -37,6 +37,9 @@ deploy/milvus/.env
 # 本地对象存储默认目录
 **/data/storage/
 
+# mock 本地持久化（RSA 密钥 / 会话），避免热重载刷新密钥迫使前端重登
+apps/backend-mock-template/.local/
+
 # 临时
 *.swp
 *.swo

@@ -48,6 +48,8 @@ mock 实现与 java-admin 同一套头协议，便于 dev 全开时代理到 moc
 - 白名单（免强制加密）：`/api/encrypt/public/key`、`/api/encrypt/dev/key-pair`、`/api/altcha/**`、文档与健康检查；**不含** `/api/auth/login`
 - Nonce 为进程内内存实现；进程重启后清空
 - 可选固定密钥：`SECURITY_RSA_PUBLIC_KEY` / `SECURITY_RSA_PRIVATE_KEY`（设置后**不再**从 java 拉钥）
+- 本地持久化（默认 gitignore）：未配置 `SECURITY_RSA_*` 时，全局 RSA 写入 `.local/rsa-keypair.json`；登录会话（含会话钥）写入 `.local/sessions.json`，Nitro 热重载后复用，避免 Vue/React 被迫重新登录
+- 覆盖路径（可选）：`SECURITY_LOCAL_DATA_DIR`（目录）、`SECURITY_RSA_KEY_FILE`（密钥文件）
 
 ```bash
 pnpm -C apps/backend-mock-template test
@@ -80,8 +82,8 @@ SECURITY_JAVA_SESSION_KEY_URL=http://localhost:4080/api/encrypt/dev/session-key
 
 #### 全局：`SECURITY_JAVA_KEY_PAIR_URL`
 
-- **未配置**：不访问 java，本地自生成或 `SECURITY_RSA_*`
-- **已配置**：`0.security` 首次请求时 GET 该地址 adopt **全局**密钥（java 仅 dev：`/api/encrypt/dev/key-pair`）
+- **未配置**：不访问 java；优先 `SECURITY_RSA_*`，否则读/写 `.local/rsa-keypair.json`，皆无则生成并落盘
+- **已配置**：`0.security` 首次请求时 GET 该地址 adopt **全局**密钥（java 仅 dev：`/api/encrypt/dev/key-pair`）；成功后注入内存，不覆盖本地密钥文件
 - 用于登录前（前端尚未拿到会话 publicKey）与无会话回退
 
 #### 会话专属：`SECURITY_JAVA_SESSION_KEY_URL`

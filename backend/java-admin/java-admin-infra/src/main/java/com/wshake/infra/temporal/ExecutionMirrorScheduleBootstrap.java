@@ -43,6 +43,8 @@ public class ExecutionMirrorScheduleBootstrap implements ApplicationRunner {
     public static final String SCHEDULE_ID = "sys-execution-mirror";
     public static final String WORKFLOW_ID_PREFIX = "sys-execution-mirror";
     public static final Duration INTERVAL = Duration.ofSeconds(3);
+    /** Temporal's minimum catch-up window; bounds restart recovery to at most a few stale ticks. */
+    public static final Duration CATCHUP_WINDOW = Duration.ofSeconds(10);
 
     private final ScheduleClient scheduleClient;
 
@@ -115,6 +117,7 @@ public class ExecutionMirrorScheduleBootstrap implements ApplicationRunner {
 
         SchedulePolicy policy = SchedulePolicy.newBuilder()
                 .setOverlap(ScheduleOverlapPolicy.SCHEDULE_OVERLAP_POLICY_SKIP)
+                .setCatchupWindow(CATCHUP_WINDOW)
                 .build();
 
         ScheduleState state = ScheduleState.newBuilder()

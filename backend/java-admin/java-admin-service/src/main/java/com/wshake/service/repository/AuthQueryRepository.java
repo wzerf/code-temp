@@ -49,9 +49,7 @@ public class AuthQueryRepository {
     /**
      * 查询用户可访问的 BUTTON 权限码。
      *
-     * <p>规则对齐 mock：角色授权菜单中 type=BUTTON 且 permission_code 非空；
-     * 或 BUTTON 的父 MENU 被授权。本实现直接取角色绑定的全部 BUTTON 权限码
-     * （seed 对 root 角色已绑定完整按钮集）。
+     * <p>规则对齐 mock：角色直接授权 BUTTON，或授权其直接父 MENU 时，均返回该 BUTTON 的权限码。
      */
     public List<String> findAccessCodesByUserId(Long userId) {
         List<Long> roleIds = easyEntityQuery
@@ -70,17 +68,40 @@ public class AuthQueryRepository {
         if (menuIds.isEmpty()) {
             return List.of();
         }
+        return findAccessCodes(menuIds);
+    }
+
+    private List<String> findAccessCodes(List<Long> menuIds) {
+        List<Long> inheritedParentIds = inheritedParentMenuIds(easyEntityQuery
+                .queryable(SysMenu.class)
+                .where(m -> m.id().in(menuIds))
+                .toList());
         return easyEntityQuery
                 .queryable(SysMenu.class)
                 .where(m -> {
-                    m.id().in(menuIds);
                     m.type().eq("BUTTON");
                     m.isEnabled().eq(1);
                     m.permissionCode().isNotNull();
                     m.permissionCode().ne("");
+                    if (inheritedParentIds.isEmpty()) {
+                        m.id().in(menuIds);
+                    } else {
+                        m.or(() -> {
+                            m.id().in(menuIds);
+                            m.parentId().in(inheritedParentIds);
+                        });
+                    }
                 })
                 .select(SysMenuProxy::permissionCode)
                 .distinct()
+                .toList();
+    }
+
+    static List<Long> inheritedParentMenuIds(List<SysMenu> menus) {
+        return menus.stream()
+                .filter(menu -> "MENU".equals(menu.getType()))
+                .filter(menu -> Integer.valueOf(1).equals(menu.getIsEnabled()))
+                .map(SysMenu::getId)
                 .toList();
     }
 

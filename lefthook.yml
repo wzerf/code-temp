@@ -76,8 +76,8 @@ pre-push:
 
     - name: lint:react-admin
       root: "apps/react-admin/"
-      glob: "**/*.{ts,tsx}"
-      run: pnpm eslint {push_files}
+      # 首次推送尚无上游分支，{push_files} 会为空；全量 lint 保证命令始终有目标。
+      run: pnpm eslint .
 
     - name: check:java-types
       # 编译作安全网;WARN 不阻断,ERROR 阻断。

@@ -1,6 +1,7 @@
 package com.wshake.service.auth;
 
 import com.wshake.common.constant.ClientIds;
+import com.wshake.common.constant.StatusFlags;
 import com.wshake.common.time.TimeZones;
 import com.wshake.common.util.UserAgentParser;
 import com.wshake.service.entity.SysLoginLog;
@@ -79,7 +80,7 @@ public class LoginLogger {
 
             SysLoginLog row = new SysLoginLog();
             row.setUsername(username);
-            row.setSuccess(success ? 1 : 0);
+            row.setSuccess(success ? StatusFlags.ENABLED : StatusFlags.DISABLED);
             row.setReason(reason);
             row.setStatusCode(statusCode);
             row.setSysUserId(userId);

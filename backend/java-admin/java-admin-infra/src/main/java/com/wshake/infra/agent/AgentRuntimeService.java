@@ -43,6 +43,32 @@ import reactor.core.publisher.Flux;
 public class AgentRuntimeService implements AgentRuntimeGateway {
 
     private static final String KEY_PREFIX = "agent:runtime:";
+    private static final String AGENT_ID_PREFIX = "agent-revision-";
+    private static final String ALLOWED_TOOLS_KEY = "allowedTools";
+    private static final String PLATFORM_TIME_TOOL = "get_platform_time";
+    private static final String MODEL_CONFIG_KEY = "model";
+    private static final String CANCEL_SIGNAL = "cancel";
+    private static final String STATE_STARTING = "STARTING";
+    private static final String STATE_RUNNING = "RUNNING";
+    private static final String STATE_CANCELLING = "CANCELLING";
+    private static final String STATE_CANCELLED = "CANCELLED";
+    private static final String STATE_COMPLETED = "COMPLETED";
+    private static final String STATE_FAILED = "FAILED";
+    private static final String STATE_CONFLICT = "CONFLICT";
+    private static final String STATE_PENDING = "PENDING";
+    private static final String STATE_RECOVERING = "RECOVERING";
+    private static final String EVENT_STARTED = "STARTED";
+    private static final String EVENT_TEXT_DELTA = "TEXT_DELTA";
+    private static final String EVENT_TOOL_STARTED = "TOOL_STARTED";
+    private static final String EVENT_TOOL_COMPLETED = "TOOL_COMPLETED";
+    private static final int MAX_REQUEST_ID_LENGTH = 128;
+    private static final int MAX_MESSAGE_LENGTH = 65_535;
+    private static final int MAX_EXECUTION_ATTEMPTS = 1;
+    private static final int MAX_AGENT_ITERATIONS = 2;
+    private static final int HEARTBEAT_DIVISOR = 2;
+    private static final int NO_LISTENER_ID = -1;
+    private static final long LOCK_WAIT_MILLIS = 0;
+    private static final long LOCK_WATCHDOG_LEASE_MILLIS = -1;
 
     private final AgentRuntimeProperties properties;
     private final RedissonClient redissonClient;
@@ -72,7 +98,7 @@ public class AgentRuntimeService implements AgentRuntimeGateway {
         execute(plan, requestId, message, state, runKey, events)
                 .doOnNext(event -> events.appendAndUpdateState(runKey, event, state, properties.getRequestIdTtl()))
                 .subscribe();
-        return events.replayAndFollow(runKey, "STARTING");
+        return events.replayAndFollow(runKey, STATE_STARTING);
     }
 
     /** 向固定会话的 AgentScope RuntimeContext 传播取消请求，并等待运行终态。 */
@@ -88,7 +114,7 @@ public class AgentRuntimeService implements AgentRuntimeGateway {
             terminal.cancel(false);
             throw BizException.of(ResultCode.PARAM_INVALID, "agent run is not running");
         }
-        redissonClient.getTopic(cancelTopicKey(runKey)).publish("cancel");
+        redissonClient.getTopic(cancelTopicKey(runKey)).publish(CANCEL_SIGNAL);
         try {
             return terminal.get(properties.getExecutionLease().toMillis(), TimeUnit.MILLISECONDS);
         } catch (InterruptedException exception) {
@@ -96,7 +122,7 @@ public class AgentRuntimeService implements AgentRuntimeGateway {
             throw BizException.of(ResultCode.INTERNAL_ERROR, "agent run cancellation interrupted");
         } catch (Exception exception) {
             return new AgentRunEvent(
-                    "CANCELLING",
+                    STATE_CANCELLING,
                     requestId,
                     sessionId,
                     null,
@@ -111,7 +137,7 @@ public class AgentRuntimeService implements AgentRuntimeGateway {
     public Flux<AgentRunEvent> resume(Long sessionId, String requestId) {
         requireEnabled();
         properties.validate();
-        if (requestId == null || requestId.isBlank() || requestId.length() > 128) {
+        if (requestId == null || requestId.isBlank() || requestId.length() > MAX_REQUEST_ID_LENGTH) {
             throw BizException.of(ResultCode.PARAM_INVALID, "requestId is required");
         }
         String runKey = runKey(sessionId, requestId);
@@ -138,55 +164,56 @@ public class AgentRuntimeService implements AgentRuntimeGateway {
                 lock = acquireSessionLock(plan.sessionId());
             } catch (RuntimeException exception) {
                 owner.delete();
-                return Flux.just(event("FAILED", plan, requestId, null, null, "agent run lock is unavailable"));
+                return Flux.just(event(STATE_FAILED, plan, requestId, null, null, "agent run lock is unavailable"));
             }
             if (lock == null) {
                 owner.delete();
-                String type = "CANCELLING".equals(state.get()) ? "CANCELLED" : "CONFLICT";
+                String type = STATE_CANCELLING.equals(state.get()) ? STATE_CANCELLED : STATE_CONFLICT;
                 return Flux.just(event(type, plan, requestId, null, null, "session is already running"));
             }
-            if (!state.compareAndSet("STARTING", "RUNNING") && "CANCELLING".equals(state.get())) {
+            if (!state.compareAndSet(STATE_STARTING, STATE_RUNNING) && STATE_CANCELLING.equals(state.get())) {
                 owner.delete();
-                return Flux.just(event("CANCELLED", plan, requestId, null, null, null))
+                return Flux.just(event(STATE_CANCELLED, plan, requestId, null, null, null))
                         .doFinally(ignored -> lock.release());
             }
             RTopic cancelTopic = redissonClient.getTopic(cancelTopicKey(runKey));
             Disposable[] heartbeat = new Disposable[1];
-            int[] cancelListenerIdHolder = {-1};
+            int[] cancelListenerIdHolder = {NO_LISTENER_ID};
             try {
                 RuntimeContext context = context(plan);
                 return Flux.using(
                         () -> buildAgent(plan),
                         agent -> {
                             cancelListenerIdHolder[0] = cancelTopic.addListener(String.class, (channel, signal) -> {
-                                if ("cancel".equals(signal)) {
+                                if (CANCEL_SIGNAL.equals(signal)) {
                                     agent.getDelegate().interrupt(context);
                                 }
                             });
                             owner.set(Long.toString(lock.ownerId()), properties.getExecutionLease());
-                            heartbeat[0] = Flux.interval(properties.getRequestIdTtl().dividedBy(2))
+                            heartbeat[0] = Flux.interval(
+                                            properties.getRequestIdTtl().dividedBy(HEARTBEAT_DIVISOR))
                                     .subscribe(ignored -> {
                                         state.expire(properties.getRequestIdTtl());
                                         owner.set(Long.toString(lock.ownerId()), properties.getExecutionLease());
                                         events.refresh(runKey, properties.getRequestIdTtl());
                                     });
-                            if ("CANCELLING".equals(state.get())) {
+                            if (STATE_CANCELLING.equals(state.get())) {
                                 agent.getDelegate().interrupt(context);
                             }
                             int registeredListenerId = cancelListenerIdHolder[0];
                             return Flux.concat(
-                                            Flux.just(event("STARTED", plan, requestId, null, null, null)),
+                                            Flux.just(event(EVENT_STARTED, plan, requestId, null, null, null)),
                                             agent.streamEvents(message, context)
                                                     .flatMap(event -> toEvent(event, plan, requestId, state)))
                                     .onErrorResume(error -> Flux.just(event(
-                                            "CANCELLING".equals(state.get()) ? "CANCELLED" : "FAILED",
+                                            STATE_CANCELLING.equals(state.get()) ? STATE_CANCELLED : STATE_FAILED,
                                             plan,
                                             requestId,
                                             null,
                                             null,
                                             "agent run failed")))
-                                    .doFinally(ignored ->
-                                            releaseRunResources(owner, heartbeat[0], cancelTopic, registeredListenerId, lock));
+                                    .doFinally(ignored -> releaseRunResources(
+                                            owner, heartbeat[0], cancelTopic, registeredListenerId, lock));
                         },
                         agent -> {
                             try {
@@ -196,12 +223,11 @@ public class AgentRuntimeService implements AgentRuntimeGateway {
                         });
             } catch (RuntimeException exception) {
                 releaseRunResources(owner, heartbeat[0], cancelTopic, cancelListenerIdHolder[0], lock);
-                String type = "CANCELLING".equals(state.get()) ? "CANCELLED" : "FAILED";
+                String type = STATE_CANCELLING.equals(state.get()) ? STATE_CANCELLED : STATE_FAILED;
                 return Flux.just(event(type, plan, requestId, null, null, "agent run initialization failed"));
             }
         });
     }
-
 
     private HarnessAgent buildAgent(AgentRunPlan plan) {
         Toolkit toolkit = new Toolkit();
@@ -219,8 +245,8 @@ public class AgentRuntimeService implements AgentRuntimeGateway {
                         .build())
                 .build();
         return HarnessAgent.builder()
-                .agentId("agent-revision-" + plan.agentRevisionId())
-                .name("agent-revision-" + plan.agentRevisionId())
+                .agentId(AGENT_ID_PREFIX + plan.agentRevisionId())
+                .name(AGENT_ID_PREFIX + plan.agentRevisionId())
                 .sysPrompt(plan.systemPrompt())
                 .model(model)
                 .toolkit(toolkit)
@@ -230,13 +256,13 @@ public class AgentRuntimeService implements AgentRuntimeGateway {
                         .build())
                 .modelExecutionConfig(ExecutionConfig.builder()
                         .timeout(properties.getModelTimeout())
-                        .maxAttempts(1)
+                        .maxAttempts(MAX_EXECUTION_ATTEMPTS)
                         .build())
                 .toolExecutionConfig(ExecutionConfig.builder()
                         .timeout(properties.getModelTimeout())
-                        .maxAttempts(1)
+                        .maxAttempts(MAX_EXECUTION_ATTEMPTS)
                         .build())
-                .maxIters(2)
+                .maxIters(MAX_AGENT_ITERATIONS)
                 .disableFilesystemTools()
                 .disableShellTool()
                 .disableMemoryTools()
@@ -252,14 +278,14 @@ public class AgentRuntimeService implements AgentRuntimeGateway {
 
     private Flux<AgentRunEvent> toEvent(AgentEvent event, AgentRunPlan plan, String requestId, RBucket<String> state) {
         if (event instanceof TextBlockDeltaEvent delta) {
-            return Flux.just(event("TEXT_DELTA", plan, requestId, delta.getDelta(), null, null));
+            return Flux.just(event(EVENT_TEXT_DELTA, plan, requestId, delta.getDelta(), null, null));
         }
         if (event instanceof ToolCallStartEvent toolCall) {
-            return Flux.just(event("TOOL_STARTED", plan, requestId, null, toolCall.getToolCallName(), null));
+            return Flux.just(event(EVENT_TOOL_STARTED, plan, requestId, null, toolCall.getToolCallName(), null));
         }
         if (event instanceof ToolResultEndEvent toolResult) {
             return Flux.just(event(
-                    "TOOL_COMPLETED",
+                    EVENT_TOOL_COMPLETED,
                     plan,
                     requestId,
                     null,
@@ -271,11 +297,13 @@ public class AgentRuntimeService implements AgentRuntimeGateway {
                 return Flux.error(
                         BizException.of(ResultCode.PARAM_INVALID, "agent runtime stop reason is not enabled"));
             }
-            return Flux.just(event("CANCELLED", plan, requestId, null, null, stop.getReason()));
+            return Flux.just(event(STATE_CANCELLED, plan, requestId, null, null, stop.getReason()));
         }
         if (event instanceof AgentEndEvent) {
             String current = state.get();
-            String type = ("CANCELLING".equals(current) || "CANCELLED".equals(current)) ? "CANCELLED" : "COMPLETED";
+            String type = (STATE_CANCELLING.equals(current) || STATE_CANCELLED.equals(current))
+                    ? STATE_CANCELLED
+                    : STATE_COMPLETED;
             return Flux.just(event(type, plan, requestId, null, null, null));
         }
         return Flux.empty();
@@ -289,10 +317,10 @@ public class AgentRuntimeService implements AgentRuntimeGateway {
                         "if redis.call('EXISTS', KEYS[1]) == 1 then return 0 end "
                                 + "redis.call('SET', KEYS[1], 'USED') "
                                 + "redis.call('SET', KEYS[2], ARGV[1], 'PX', ARGV[2]) "
-                                + "redis.call('SET', KEYS[3], 'STARTING', 'PX', ARGV[3]) return 1",
+                                + "redis.call('SET', KEYS[3], '" + STATE_STARTING + "', 'PX', ARGV[3]) return 1",
                         RScript.ReturnType.BOOLEAN,
                         List.of(consumedKey(runKey), ownerKey(runKey), runKey),
-                        "PENDING",
+                        STATE_PENDING,
                         properties.getExecutionLease().toMillis(),
                         properties.getRequestIdTtl().toMillis());
     }
@@ -301,7 +329,8 @@ public class AgentRuntimeService implements AgentRuntimeGateway {
         long ownerId = ThreadLocalRandom.current().nextLong(Long.MAX_VALUE);
         RLock lock = redissonClient.getLock(sessionLockKey(sessionId));
         try {
-            boolean acquired = lock.tryLockAsync(0, -1, TimeUnit.MILLISECONDS, ownerId)
+            boolean acquired = lock.tryLockAsync(
+                            LOCK_WAIT_MILLIS, LOCK_WATCHDOG_LEASE_MILLIS, TimeUnit.MILLISECONDS, ownerId)
                     .toCompletableFuture()
                     .get();
             return acquired ? new SessionLock(lock, ownerId) : null;
@@ -324,14 +353,14 @@ public class AgentRuntimeService implements AgentRuntimeGateway {
         if (plan == null || plan.agentRevisionId() == null || plan.sessionId() == null || plan.ownerUserId() == null) {
             throw BizException.of(ResultCode.PARAM_INVALID, "agent run plan is invalid");
         }
-        if (requestId == null || requestId.isBlank() || requestId.length() > 128) {
+        if (requestId == null || requestId.isBlank() || requestId.length() > MAX_REQUEST_ID_LENGTH) {
             throw BizException.of(ResultCode.PARAM_INVALID, "requestId is required");
         }
-        if (message == null || message.isBlank() || message.length() > 65535) {
+        if (message == null || message.isBlank() || message.length() > MAX_MESSAGE_LENGTH) {
             throw BizException.of(ResultCode.PARAM_INVALID, "message is required");
         }
         Object configuredModel =
-                plan.modelConfig() == null ? null : plan.modelConfig().get("model");
+                plan.modelConfig() == null ? null : plan.modelConfig().get(MODEL_CONFIG_KEY);
         if ((configuredModel != null && !(configuredModel instanceof String))
                 || (configuredModel instanceof String configured
                         && !properties.getModelName().equals(configured))) {
@@ -349,18 +378,19 @@ public class AgentRuntimeService implements AgentRuntimeGateway {
     }
 
     private static boolean markCancelling(RBucket<String> state) {
-        return state.compareAndSet(CompareAndSetArgs.expected("RUNNING").set("CANCELLING"))
-                || state.compareAndSet(CompareAndSetArgs.expected("STARTING").set("CANCELLING"));
+        return state.compareAndSet(CompareAndSetArgs.expected(STATE_RUNNING).set(STATE_CANCELLING))
+                || state.compareAndSet(
+                        CompareAndSetArgs.expected(STATE_STARTING).set(STATE_CANCELLING));
     }
 
     private static boolean allowsPlatformTimeTool(AgentRunPlan plan) {
         Object allowedTools =
-                plan.permissionPolicy() == null ? null : plan.permissionPolicy().get("allowedTools");
+                plan.permissionPolicy() == null ? null : plan.permissionPolicy().get(ALLOWED_TOOLS_KEY);
         if (!(allowedTools instanceof Iterable<?> values)) {
             return false;
         }
         for (Object value : values) {
-            if ("get_platform_time".equals(value)) {
+            if (PLATFORM_TIME_TOOL.equals(value)) {
                 return true;
             }
         }
@@ -391,9 +421,9 @@ public class AgentRuntimeService implements AgentRuntimeGateway {
             return current;
         }
         try {
-            if (!owner.setIfAbsent("RECOVERING", properties.getExecutionLease())) {
+            if (!owner.setIfAbsent(STATE_RECOVERING, properties.getExecutionLease())) {
                 String recovered = state.get();
-                return recovered == null ? "STARTING" : recovered;
+                return recovered == null ? STATE_STARTING : recovered;
             }
             if (state.get() != null && !current.equals(state.get())) {
                 return state.get();
@@ -401,7 +431,7 @@ public class AgentRuntimeService implements AgentRuntimeGateway {
             events.appendAndUpdateState(
                     runKey,
                     new AgentRunEvent(
-                            "FAILED",
+                            STATE_FAILED,
                             requestId,
                             sessionId,
                             agentRevisionId,
@@ -410,7 +440,7 @@ public class AgentRuntimeService implements AgentRuntimeGateway {
                             "agent run owner is unavailable"),
                     state,
                     properties.getRequestIdTtl());
-            return "FAILED";
+            return STATE_FAILED;
         } finally {
             owner.delete();
             recoveryLock.release();
@@ -418,10 +448,10 @@ public class AgentRuntimeService implements AgentRuntimeGateway {
     }
 
     private static boolean isTerminal(String state) {
-        return "COMPLETED".equals(state)
-                || "CANCELLED".equals(state)
-                || "FAILED".equals(state)
-                || "CONFLICT".equals(state);
+        return STATE_COMPLETED.equals(state)
+                || STATE_CANCELLED.equals(state)
+                || STATE_FAILED.equals(state)
+                || STATE_CONFLICT.equals(state);
     }
 
     private static void releaseRunResources(
@@ -430,7 +460,7 @@ public class AgentRuntimeService implements AgentRuntimeGateway {
             heartbeat.dispose();
         }
         owner.delete();
-        if (cancelListenerId >= 0) {
+        if (cancelListenerId > NO_LISTENER_ID) {
             cancelTopic.removeListener(cancelListenerId);
         }
         lock.release();

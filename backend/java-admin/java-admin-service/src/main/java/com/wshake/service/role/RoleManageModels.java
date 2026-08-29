@@ -2,6 +2,7 @@ package com.wshake.service.role;
 
 import com.wshake.common.constant.PageLimits;
 import com.wshake.common.constant.SecurityConstants;
+import com.wshake.common.constant.StatusFlags;
 import com.wshake.service.entity.SysRole;
 import io.github.linpeilie.annotations.AutoMapper;
 import java.time.LocalDateTime;
@@ -78,7 +79,7 @@ public final class RoleManageModels {
         public RoleView {
             sort = sort == null ? 0 : sort;
             remark = remark == null ? "" : remark;
-            isEnabled = isEnabled == null ? 0 : isEnabled;
+            isEnabled = isEnabled == null ? StatusFlags.DISABLED : isEnabled;
             deletedAt = deletedAt == null ? 0L : deletedAt;
             createdBy = createdBy == null ? 0L : createdBy;
             updatedBy = updatedBy == null ? 0L : updatedBy;

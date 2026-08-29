@@ -2,6 +2,7 @@ package com.wshake.service.dict;
 
 import com.easy.query.core.api.pagination.EasyPageResult;
 import com.wshake.common.constant.BatchActions;
+import com.wshake.common.constant.StatusFlags;
 import com.wshake.common.exception.BizException;
 import com.wshake.common.result.PageData;
 import com.wshake.common.result.ResultCode;
@@ -68,7 +69,7 @@ public class DictTypeService {
         type.setCode(code);
         type.setName(name);
         type.setRemark(DictManageModels.nullToEmpty(cmd.remark()).trim());
-        type.setIsEnabled(DictManageModels.normalize01(cmd.isEnabled(), 1));
+        type.setIsEnabled(DictManageModels.normalize01(cmd.isEnabled(), StatusFlags.ENABLED));
         dictTypeRepository.insert(type);
         return converter.convert(requireType(type.getId()), DictTypeView.class);
     }
@@ -96,7 +97,7 @@ public class DictTypeService {
             type.setRemark(cmd.remark());
         }
         if (cmd.isEnabled() != null) {
-            type.setIsEnabled(DictManageModels.normalize01(cmd.isEnabled(), 1));
+            type.setIsEnabled(DictManageModels.normalize01(cmd.isEnabled(), StatusFlags.ENABLED));
         }
         dictTypeRepository.update(type);
         return converter.convert(requireType(type.getId()), DictTypeView.class);

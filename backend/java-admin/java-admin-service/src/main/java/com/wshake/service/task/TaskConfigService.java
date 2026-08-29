@@ -2,6 +2,7 @@ package com.wshake.service.task;
 
 import com.easy.query.core.api.pagination.EasyPageResult;
 import com.wshake.common.constant.BatchActions;
+import com.wshake.common.constant.StatusFlags;
 import com.wshake.common.exception.BizException;
 import com.wshake.common.result.PageData;
 import com.wshake.common.result.ResultCode;
@@ -93,7 +94,7 @@ public class TaskConfigService {
         row.setRetryPolicy(TaskJsonSupport.toJson(cmd.retryPolicy(), "retryPolicy"));
         row.setTimeoutSeconds(normalizeTimeout(cmd.timeoutSeconds(), true));
         row.setRemark(TaskManageModels.nullToEmpty(cmd.remark()).trim());
-        row.setIsEnabled(TaskManageModels.normalize01(cmd.isEnabled(), 1));
+        row.setIsEnabled(TaskManageModels.normalize01(cmd.isEnabled(), StatusFlags.ENABLED));
         configRepository.insert(row);
         TemporalTaskConfig saved = requireConfig(row.getId());
         taskSchedulePort.apply(saved);
@@ -140,7 +141,7 @@ public class TaskConfigService {
             row.setRemark(cmd.remark() == null ? "" : cmd.remark());
         }
         if (cmd.isEnabledPresent()) {
-            row.setIsEnabled(TaskManageModels.normalize01(cmd.isEnabled(), 1));
+            row.setIsEnabled(TaskManageModels.normalize01(cmd.isEnabled(), StatusFlags.ENABLED));
         }
 
         configRepository.update(row);
@@ -162,7 +163,7 @@ public class TaskConfigService {
         }
         // 软删后按「禁用」语义 pause Schedule
         TemporalTaskConfig paused = copyForSchedule(row);
-        paused.setIsEnabled(0);
+        paused.setIsEnabled(StatusFlags.DISABLED);
         taskSchedulePort.apply(paused);
         long deletedAt = System.currentTimeMillis();
         return new TaskConfigView(
@@ -203,7 +204,7 @@ public class TaskConfigService {
             for (TemporalTaskConfig t : targets) {
                 configRepository.softDeleteById(t.getId());
                 TemporalTaskConfig paused = copyForSchedule(t);
-                paused.setIsEnabled(0);
+                paused.setIsEnabled(StatusFlags.DISABLED);
                 taskSchedulePort.apply(paused);
                 deleted.add(t.getId());
             }
@@ -212,7 +213,7 @@ public class TaskConfigService {
 
         if (BatchActions.TRIGGER.equals(action)) {
             List<TemporalTaskConfig> enabled = targets.stream()
-                    .filter(t -> t.getIsEnabled() != null && t.getIsEnabled() == 1)
+                    .filter(t -> t.getIsEnabled() != null && t.getIsEnabled() == StatusFlags.ENABLED)
                     .toList();
             if (enabled.isEmpty()) {
                 throw BizException.of(ResultCode.PARAM_INVALID, "no enabled task-config to trigger");

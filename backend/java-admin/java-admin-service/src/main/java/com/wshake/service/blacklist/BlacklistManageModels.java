@@ -1,6 +1,7 @@
 package com.wshake.service.blacklist;
 
 import com.wshake.common.constant.PageLimits;
+import com.wshake.common.constant.StatusFlags;
 import com.wshake.service.entity.SysBlacklist;
 import io.github.linpeilie.annotations.AutoMapper;
 import java.time.LocalDateTime;
@@ -126,10 +127,7 @@ public final class BlacklistManageModels {
     }
 
     static int normalize01(Integer value, int defaultValue) {
-        if (value == null) {
-            return defaultValue;
-        }
-        return value == 0 ? 0 : 1;
+        return StatusFlags.normalize(value, defaultValue);
     }
 
     static String normalizeTargetType(String raw) {

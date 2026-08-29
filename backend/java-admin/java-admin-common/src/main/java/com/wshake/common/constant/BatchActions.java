@@ -23,9 +23,9 @@ public final class BatchActions {
     public static final String CRUD_HINT = "enable|disable|delete";
     public static final String CRUD_WITH_TRIGGER_HINT = "enable|disable|delete|trigger";
 
-    /** 已通过 CRUD 校验后：{@link #ENABLE} → 1，其它（通常为 {@link #DISABLE}）→ 0。 */
+    /** 已通过 CRUD 校验后：{@link #ENABLE} → 启用，其它（通常为 {@link #DISABLE}）→ 禁用。 */
     public static int enabledFlag(String action) {
-        return ENABLE.equals(action) ? 1 : 0;
+        return ENABLE.equals(action) ? StatusFlags.ENABLED : StatusFlags.DISABLED;
     }
 
     private BatchActions() {}

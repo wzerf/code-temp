@@ -1,6 +1,7 @@
 package com.wshake.service.api;
 
 import com.wshake.common.constant.BatchActions;
+import com.wshake.common.constant.StatusFlags;
 import com.wshake.common.exception.BizException;
 import com.wshake.common.result.ResultCode;
 import com.wshake.service.api.ApiManageModels.ApiBatchCommand;
@@ -107,7 +108,7 @@ public class SysApiService {
         api.setPermissionCode(permissionCode);
         api.setApiGroup(apiGroup);
         api.setRemark(nullToEmpty(cmd.remark()).trim());
-        api.setIsEnabled(cmd.isEnabled() == null ? 1 : (cmd.isEnabled() == 0 ? 0 : 1));
+        api.setIsEnabled(StatusFlags.normalize(cmd.isEnabled(), StatusFlags.ENABLED));
 
         apiRepository.insert(api);
         return loadView(api.getId());
@@ -153,7 +154,7 @@ public class SysApiService {
             api.setRemark(cmd.remark());
         }
         if (cmd.isEnabled() != null) {
-            int enabled = cmd.isEnabled() == 0 ? 0 : 1;
+            int enabled = StatusFlags.normalize(cmd.isEnabled(), StatusFlags.ENABLED);
             if (!Objects.equals(enabled, previousEnabled)) {
                 api.setIsEnabled(enabled);
                 enabledChanged = true;
@@ -266,7 +267,7 @@ public class SysApiService {
             api.setPermissionCode(permissionCode);
             api.setApiGroup(nullToEmpty(item.apiGroup()));
             api.setRemark("同步自后端路由清单");
-            api.setIsEnabled(1);
+            api.setIsEnabled(StatusFlags.ENABLED);
             apiRepository.insert(api);
             added += 1;
         }

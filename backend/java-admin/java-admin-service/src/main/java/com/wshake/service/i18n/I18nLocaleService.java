@@ -2,6 +2,7 @@ package com.wshake.service.i18n;
 
 import com.easy.query.core.api.pagination.EasyPageResult;
 import com.wshake.common.constant.BatchActions;
+import com.wshake.common.constant.StatusFlags;
 import com.wshake.common.exception.BizException;
 import com.wshake.common.result.PageData;
 import com.wshake.common.result.ResultCode;
@@ -64,11 +65,11 @@ public class I18nLocaleService {
             throw BizException.of(ResultCode.PARAM_INVALID, "code " + code + " already exists");
         }
 
-        int isDefault = I18nManageModels.normalize01(cmd.isDefault(), 0);
-        int isEnabled = I18nManageModels.normalize01(cmd.isEnabled(), 1);
+        int isDefault = I18nManageModels.normalize01(cmd.isDefault(), StatusFlags.DISABLED);
+        int isEnabled = I18nManageModels.normalize01(cmd.isEnabled(), StatusFlags.ENABLED);
         int sort = cmd.sort() == null ? 0 : cmd.sort();
 
-        if (isDefault == 1) {
+        if (isDefault == StatusFlags.ENABLED) {
             localeRepository.clearDefaultExcept(null);
         }
 
@@ -109,11 +110,11 @@ public class I18nLocaleService {
             locale.setSort(cmd.sort());
         }
         if (cmd.isEnabled() != null) {
-            locale.setIsEnabled(I18nManageModels.normalize01(cmd.isEnabled(), 1));
+            locale.setIsEnabled(I18nManageModels.normalize01(cmd.isEnabled(), StatusFlags.ENABLED));
         }
         if (cmd.isDefault() != null) {
-            int isDefault = I18nManageModels.normalize01(cmd.isDefault(), 0);
-            if (isDefault == 1) {
+            int isDefault = I18nManageModels.normalize01(cmd.isDefault(), StatusFlags.DISABLED);
+            if (isDefault == StatusFlags.ENABLED) {
                 localeRepository.clearDefaultExcept(locale.getId());
             }
             locale.setIsDefault(isDefault);

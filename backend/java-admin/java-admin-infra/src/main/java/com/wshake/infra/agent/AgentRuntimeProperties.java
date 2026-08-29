@@ -9,6 +9,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @Data
 @ConfigurationProperties(prefix = "app.agent-runtime")
 public class AgentRuntimeProperties {
+    private static final int MINIMUM_LEASE_MODEL_TIMEOUT_MULTIPLIER = 4;
 
     private boolean enabled = false;
     private String modelName;
@@ -33,7 +34,7 @@ public class AgentRuntimeProperties {
         positive(requestIdTtl, "app.agent-runtime.request-id-ttl must be positive");
         positive(executionLease, "app.agent-runtime.execution-lease must be positive");
         positive(modelTimeout, "app.agent-runtime.model-timeout must be positive");
-        if (executionLease.compareTo(modelTimeout.multipliedBy(4)) < 0) {
+        if (executionLease.compareTo(modelTimeout.multipliedBy(MINIMUM_LEASE_MODEL_TIMEOUT_MULTIPLIER)) < 0) {
             throw new IllegalStateException("app.agent-runtime.execution-lease is too short for one agent turn");
         }
     }

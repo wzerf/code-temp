@@ -1,6 +1,7 @@
 package com.wshake.service.menu;
 
 import com.wshake.common.constant.BatchActions;
+import com.wshake.common.constant.StatusFlags;
 import com.wshake.common.exception.BizException;
 import com.wshake.common.result.ResultCode;
 import com.wshake.service.entity.SysApi;
@@ -139,8 +140,8 @@ public class SysMenuService {
         menu.setPermissionCode(permissionCode);
         menu.setMetadata(blankToNull(cmd.metadata()));
         menu.setSort(cmd.sort() == null ? 0 : cmd.sort());
-        menu.setIsHidden(cmd.isHidden() == null ? 0 : (cmd.isHidden() == 0 ? 0 : 1));
-        menu.setIsEnabled(cmd.isEnabled() == null ? 1 : (cmd.isEnabled() == 0 ? 0 : 1));
+        menu.setIsHidden(StatusFlags.normalize(cmd.isHidden(), StatusFlags.DISABLED));
+        menu.setIsEnabled(StatusFlags.normalize(cmd.isEnabled(), StatusFlags.ENABLED));
         menu.setRemark(nullToEmpty(cmd.remark()).trim());
         // 占位，insert 回填 id 后再写 tree_path
         menu.setTreePath("/");
@@ -235,10 +236,10 @@ public class SysMenuService {
             menu.setSort(cmd.sort());
         }
         if (cmd.isHidden() != null) {
-            menu.setIsHidden(cmd.isHidden() == 0 ? 0 : 1);
+            menu.setIsHidden(StatusFlags.normalize(cmd.isHidden(), StatusFlags.DISABLED));
         }
         if (cmd.isEnabled() != null) {
-            menu.setIsEnabled(cmd.isEnabled() == 0 ? 0 : 1);
+            menu.setIsEnabled(StatusFlags.normalize(cmd.isEnabled(), StatusFlags.ENABLED));
         }
         if (cmd.remark() != null) {
             menu.setRemark(cmd.remark().trim());

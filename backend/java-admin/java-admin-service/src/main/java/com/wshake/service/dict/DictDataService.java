@@ -2,6 +2,7 @@ package com.wshake.service.dict;
 
 import com.easy.query.core.api.pagination.EasyPageResult;
 import com.wshake.common.constant.BatchActions;
+import com.wshake.common.constant.StatusFlags;
 import com.wshake.common.exception.BizException;
 import com.wshake.common.result.PageData;
 import com.wshake.common.result.ResultCode;
@@ -99,10 +100,10 @@ public class DictDataService {
         data.setValue(value);
         data.setLabel(label);
         data.setSort(cmd.sort() == null ? 0 : cmd.sort());
-        data.setIsDefault(Boolean.TRUE.equals(cmd.isDefault()) ? 1 : 0);
+        data.setIsDefault(StatusFlags.fromBoolean(cmd.isDefault(), StatusFlags.DISABLED));
         data.setPlatform(platform);
         data.setTagType(tagType);
-        data.setIsEnabled(DictManageModels.normalize01(cmd.isEnabled(), 1));
+        data.setIsEnabled(DictManageModels.normalize01(cmd.isEnabled(), StatusFlags.ENABLED));
         data.setRemark(DictManageModels.nullToEmpty(cmd.remark()));
         dictDataRepository.insert(data);
         return toView(requireData(data.getId()), type.getCode());
@@ -124,7 +125,7 @@ public class DictDataService {
             data.setSort(cmd.sort());
         }
         if (cmd.isDefault() != null) {
-            data.setIsDefault(DictManageModels.normalize01(cmd.isDefault(), 0));
+            data.setIsDefault(DictManageModels.normalize01(cmd.isDefault(), StatusFlags.DISABLED));
         }
         if (cmd.platform() != null) {
             nextPlatform = requireAllowedPlatform(cmd.platform().trim(), false);
@@ -134,7 +135,7 @@ public class DictDataService {
             data.setTagType(requireAllowedTagType(DictManageModels.normalizeTagType(cmd.tagType()), false));
         }
         if (cmd.isEnabled() != null) {
-            data.setIsEnabled(DictManageModels.normalize01(cmd.isEnabled(), 1));
+            data.setIsEnabled(DictManageModels.normalize01(cmd.isEnabled(), StatusFlags.ENABLED));
         }
         if (cmd.remark() != null) {
             data.setRemark(cmd.remark());

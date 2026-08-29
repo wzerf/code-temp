@@ -2,6 +2,7 @@ package com.wshake.service.i18n;
 
 import com.easy.query.core.api.pagination.EasyPageResult;
 import com.wshake.common.constant.BatchActions;
+import com.wshake.common.constant.StatusFlags;
 import com.wshake.common.exception.BizException;
 import com.wshake.common.result.PageData;
 import com.wshake.common.result.ResultCode;
@@ -243,7 +244,7 @@ public class I18nTranslationService {
         row.setTranslationKey(translationKey);
         row.setValue(value);
         row.setRemark(I18nManageModels.nullToEmpty(cmd.remark()).trim());
-        row.setIsEnabled(I18nManageModels.normalize01(cmd.isEnabled(), 1));
+        row.setIsEnabled(I18nManageModels.normalize01(cmd.isEnabled(), StatusFlags.ENABLED));
         translationRepository.insert(row);
         I18nTranslation saved = translationRepository.findById(row.getId());
         return toView(saved, locale.getCode());
@@ -275,7 +276,7 @@ public class I18nTranslationService {
             row.setRemark(cmd.remark());
         }
         if (cmd.isEnabled() != null) {
-            row.setIsEnabled(I18nManageModels.normalize01(cmd.isEnabled(), 1));
+            row.setIsEnabled(I18nManageModels.normalize01(cmd.isEnabled(), StatusFlags.ENABLED));
         }
         translationRepository.update(row);
         I18nTranslation saved = requireTranslation(row.getId());
@@ -721,7 +722,7 @@ public class I18nTranslationService {
                 }
                 if (meta.get("isDefault") != null) {
                     int isDefault = parse01(meta.get("isDefault"), existing.getIsDefault());
-                    if (isDefault == 1) {
+                    if (isDefault == StatusFlags.ENABLED) {
                         localeRepository.clearDefaultExcept(existing.getId());
                     }
                     existing.setIsDefault(isDefault);
@@ -742,14 +743,14 @@ public class I18nTranslationService {
         I18nLocale locale = new I18nLocale();
         locale.setCode(code);
         locale.setName(meta != null && meta.get("name") != null ? String.valueOf(meta.get("name")) : code);
-        int isDefault = meta == null ? 0 : parse01(meta.get("isDefault"), 0);
-        if (isDefault == 1) {
+        int isDefault = meta == null ? StatusFlags.DISABLED : parse01(meta.get("isDefault"), StatusFlags.DISABLED);
+        if (isDefault == StatusFlags.ENABLED) {
             localeRepository.clearDefaultExcept(null);
         }
         locale.setIsDefault(isDefault);
         locale.setSort(meta == null ? 0 : toInt(meta.get("sort"), 0));
         locale.setRemark(meta != null && meta.get("remark") != null ? String.valueOf(meta.get("remark")) : "");
-        locale.setIsEnabled(meta == null ? 1 : parse01(meta.get("isEnabled"), 1));
+        locale.setIsEnabled(meta == null ? StatusFlags.ENABLED : parse01(meta.get("isEnabled"), StatusFlags.ENABLED));
         localeRepository.insert(locale);
         return new EnsureLocaleResult(locale.getId(), true);
     }

@@ -1,6 +1,7 @@
 package com.wshake.service.user;
 
 import com.wshake.common.constant.PageLimits;
+import com.wshake.common.constant.StatusFlags;
 import com.wshake.service.entity.SysUser;
 import io.github.linpeilie.annotations.AutoMapper;
 import java.time.LocalDateTime;
@@ -96,7 +97,7 @@ public final class UserManageModels {
             avatar = avatar == null ? "" : avatar;
             lastLoginIp = lastLoginIp == null ? "" : lastLoginIp;
             remark = remark == null ? "" : remark;
-            isEnabled = isEnabled == null ? 0 : isEnabled;
+            isEnabled = isEnabled == null ? StatusFlags.DISABLED : isEnabled;
             deletedAt = deletedAt == null ? 0L : deletedAt;
             roleIds = roleIds == null ? List.of() : List.copyOf(roleIds);
             roleNames = roleNames == null ? List.of() : List.copyOf(roleNames);

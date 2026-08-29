@@ -1,6 +1,7 @@
 package com.wshake.service.role;
 
 import com.easy.query.core.api.pagination.EasyPageResult;
+import com.wshake.common.constant.StatusFlags;
 import com.wshake.common.exception.BizException;
 import com.wshake.common.result.PageData;
 import com.wshake.common.result.ResultCode;
@@ -73,7 +74,7 @@ public class SysRoleService {
         role.setParentId(parentId);
         role.setSort(cmd.sort() == null ? 0 : cmd.sort());
         role.setRemark(nullToEmpty(cmd.remark()));
-        role.setIsEnabled(cmd.isEnabled() == null ? 1 : (cmd.isEnabled() == 0 ? 0 : 1));
+        role.setIsEnabled(StatusFlags.normalize(cmd.isEnabled(), StatusFlags.ENABLED));
 
         roleRepository.insert(role);
         return loadView(role.getId());
@@ -97,8 +98,8 @@ public class SysRoleService {
             role.setSort(cmd.sort());
         }
         if (cmd.isEnabled() != null) {
-            int enabled = cmd.isEnabled() == 0 ? 0 : 1;
-            if (enabled == 0 && isRootRole(role)) {
+            int enabled = StatusFlags.normalize(cmd.isEnabled(), StatusFlags.ENABLED);
+            if (enabled == StatusFlags.DISABLED && isRootRole(role)) {
                 throw BizException.of(ResultCode.PARAM_INVALID, "内置 Root 角色不可禁用");
             }
             role.setIsEnabled(enabled);

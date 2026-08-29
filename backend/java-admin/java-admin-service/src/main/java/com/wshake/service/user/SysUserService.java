@@ -1,6 +1,7 @@
 package com.wshake.service.user;
 
 import com.easy.query.core.api.pagination.EasyPageResult;
+import com.wshake.common.constant.StatusFlags;
 import com.wshake.common.exception.BizException;
 import com.wshake.common.result.PageData;
 import com.wshake.common.result.ResultCode;
@@ -92,7 +93,7 @@ public class SysUserService {
         user.setLastLoginIp("");
         user.setAccountExpiresAt(cmd.accountExpiresAt());
         user.setRemark(nullToEmpty(cmd.remark()));
-        user.setIsEnabled(cmd.isEnabled() == null ? 1 : (cmd.isEnabled() == 0 ? 0 : 1));
+        user.setIsEnabled(StatusFlags.normalize(cmd.isEnabled(), StatusFlags.ENABLED));
 
         sysUserRepository.insert(user);
         sysUserRoleRepository.replaceUserRoles(user.getId(), roleIds);
@@ -139,7 +140,7 @@ public class SysUserService {
             user.setLanguageCode(blankToNull(cmd.languageCode()));
         }
         if (cmd.isEnabled() != null) {
-            user.setIsEnabled(cmd.isEnabled() == 0 ? 0 : 1);
+            user.setIsEnabled(StatusFlags.normalize(cmd.isEnabled(), StatusFlags.ENABLED));
         }
         if (cmd.remark() != null) {
             user.setRemark(cmd.remark().trim());
@@ -168,11 +169,9 @@ public class SysUserService {
         return toView(user, roleIds, roleNameMap);
     }
 
-    /**
-     * 启停账号：status 0|1。
-     */
+    /** 启停账号：status 必须是启用或禁用标志。 */
     public UserView toggleStatus(Long id, int status) {
-        if (status != 0 && status != 1) {
+        if (!StatusFlags.isBinary(status)) {
             throw BizException.of(ResultCode.PARAM_INVALID, "status 必须为 0 或 1");
         }
         requireUser(id);

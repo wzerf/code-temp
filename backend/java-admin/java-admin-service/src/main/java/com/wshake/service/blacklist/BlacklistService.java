@@ -2,6 +2,7 @@ package com.wshake.service.blacklist;
 
 import com.easy.query.core.api.pagination.EasyPageResult;
 import com.wshake.common.constant.BatchActions;
+import com.wshake.common.constant.StatusFlags;
 import com.wshake.common.exception.BizException;
 import com.wshake.common.result.PageData;
 import com.wshake.common.result.ResultCode;
@@ -70,7 +71,7 @@ public class BlacklistService {
         row.setStartsAt(startsAt);
         row.setExpiresAt(expiresAt);
         row.setRemark(clip(BlacklistManageModels.nullToEmpty(cmd.remark()).trim(), 512));
-        row.setIsEnabled(BlacklistManageModels.normalize01(cmd.isEnabled(), 1));
+        row.setIsEnabled(BlacklistManageModels.normalize01(cmd.isEnabled(), StatusFlags.ENABLED));
         blacklistRepository.insert(row);
         return converter.convert(requireRow(row.getId()), BlacklistView.class);
     }
@@ -102,7 +103,7 @@ public class BlacklistService {
             row.setRemark(clip(cmd.remark().trim(), 512));
         }
         if (cmd.isEnabled() != null) {
-            row.setIsEnabled(BlacklistManageModels.normalize01(cmd.isEnabled(), 1));
+            row.setIsEnabled(BlacklistManageModels.normalize01(cmd.isEnabled(), StatusFlags.ENABLED));
         }
 
         validateWindow(row.getStartsAt(), row.getExpiresAt());

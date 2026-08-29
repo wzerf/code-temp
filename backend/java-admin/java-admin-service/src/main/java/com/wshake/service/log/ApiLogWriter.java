@@ -1,6 +1,7 @@
 package com.wshake.service.log;
 
 import com.wshake.common.constant.ClientIds;
+import com.wshake.common.constant.StatusFlags;
 import com.wshake.common.request.RequestContext;
 import com.wshake.common.time.TimeZones;
 import com.wshake.common.util.UserAgentParser;
@@ -85,7 +86,7 @@ public class ApiLogWriter {
             }
 
             Integer statusCode = cmd.statusCode() == null ? 200 : cmd.statusCode();
-            int success = cmd.success() ? 1 : 0;
+            int success = cmd.success() ? StatusFlags.ENABLED : StatusFlags.DISABLED;
 
             String requestId = nullToEmpty(cmd.requestId());
             if (requestId.isBlank()) {

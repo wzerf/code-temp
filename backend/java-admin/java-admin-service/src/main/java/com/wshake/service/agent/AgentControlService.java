@@ -1,5 +1,6 @@
 package com.wshake.service.agent;
 
+import com.wshake.common.constant.StatusFlags;
 import com.wshake.common.exception.BizException;
 import com.wshake.common.result.ResultCode;
 import com.wshake.common.time.TimeZones;
@@ -41,7 +42,7 @@ public class AgentControlService {
         definition.setDescription(nullable(command.description()).trim());
         definition.setOwnerUserId(ownerUserId);
         definition.setRemark(nullable(command.remark()).trim());
-        definition.setIsEnabled(1);
+        definition.setIsEnabled(StatusFlags.ENABLED);
         definitionRepository.insert(definition);
         return createDraft(
                 new CreateRevisionCommand(
@@ -120,7 +121,7 @@ public class AgentControlService {
         if (!definition.getId().equals(target.getAgentDefinitionId())
                 || !AgentControlModels.REVISION_PUBLISHED.equals(target.getStatus())
                 || target.getIsEnabled() == null
-                || target.getIsEnabled() == 0) {
+                || target.getIsEnabled() == StatusFlags.DISABLED) {
             throw BizException.of(
                     ResultCode.PARAM_INVALID, "revision is not an enabled published revision of this agent");
         }
@@ -184,7 +185,7 @@ public class AgentControlService {
     @Transactional
     public AgentDefinitionView emergencyDisable(Long definitionId, Long ownerUserId) {
         AgentDefinition definition = requireDefinitionOwned(definitionId, ownerUserId);
-        definition.setIsEnabled(0);
+        definition.setIsEnabled(StatusFlags.DISABLED);
         definitionRepository.update(definition);
         return toDefinitionView(definition);
     }
@@ -199,7 +200,7 @@ public class AgentControlService {
         draft.setMemoryPolicy(AgentJsonSupport.toJson(command.memoryPolicy(), "memoryPolicy"));
         draft.setCompressionPolicy(AgentJsonSupport.toJson(command.compressionPolicy(), "compressionPolicy"));
         draft.setRemark(nullable(command.remark()).trim());
-        draft.setIsEnabled(1);
+        draft.setIsEnabled(StatusFlags.ENABLED);
         return draft;
     }
 
@@ -214,7 +215,7 @@ public class AgentControlService {
         published.setMemoryPolicy(draft.getMemoryPolicy());
         published.setCompressionPolicy(draft.getCompressionPolicy());
         published.setRemark(draft.getRemark());
-        published.setIsEnabled(1);
+        published.setIsEnabled(StatusFlags.ENABLED);
         return published;
     }
 

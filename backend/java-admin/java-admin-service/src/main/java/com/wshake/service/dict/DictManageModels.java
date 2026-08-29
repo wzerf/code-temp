@@ -1,6 +1,7 @@
 package com.wshake.service.dict;
 
 import com.wshake.common.constant.PageLimits;
+import com.wshake.common.constant.StatusFlags;
 import com.wshake.service.entity.DictData;
 import com.wshake.service.entity.DictType;
 import io.github.linpeilie.annotations.AutoMapper;
@@ -232,10 +233,7 @@ public final class DictManageModels {
     }
 
     static int normalize01(Integer value, int defaultValue) {
-        if (value == null) {
-            return defaultValue;
-        }
-        return value == 0 ? 0 : 1;
+        return StatusFlags.normalize(value, defaultValue);
     }
 
     static String normalizePlatform(String platform) {

@@ -2,6 +2,7 @@ package com.wshake.service.task;
 
 import com.wshake.common.constant.BatchActions;
 import com.wshake.common.constant.PageLimits;
+import com.wshake.common.constant.StatusFlags;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -242,7 +243,7 @@ public final class TaskManageModels {
         if (value == null) {
             return defaultValue;
         }
-        if (value != 0 && value != 1) {
+        if (!StatusFlags.isBinary(value)) {
             throw com.wshake.common.exception.BizException.of(
                     com.wshake.common.result.ResultCode.PARAM_INVALID, "isEnabled must be 0 or 1");
         }

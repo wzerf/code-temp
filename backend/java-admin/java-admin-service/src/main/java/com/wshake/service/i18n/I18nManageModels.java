@@ -2,6 +2,7 @@ package com.wshake.service.i18n;
 
 import com.google.common.base.Splitter;
 import com.wshake.common.constant.PageLimits;
+import com.wshake.common.constant.StatusFlags;
 import com.wshake.service.entity.I18nLocale;
 import com.wshake.service.entity.I18nTranslation;
 import io.github.linpeilie.annotations.AutoMapper;
@@ -65,7 +66,7 @@ public final class I18nManageModels {
             Long createdBy,
             Long updatedBy) {
         public LocaleView {
-            isDefault = isDefault == null ? 0 : isDefault;
+            isDefault = isDefault == null ? StatusFlags.DISABLED : isDefault;
             sort = sort == null ? 0 : sort;
             deletedAt = deletedAt == null ? 0L : deletedAt;
             createdBy = createdBy == null ? 0L : createdBy;
@@ -235,17 +236,11 @@ public final class I18nManageModels {
     }
 
     static int normalize01(Integer value, int defaultValue) {
-        if (value == null) {
-            return defaultValue;
-        }
-        return value == 0 ? 0 : 1;
+        return StatusFlags.normalize(value, defaultValue);
     }
 
     static int normalize01Bool(Boolean value, int defaultValue) {
-        if (value == null) {
-            return defaultValue;
-        }
-        return value ? 1 : 0;
+        return StatusFlags.fromBoolean(value, defaultValue);
     }
 
     /** 嵌套字典扁平化为 key/value 列表。 */

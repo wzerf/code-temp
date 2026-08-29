@@ -1,6 +1,7 @@
 package com.wshake.service.menu;
 
 import com.wshake.common.constant.PageLimits;
+import com.wshake.common.constant.StatusFlags;
 import com.wshake.service.entity.SysMenu;
 import io.github.linpeilie.annotations.AutoMapper;
 import java.time.LocalDateTime;
@@ -129,8 +130,8 @@ public final class MenuManageModels {
             treePath = treePath == null ? "" : treePath;
             remark = remark == null ? "" : remark;
             sort = sort == null ? 0 : sort;
-            isHidden = isHidden == null ? 0 : isHidden;
-            isEnabled = isEnabled == null ? 0 : isEnabled;
+            isHidden = isHidden == null ? StatusFlags.DISABLED : isHidden;
+            isEnabled = isEnabled == null ? StatusFlags.DISABLED : isEnabled;
             deletedAt = deletedAt == null ? 0L : deletedAt;
             createdBy = createdBy == null ? 0L : createdBy;
             updatedBy = updatedBy == null ? 0L : updatedBy;

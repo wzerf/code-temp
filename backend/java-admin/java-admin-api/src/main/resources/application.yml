@@ -131,6 +131,15 @@ app:
     pool:
       max-idle-connections: ${HTTP_POOL_MAX_IDLE:5}
       keep-alive: ${HTTP_POOL_KEEP_ALIVE:5m}
+  # Agent 只读运行路径；密钥仅由部署环境提供，绝不写入 Revision 或数据库。
+  agent-runtime:
+    enabled: ${AGENT_RUNTIME_ENABLED:false}
+    model-name: ${AGENT_RUNTIME_MODEL_NAME:}
+    base-url: ${AGENT_RUNTIME_BASE_URL:}
+    api-key: ${AGENT_RUNTIME_API_KEY:}
+    request-id-ttl: ${AGENT_RUNTIME_REQUEST_ID_TTL:10m}
+    execution-lease: ${AGENT_RUNTIME_EXECUTION_LEASE:10m}
+    model-timeout: ${AGENT_RUNTIME_MODEL_TIMEOUT:2m}
   # 平台墙钟（仅 Asia/Shanghai，见 ADR 0004）
   time:
     zone: Asia/Shanghai

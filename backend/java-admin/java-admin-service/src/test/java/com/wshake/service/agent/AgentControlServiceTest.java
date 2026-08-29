@@ -81,7 +81,8 @@ class AgentControlServiceTest {
                 .insert(any(AgentSession.class));
 
         var session = service.createSession(1L, 7L);
-        when(sessionRepository.findByIdAndOwnerUserIdForUpdate(100L, 7L)).thenReturn(persisted[0]);
+        when(sessionRepository.findByIdAndOwnerUserId(100L, 7L)).thenReturn(persisted[0]);
+        when(sessionRepository.bindRevisionIfUnbound(100L, 7L, 12L)).thenReturn(1L);
         definition.setCurrentPublishedRevisionId(12L);
         var resolved = service.resolveSessionRevision(session.id(), 7L);
         definition.setCurrentPublishedRevisionId(11L);
@@ -98,12 +99,34 @@ class AgentControlServiceTest {
         session.setId(100L);
         session.setAgentDefinitionId(1L);
         session.setOwnerUserId(7L);
-        when(sessionRepository.findByIdAndOwnerUserIdForUpdate(100L, 7L)).thenReturn(session);
+        when(sessionRepository.findByIdAndOwnerUserId(100L, 7L)).thenReturn(session);
         when(definitionRepository.findById(1L)).thenReturn(definition(1L, 7L, 1, null));
 
         assertThatThrownBy(() -> service.resolveSessionRevision(100L, 7L))
                 .isInstanceOf(BizException.class)
                 .hasMessageContaining("revisionId is required");
+    }
+
+    @Test
+    void prepareRun_bindsPublishedRevisionAndReturnsItsSnapshot() {
+        AgentSession session = new AgentSession();
+        session.setId(100L);
+        session.setAgentDefinitionId(1L);
+        session.setOwnerUserId(7L);
+        AgentDefinition definition = definition(1L, 7L, 1, 11L);
+        AgentRevision revision = published(11L, 1L, 10L, "prompt");
+        revision.setModelConfig("{\"model\":\"test\"}");
+        when(sessionRepository.findByIdAndOwnerUserId(100L, 7L)).thenReturn(session);
+        when(definitionRepository.findById(1L)).thenReturn(definition);
+        when(sessionRepository.bindRevisionIfUnbound(100L, 7L, 11L)).thenReturn(1L);
+        when(revisionRepository.findById(11L)).thenReturn(revision);
+
+        var plan = service.prepareRun(100L, 7L);
+
+        assertThat(plan.agentRevisionId()).isEqualTo(11L);
+        assertThat(plan.systemPrompt()).isEqualTo("prompt");
+        assertThat(plan.modelConfig()).containsEntry("model", "test");
+        verify(sessionRepository).bindRevisionIfUnbound(100L, 7L, 11L);
     }
 
     @Test

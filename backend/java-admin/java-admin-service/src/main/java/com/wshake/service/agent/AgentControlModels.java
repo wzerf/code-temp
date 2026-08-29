@@ -79,4 +79,26 @@ public final class AgentControlModels {
             Long ownerUserId,
             String status,
             LocalDateTime createdAt) {}
+
+    /** 运行面唯一可消费的不可变 Revision 输入；不包含密钥或 Redis 状态。 */
+    public record AgentRunPlan(
+            Long sessionId,
+            Long agentDefinitionId,
+            Long agentRevisionId,
+            Long ownerUserId,
+            String systemPrompt,
+            Map<String, Object> modelConfig,
+            Map<String, Object> permissionPolicy,
+            Map<String, Object> memoryPolicy,
+            Map<String, Object> compressionPolicy) {}
+
+    /** 运行面向 API 暴露的稳定事件载荷；不泄漏 AgentScope SDK 事件。 */
+    public record AgentRunEvent(
+            String type,
+            String requestId,
+            Long sessionId,
+            Long agentRevisionId,
+            String text,
+            String toolName,
+            String message) {}
 }

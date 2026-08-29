@@ -21,8 +21,16 @@ public class AgentSessionRepository {
                 .firstOrNull();
     }
 
-    public AgentSession findByIdAndOwnerUserIdForUpdate(Long id, Long ownerUserId) {
-        return findByIdAndOwnerUserId(id, ownerUserId);
+    public long bindRevisionIfUnbound(Long id, Long ownerUserId, Long revisionId) {
+        return easyEntityQuery
+                .updatable(AgentSession.class)
+                .setColumns(t -> t.agentRevisionId().set(revisionId))
+                .where(t -> {
+                    t.id().eq(id);
+                    t.ownerUserId().eq(ownerUserId);
+                    t.agentRevisionId().isNull();
+                })
+                .executeRows();
     }
 
     public void insert(AgentSession row) {

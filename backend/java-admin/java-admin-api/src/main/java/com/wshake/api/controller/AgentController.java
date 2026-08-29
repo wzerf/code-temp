@@ -1,31 +1,42 @@
 package com.wshake.api.controller;
 
+import com.wshake.api.dto.AgentMessageRequest;
+import com.wshake.api.dto.CancelAgentRunRequest;
 import com.wshake.api.dto.CreateAgentRequest;
 import com.wshake.api.dto.CreateAgentRevisionRequest;
 import com.wshake.api.dto.RollbackAgentRevisionRequest;
 import com.wshake.api.dto.UpdateAgentRevisionRequest;
 import com.wshake.api.vo.AgentDefinitionVO;
 import com.wshake.api.vo.AgentRevisionVO;
+import com.wshake.api.vo.AgentRunEventVO;
 import com.wshake.api.vo.AgentSessionVO;
 import com.wshake.common.request.RequestContext;
 import com.wshake.common.result.Result;
+import com.wshake.service.agent.AgentControlModels.AgentRunEvent;
 import com.wshake.service.agent.AgentControlModels.CreateAgentCommand;
 import com.wshake.service.agent.AgentControlModels.CreateRevisionCommand;
 import com.wshake.service.agent.AgentControlModels.UpdateRevisionCommand;
 import com.wshake.service.agent.AgentControlService;
+import com.wshake.service.agent.AgentRuntimeGateway;
 import io.github.linpeilie.Converter;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import reactor.core.Disposable;
 
 /** Agent 控制面：管理草稿/发布 Revision，并将会话固定到已发布 Revision。 */
 @Tag(name = "Agent 管理", description = "Definition、草稿/发布 Revision 与会话固定版本")
@@ -37,6 +48,7 @@ public class AgentController {
 
     private final AgentControlService agentControlService;
     private final Converter converter;
+    private final AgentRuntimeGateway agentRuntimeGateway;
 
     @PostMapping
     @Operation(summary = "创建 Agent 与首个草稿 Revision")
@@ -139,6 +151,38 @@ public class AgentController {
                 agentControlService.resolveSessionRevision(id, RequestContext.requireUserId()), AgentSessionVO.class));
     }
 
+    @PostMapping(value = "/sessions/{id}/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @Operation(summary = "发送消息并接收 Agent SSE 事件")
+    public SseEmitter run(@PathVariable Long id, @Valid @RequestBody AgentMessageRequest request) {
+        var plan = agentControlService.prepareRun(id, RequestContext.requireUserId());
+        SseEmitter emitter = new SseEmitter(0L);
+        Disposable subscription = agentRuntimeGateway
+                .run(plan, request.getRequestId(), request.getMessage())
+                .subscribe(event -> send(emitter, event), emitter::completeWithError, emitter::complete);
+        bindSubscription(emitter, subscription);
+        return emitter;
+    }
+
+    @GetMapping(value = "/sessions/{id}/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @Operation(summary = "续接 Agent SSE 事件")
+    public SseEmitter resume(@PathVariable Long id, @RequestParam @NotBlank @Size(max = 128) String requestId) {
+        agentControlService.getSession(id, RequestContext.requireUserId());
+        SseEmitter emitter = new SseEmitter(0L);
+        Disposable subscription = agentRuntimeGateway
+                .resume(id, requestId)
+                .subscribe(event -> send(emitter, event), emitter::completeWithError, emitter::complete);
+        bindSubscription(emitter, subscription);
+        return emitter;
+    }
+
+    @PostMapping("/sessions/{id}/cancel")
+    @Operation(summary = "取消正在运行的 Agent 请求")
+    public Result<AgentRunEventVO> cancel(@PathVariable Long id, @Valid @RequestBody CancelAgentRunRequest request) {
+        agentControlService.getSession(id, RequestContext.requireUserId());
+        return Result.ok(
+                converter.convert(agentRuntimeGateway.cancel(id, request.getRequestId()), AgentRunEventVO.class));
+    }
+
     @PostMapping("/{id}/emergency-disable")
     @Operation(summary = "紧急禁用 Agent 的新会话与首次运行入口")
     public Result<AgentDefinitionVO> emergencyDisable(@PathVariable Long id) {
@@ -151,5 +195,19 @@ public class AgentController {
     public Result<AgentSessionVO> getSession(@PathVariable Long id) {
         return Result.ok(converter.convert(
                 agentControlService.getSession(id, RequestContext.requireUserId()), AgentSessionVO.class));
+    }
+
+    private static void bindSubscription(SseEmitter emitter, Disposable subscription) {
+        emitter.onCompletion(subscription::dispose);
+        emitter.onTimeout(subscription::dispose);
+        emitter.onError(ignored -> subscription.dispose());
+    }
+
+    private void send(SseEmitter emitter, AgentRunEvent event) {
+        try {
+            emitter.send(SseEmitter.event().name(event.type()).data(converter.convert(event, AgentRunEventVO.class)));
+        } catch (Exception exception) {
+            emitter.completeWithError(exception);
+        }
     }
 }

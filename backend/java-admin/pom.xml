@@ -265,6 +265,16 @@
                 <artifactId>agentscope-harness</artifactId>
                 <version>${agentscope.version}</version>
             </dependency>
+            <dependency>
+                <groupId>io.agentscope</groupId>
+                <artifactId>agentscope-extensions-redis</artifactId>
+                <version>${agentscope.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.agentscope</groupId>
+                <artifactId>agentscope-extensions-model-openai</artifactId>
+                <version>${agentscope.version}</version>
+            </dependency>
 
             <!-- AWS SDK v2 BOM（S3 适配 MinIO） -->
             <dependency>

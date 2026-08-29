@@ -5,6 +5,7 @@ import com.wshake.common.result.ResultCode;
 import com.wshake.common.time.TimeZones;
 import com.wshake.service.agent.AgentControlModels.AgentDefinitionView;
 import com.wshake.service.agent.AgentControlModels.AgentRevisionView;
+import com.wshake.service.agent.AgentControlModels.AgentRunPlan;
 import com.wshake.service.agent.AgentControlModels.AgentSessionView;
 import com.wshake.service.agent.AgentControlModels.CreateAgentCommand;
 import com.wshake.service.agent.AgentControlModels.CreateRevisionCommand;
@@ -144,15 +145,31 @@ public class AgentControlService {
     /** 首次运行入口固定当前发布 Revision；已固定会话绝不切换。 */
     @Transactional
     public AgentSessionView resolveSessionRevision(Long sessionId, Long ownerUserId) {
-        AgentSession session = requireSessionForUpdate(sessionId, ownerUserId);
-        if (session.getAgentRevisionId() == null) {
-            AgentDefinition definition = requireDefinitionOwned(session.getAgentDefinitionId(), ownerUserId);
-            requireEnabled(definition);
-            AgentRevision published = requirePublished(definition.getCurrentPublishedRevisionId(), definition.getId());
-            session.setAgentRevisionId(published.getId());
-            sessionRepository.update(session);
-        }
+        AgentSession session = requireSession(sessionId, ownerUserId);
+        bindSessionRevision(session, ownerUserId);
         return toSessionView(session);
+    }
+
+    /**
+     * 解析一次会话运行所需的固定 Revision 输入。
+     *
+     * <p>首次运行在同一事务中绑定当前发布 Revision；后续运行仅使用该绑定，不重新读取最新发布指针。
+     */
+    @Transactional
+    public AgentRunPlan prepareRun(Long sessionId, Long ownerUserId) {
+        AgentSession session = requireSession(sessionId, ownerUserId);
+        bindSessionRevision(session, ownerUserId);
+        AgentRevision revision = requirePublished(session.getAgentRevisionId(), session.getAgentDefinitionId());
+        return new AgentRunPlan(
+                session.getId(),
+                session.getAgentDefinitionId(),
+                revision.getId(),
+                session.getOwnerUserId(),
+                revision.getSystemPrompt(),
+                AgentJsonSupport.parse(revision.getModelConfig(), "modelConfig"),
+                AgentJsonSupport.parse(revision.getPermissionPolicy(), "permissionPolicy"),
+                AgentJsonSupport.parse(revision.getMemoryPolicy(), "memoryPolicy"),
+                AgentJsonSupport.parse(revision.getCompressionPolicy(), "compressionPolicy"));
     }
 
     public AgentSessionView getSession(Long sessionId, Long ownerUserId) {
@@ -248,12 +265,30 @@ public class AgentControlService {
         return revision;
     }
 
-    private AgentSession requireSessionForUpdate(Long id, Long ownerUserId) {
-        AgentSession session = sessionRepository.findByIdAndOwnerUserIdForUpdate(id, requireOwnerUserId(ownerUserId));
+    private AgentSession requireSession(Long id, Long ownerUserId) {
+        AgentSession session = sessionRepository.findByIdAndOwnerUserId(id, requireOwnerUserId(ownerUserId));
         if (session == null) {
             throw BizException.of(ResultCode.PARAM_INVALID, "agent session not found");
         }
         return session;
+    }
+
+    private void bindSessionRevision(AgentSession session, Long ownerUserId) {
+        if (session.getAgentRevisionId() != null) {
+            return;
+        }
+        AgentDefinition definition = requireDefinitionOwned(session.getAgentDefinitionId(), ownerUserId);
+        requireEnabled(definition);
+        AgentRevision published = requirePublished(definition.getCurrentPublishedRevisionId(), definition.getId());
+        if (sessionRepository.bindRevisionIfUnbound(session.getId(), ownerUserId, published.getId()) == 0) {
+            AgentSession bound = requireSession(session.getId(), ownerUserId);
+            session.setAgentRevisionId(bound.getAgentRevisionId());
+            if (session.getAgentRevisionId() == null) {
+                throw BizException.of(ResultCode.INTERNAL_ERROR, "agent session revision binding failed");
+            }
+            return;
+        }
+        session.setAgentRevisionId(published.getId());
     }
 
     private static void requireDraft(AgentRevision revision) {

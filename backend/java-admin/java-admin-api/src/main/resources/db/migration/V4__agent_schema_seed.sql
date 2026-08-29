@@ -12,4 +12,7 @@ VALUES
     ('创建 Agent 会话', 'POST', '/api/agent/:id/sessions', 'agent:session:create', 'Agent 管理', '', 1, 0, 0, 0),
     ('固定 Agent 会话 Revision', 'POST', '/api/agent/sessions/:id/resolve-revision', 'agent:session:resolve', 'Agent 管理', '', 1, 0, 0, 0),
     ('紧急禁用 Agent', 'POST', '/api/agent/:id/emergency-disable', 'agent:emergency:disable', 'Agent 管理', '', 1, 0, 0, 0),
+    ('运行 Agent 会话', 'POST', '/api/agent/sessions/:id/events', 'agent:session:run', 'Agent 管理', '', 1, 0, 0, 0),
+    ('续接 Agent 会话事件', 'GET', '/api/agent/sessions/:id/events', 'agent:session:resume', 'Agent 管理', '', 1, 0, 0, 0),
+    ('取消 Agent 会话运行', 'POST', '/api/agent/sessions/:id/cancel', 'agent:session:cancel', 'Agent 管理', '', 1, 0, 0, 0),
     ('获取 Agent 会话', 'GET', '/api/agent/sessions/:id', 'agent:session:read', 'Agent 管理', '', 1, 0, 0, 0);

@@ -18,7 +18,7 @@ import io.agentscope.core.model.transport.HttpTransportConfig;
 import io.agentscope.core.model.transport.OkHttpTransport;
 import io.agentscope.core.tool.Toolkit;
 import io.agentscope.extensions.model.openai.OpenAIChatModel;
-import io.agentscope.extensions.redis.state.redisson.RedissonAgentStateStore;
+import io.agentscope.extensions.redis.state.RedisAgentStateStore;
 import io.agentscope.harness.agent.HarnessAgent;
 import java.util.List;
 import java.util.Map;
@@ -152,50 +152,56 @@ public class AgentRuntimeService implements AgentRuntimeGateway {
             }
             RTopic cancelTopic = redissonClient.getTopic(cancelTopicKey(runKey));
             Disposable[] heartbeat = new Disposable[1];
-            int cancelListenerId = -1;
+            int[] cancelListenerIdHolder = {-1};
             try {
                 RuntimeContext context = context(plan);
-                HarnessAgent agent = agent(plan);
-                cancelListenerId = cancelTopic.addListener(String.class, (channel, signal) -> {
-                    if ("cancel".equals(signal)) {
-                        agent.getDelegate().interrupt(context);
-                    }
-                });
-                owner.set(Long.toString(lock.ownerId()), properties.getExecutionLease());
-                heartbeat[0] = Flux.interval(properties.getRequestIdTtl().dividedBy(2))
-                        .subscribe(ignored -> {
-                            state.expire(properties.getRequestIdTtl());
+                return Flux.using(
+                        () -> buildAgent(plan),
+                        agent -> {
+                            cancelListenerIdHolder[0] = cancelTopic.addListener(String.class, (channel, signal) -> {
+                                if ("cancel".equals(signal)) {
+                                    agent.getDelegate().interrupt(context);
+                                }
+                            });
                             owner.set(Long.toString(lock.ownerId()), properties.getExecutionLease());
-                            events.refresh(runKey, properties.getRequestIdTtl());
+                            heartbeat[0] = Flux.interval(properties.getRequestIdTtl().dividedBy(2))
+                                    .subscribe(ignored -> {
+                                        state.expire(properties.getRequestIdTtl());
+                                        owner.set(Long.toString(lock.ownerId()), properties.getExecutionLease());
+                                        events.refresh(runKey, properties.getRequestIdTtl());
+                                    });
+                            if ("CANCELLING".equals(state.get())) {
+                                agent.getDelegate().interrupt(context);
+                            }
+                            int registeredListenerId = cancelListenerIdHolder[0];
+                            return Flux.concat(
+                                            Flux.just(event("STARTED", plan, requestId, null, null, null)),
+                                            agent.streamEvents(message, context)
+                                                    .flatMap(event -> toEvent(event, plan, requestId, state)))
+                                    .onErrorResume(error -> Flux.just(event(
+                                            "CANCELLING".equals(state.get()) ? "CANCELLED" : "FAILED",
+                                            plan,
+                                            requestId,
+                                            null,
+                                            null,
+                                            "agent run failed")))
+                                    .doFinally(ignored ->
+                                            releaseRunResources(owner, heartbeat[0], cancelTopic, registeredListenerId, lock));
+                        },
+                        agent -> {
+                            try {
+                                agent.close();
+                            } catch (Exception ignored) {
+                            }
                         });
-                if ("CANCELLING".equals(state.get())) {
-                    agent.getDelegate().interrupt(context);
-                }
-                int registeredListenerId = cancelListenerId;
-                return Flux.concat(
-                                Flux.just(event("STARTED", plan, requestId, null, null, null)),
-                                agent.streamEvents(message, context)
-                                        .flatMap(event -> toEvent(event, plan, requestId, state)))
-                        .onErrorResume(error -> Flux.just(event(
-                                "CANCELLING".equals(state.get()) ? "CANCELLED" : "FAILED",
-                                plan,
-                                requestId,
-                                null,
-                                null,
-                                "agent run failed")))
-                        .doFinally(ignored ->
-                                releaseRunResources(owner, heartbeat[0], cancelTopic, registeredListenerId, lock));
             } catch (RuntimeException exception) {
-                releaseRunResources(owner, heartbeat[0], cancelTopic, cancelListenerId, lock);
+                releaseRunResources(owner, heartbeat[0], cancelTopic, cancelListenerIdHolder[0], lock);
                 String type = "CANCELLING".equals(state.get()) ? "CANCELLED" : "FAILED";
                 return Flux.just(event(type, plan, requestId, null, null, "agent run initialization failed"));
             }
         });
     }
 
-    private HarnessAgent agent(AgentRunPlan plan) {
-        return buildAgent(plan);
-    }
 
     private HarnessAgent buildAgent(AgentRunPlan plan) {
         Toolkit toolkit = new Toolkit();
@@ -218,7 +224,7 @@ public class AgentRuntimeService implements AgentRuntimeGateway {
                 .sysPrompt(plan.systemPrompt())
                 .model(model)
                 .toolkit(toolkit)
-                .stateStore(RedissonAgentStateStore.builder()
+                .stateStore(RedisAgentStateStore.builder()
                         .keyPrefix(KEY_PREFIX + "state:")
                         .redissonClient(redissonClient)
                         .build())

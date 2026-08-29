@@ -6,8 +6,8 @@ import com.easy.query.core.expression.parser.core.base.ColumnSetter;
 import com.easy.query.core.expression.segment.index.EntitySegmentComparer;
 import com.easy.query.core.expression.sql.builder.EntityInsertExpressionBuilder;
 import com.easy.query.core.expression.sql.builder.EntityUpdateExpressionBuilder;
+import com.wshake.common.request.RequestContext;
 import com.wshake.common.time.TimeZones;
-import com.wshake.infra.satoken.SaTokenConfigure;
 import com.wshake.service.entity.BaseEntity;
 import java.time.LocalDateTime;
 import org.jetbrains.annotations.NotNull;
@@ -96,7 +96,7 @@ public final class AuditEntityInterceptor implements EntityInterceptor, UpdateSe
 
     /** 当前操作人；未登录返回 0。 */
     private static Long currentOperatorId() {
-        Long userId = SaTokenConfigure.currentUserIdOrNull();
+        Long userId = RequestContext.userIdOrNull();
         return userId == null ? 0L : userId;
     }
 }

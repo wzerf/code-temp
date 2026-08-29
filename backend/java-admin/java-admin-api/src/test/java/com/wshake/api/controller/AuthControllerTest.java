@@ -11,6 +11,7 @@ import com.wshake.api.dto.LoginRequest;
 import com.wshake.api.vo.LoginResponse;
 import com.wshake.api.vo.UserInfoVO;
 import com.wshake.common.exception.AuthException;
+import com.wshake.common.request.RequestContext;
 import com.wshake.common.result.Result;
 import com.wshake.service.auth.AuthService;
 import com.wshake.service.auth.LoginClientMeta;
@@ -99,14 +100,15 @@ class AuthControllerTest {
 
     @Test
     void codes_returnsCodesFromService() {
-        try (MockedStatic<StpUtil> stp = mockStatic(StpUtil.class)) {
-            stp.when(StpUtil::getLoginIdAsLong).thenReturn(1L);
-            when(authService.listAccessCodes(1L)).thenReturn(List.of("system:user:list", "system:role:list"));
-
+        when(authService.listAccessCodes(1L)).thenReturn(List.of("system:user:list", "system:role:list"));
+        RequestContext.open();
+        RequestContext.setUserId(1L);
+        try {
             Result<List<String>> result = controller.codes();
-
             assertThat(result.getCode()).isEqualTo(0);
             assertThat(result.getData()).containsExactly("system:user:list", "system:role:list");
+        } finally {
+            RequestContext.close();
         }
     }
 
@@ -120,14 +122,15 @@ class AuthControllerTest {
         when(sysUserService.findById(1L)).thenReturn(user);
         when(authService.toUserSummary(user)).thenReturn(new LoginResult(user, List.of("root"), "/analytics"));
 
-        try (MockedStatic<StpUtil> stp = mockStatic(StpUtil.class)) {
-            stp.when(StpUtil::getLoginIdAsLong).thenReturn(1L);
-
+        RequestContext.open();
+        RequestContext.setUserId(1L);
+        try {
             Result<UserInfoVO> result = controller.info();
-
             assertThat(result.getData().getUsername()).isEqualTo("root");
             assertThat(result.getData().getRealName()).isEqualTo("Root");
             assertThat(result.getData().getRoles()).containsExactly("root");
+        } finally {
+            RequestContext.close();
         }
     }
 

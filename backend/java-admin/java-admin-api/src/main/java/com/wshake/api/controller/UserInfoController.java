@@ -1,8 +1,8 @@
 package com.wshake.api.controller;
 
-import cn.dev33.satoken.stp.StpUtil;
 import com.wshake.api.vo.UserInfoVO;
 import com.wshake.common.exception.BizException;
+import com.wshake.common.request.RequestContext;
 import com.wshake.common.result.Result;
 import com.wshake.common.result.ResultCode;
 import com.wshake.service.auth.AuthService;
@@ -40,7 +40,7 @@ public class UserInfoController {
     @Operation(summary = "当前登录用户信息", description = "别名路径，与 /api/auth/info 等价")
     @SecurityRequirement(name = "bearerAuth")
     public Result<UserInfoVO> info() {
-        Long userId = StpUtil.getLoginIdAsLong();
+        Long userId = RequestContext.requireUserId();
         SysUser user = sysUserService.findById(userId);
         if (user == null) {
             throw new BizException(ResultCode.INTERNAL_ERROR, "用户不存在");

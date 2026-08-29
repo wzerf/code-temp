@@ -6,7 +6,6 @@ import com.google.common.base.Splitter;
 import com.wshake.common.constant.MdcKeys;
 import com.wshake.common.constant.SecurityHeaders;
 import com.wshake.common.request.RequestContext;
-import com.wshake.infra.satoken.SaTokenConfigure;
 import com.wshake.service.log.ApiLogWriter;
 import com.wshake.service.log.LogManageModels.ApiLogWriteCommand;
 import jakarta.servlet.ServletRequest;
@@ -100,11 +99,7 @@ public class RequestLogAspect {
         String clientIp = nullToEmpty(RequestContext.clientIpOrNull());
         String location = nullToEmpty(RequestContext.locationOrNull());
 
-        // 优先 RequestContext（拦截器已写入），回退 Sa-Token
         Long userId = RequestContext.userIdOrNull();
-        if (userId == null) {
-            userId = SaTokenConfigure.currentUserIdOrNull();
-        }
         if (userId != null) {
             MDC.put(MdcKeys.USER_ID, String.valueOf(userId));
         }

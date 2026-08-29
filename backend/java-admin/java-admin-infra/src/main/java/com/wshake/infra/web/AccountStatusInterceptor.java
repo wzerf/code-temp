@@ -14,7 +14,7 @@ import org.springframework.web.servlet.HandlerInterceptor;
 /**
  * 已登录用户账号状态校验：禁用 / 过期则登出并拒绝请求。
  *
- * <p>须注册在 {@code SaInterceptor} 之后（已登录才有 loginId）。
+ * <p>须注册在 Sa-Token 之后、LanguageInterceptor 之前（已登录才有 loginId）。
  *
  * @author wshake
  */

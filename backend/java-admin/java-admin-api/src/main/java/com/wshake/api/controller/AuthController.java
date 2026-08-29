@@ -125,7 +125,7 @@ public class AuthController {
             })
     public Result<UserInfoVO> info() {
         // 登录态由 WebConfig SaInterceptor 保证
-        Long userId = StpUtil.getLoginIdAsLong();
+        Long userId = RequestContext.requireUserId();
         SysUser user = sysUserService.findById(userId);
         if (user == null) {
             throw new BizException(ResultCode.INTERNAL_ERROR, "用户不存在");
@@ -148,7 +148,7 @@ public class AuthController {
     @SecurityRequirement(name = "bearerAuth")
     public Result<List<String>> codes() {
         // 登录态由 WebConfig SaInterceptor 保证
-        Long userId = StpUtil.getLoginIdAsLong();
+        Long userId = RequestContext.requireUserId();
         return Result.ok(authService.listAccessCodes(userId));
     }
 

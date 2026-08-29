@@ -1,7 +1,7 @@
 package com.wshake.infra.casbin;
 
 import com.wshake.common.exception.AuthException;
-import com.wshake.infra.satoken.SaTokenConfigure;
+import com.wshake.common.request.RequestContext;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -31,8 +31,8 @@ public final class CasbinInterceptor implements HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
-        // Sa-Token 已在 SaInterceptor 中完成登录校验；此处取 userId
-        Long userId = SaTokenConfigure.currentUserIdOrNull();
+        // LanguageInterceptor 已在此前写入 RequestContext。
+        Long userId = RequestContext.userIdOrNull();
         if (userId == null) {
             // 未登录请求不应到达这里（SaInterceptor 已拦截），防御性拒绝
             throw AuthException.notLogin();

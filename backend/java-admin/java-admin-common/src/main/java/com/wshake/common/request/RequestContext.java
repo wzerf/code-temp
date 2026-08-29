@@ -1,5 +1,7 @@
 package com.wshake.common.request;
 
+import com.wshake.common.exception.AuthException;
+
 /**
  * 请求级 ThreadLocal 上下文：业务代码通过此类读取当前用户、语言等，避免到处查 Sa-Token / Request。
  *
@@ -55,6 +57,15 @@ public final class RequestContext {
     public static Long userIdOrNull() {
         RequestInfo info = HOLDER.get();
         return info == null ? null : info.getUserId();
+    }
+
+    /** 当前已认证用户；安全链路未填充时拒绝请求。 */
+    public static Long requireUserId() {
+        Long userId = userIdOrNull();
+        if (userId == null) {
+            throw AuthException.notLogin();
+        }
+        return userId;
     }
 
     public static String languageOrNull() {

@@ -33,7 +33,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * </ul>
  *
  * <p>IP 取自 {@link RequestContext#clientIpOrNull()}（由 RequestContextFilter 预填）；
- * userId 取自 {@link SaTokenConfigure#currentUserIdOrNull()}（与 Casbin / Language 一致）。
+ * 本 Filter 早于 MVC 的 RequestContext 用户填充，SYS_USER 检查保留 Sa-Token 读取。
  *
  * <p>命中返回 HTTP 403 + {@link ResultCode#ACCESS_BLOCKED} 固定文案；reason 仅服务端日志。
  * 与登录链路 {@code AuthException.accessBlocked()} 的 HTTP/Result 形状一致。

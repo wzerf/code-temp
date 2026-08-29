@@ -1,7 +1,7 @@
 package com.wshake.api.controller;
 
-import cn.dev33.satoken.stp.StpUtil;
 import com.wshake.api.vo.RuntimeMenuRouteVO;
+import com.wshake.common.request.RequestContext;
 import com.wshake.common.result.Result;
 import com.wshake.service.menu.SysMenuService;
 import io.github.linpeilie.Converter;
@@ -14,10 +14,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * 登录用户动态菜单路由（{@code GET /api/menu/all}）。
- *
- * <p>登录校验由 {@code WebConfig} SaInterceptor 统一完成；本类只读取 loginId。
+/** 登录用户动态菜单路由（{@code GET /api/menu/all}）。
  *
  * @author wshake
  */
@@ -34,7 +31,7 @@ public class DynamicMenuController {
     @GetMapping("/all")
     @Operation(summary = "当前用户动态菜单", description = "user→role_menu→祖先补全→DIR/MENU 投影")
     public Result<List<RuntimeMenuRouteVO>> all() {
-        Long userId = StpUtil.getLoginIdAsLong();
+        Long userId = RequestContext.requireUserId();
         List<RuntimeMenuRouteVO> routes =
                 converter.convert(sysMenuService.listRuntimeMenusForUser(userId), RuntimeMenuRouteVO.class);
         return Result.ok(routes);

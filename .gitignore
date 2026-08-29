@@ -58,3 +58,4 @@ __pycache__
 .code-review-graph/
 application-test.yml
 application-prod.yml
+.agentscope/

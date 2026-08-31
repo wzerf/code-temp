@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   appendAssistantDelta,
+  appendAssistantThinkingDelta,
   ensureAssistantPlaceholder,
   finalizeAssistant,
   type ChatMessage,
@@ -25,6 +26,27 @@ describe('agent chat message-state', () => {
     expect(ensureAssistantPlaceholder(once, nextKey)).toBe(once);
   });
 
+  it('THINKING_DELTA 关闭 loading、打开 thinkingStreaming，并增量拼接', () => {
+    resetKeys();
+    const waiting: ChatMessage[] = [
+      { content: '问', key: 'u1', role: 'user' },
+      { content: '', key: 'a1', loading: true, role: 'ai' },
+    ];
+    const first = appendAssistantThinkingDelta(waiting, '先', nextKey, 1_000);
+    expect(first.at(-1)).toEqual({
+      content: '',
+      key: 'a1',
+      loading: false,
+      role: 'ai',
+      thinking: '先',
+      thinkingStreaming: true,
+      thinkingStartedAt: 1_000,
+    });
+    const second = appendAssistantThinkingDelta(first, '想', nextKey, 1_500);
+    expect(second.at(-1)?.thinking).toBe('先想');
+    expect(second.at(-1)?.thinkingStartedAt).toBe(1_000);
+  });
+
   it('TEXT_DELTA 关闭 loading、打开 streaming，并增量拼接', () => {
     resetKeys();
     const waiting: ChatMessage[] = [
@@ -44,6 +66,29 @@ describe('agent chat message-state', () => {
     expect(second.at(-1)?.streaming).toBe(true);
   });
 
+  it('正文增量到达时收尾思考耗时', () => {
+    resetKeys();
+    const thinking: ChatMessage[] = [
+      {
+        content: '',
+        key: 'a1',
+        loading: false,
+        role: 'ai',
+        thinking: '推理中',
+        thinkingStreaming: true,
+        thinkingStartedAt: 1_000,
+      },
+    ];
+    const next = appendAssistantDelta(thinking, '答案', nextKey, 4_200);
+    expect(next.at(-1)).toMatchObject({
+      content: '答案',
+      streaming: true,
+      thinking: '推理中',
+      thinkingStreaming: false,
+      thinkingDurationSec: 3,
+    });
+  });
+
   it('工具系统消息插入后仍追加到最近未完成 AI 气泡', () => {
     resetKeys();
     const messages: ChatMessage[] = [
@@ -59,12 +104,31 @@ describe('agent chat message-state', () => {
     ]);
   });
 
-  it('终态关闭 loading/streaming', () => {
+  it('终态关闭 loading/streaming/thinkingStreaming 并保留思考', () => {
     const messages: ChatMessage[] = [
-      { content: '答', key: 'a1', loading: false, streaming: true, role: 'ai' },
+      {
+        content: '答',
+        key: 'a1',
+        loading: false,
+        streaming: true,
+        role: 'ai',
+        thinking: '想过',
+        thinkingStreaming: true,
+        thinkingStartedAt: 1_000,
+      },
     ];
-    expect(finalizeAssistant(messages)).toEqual([
-      { content: '答', key: 'a1', loading: false, streaming: false, role: 'ai' },
+    expect(finalizeAssistant(messages, 3_500)).toEqual([
+      {
+        content: '答',
+        key: 'a1',
+        loading: false,
+        streaming: false,
+        role: 'ai',
+        thinking: '想过',
+        thinkingStreaming: false,
+        thinkingDurationSec: 3,
+        thinkingStartedAt: 1_000,
+      },
     ]);
   });
 });

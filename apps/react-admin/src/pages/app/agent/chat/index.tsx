@@ -16,8 +16,10 @@ import type { AgentDefinition, AgentRunEvent, AgentSession } from '@/api/rest/ty
 import { defaultIdGenerator } from '@/core/transport/rest/utils';
 import ContentContainer from '@/layouts/components/PageContainer/ContentContainer';
 import { useAuthStore } from '@/stores';
+import AssistantContent from './assistant-content';
 import {
   appendAssistantDelta,
+  appendAssistantThinkingDelta,
   ensureAssistantPlaceholder,
   finalizeAssistant,
   type ChatMessage,
@@ -98,11 +100,38 @@ const AgentChatPage = () => {
 
   const canSend = Boolean(agent?.isEnabled && accessToken && !sending && runState !== 'cancelling');
   const statusColor = runState === 'failed' ? 'error' : runState === 'cancelling' ? 'warning' : runState === 'running' ? 'processing' : runState === 'cancelled' ? 'default' : 'success';
-  const bubbles = useMemo(() => messages, [messages]);
+  const bubbles = useMemo(
+    () =>
+      messages.map((item) => {
+        if (item.role !== 'ai') {
+          return item;
+        }
+        // 仅有思考、正文仍为空时，给 Bubble 一个占位字符，确保 contentRender 会挂载
+        const content = item.content || (item.thinking ? '\u200b' : '');
+        return {
+          ...item,
+          content,
+          contentRender: () => (
+            <AssistantContent
+              content={item.content}
+              messageKey={item.key}
+              thinking={item.thinking}
+              thinkingDurationSec={item.thinkingDurationSec}
+              thinkingStreaming={item.thinkingStreaming}
+            />
+          ),
+        };
+      }),
+    [messages],
+  );
 
   function consumeEvent(event: AgentRunEvent): void {
     if (event.type === 'STARTED') {
       setMessages((current) => ensureAssistantPlaceholder(current, defaultIdGenerator));
+      return;
+    }
+    if (event.type === 'THINKING_DELTA' && event.text) {
+      setMessages((current) => appendAssistantThinkingDelta(current, event.text, defaultIdGenerator));
       return;
     }
     if (event.type === 'TEXT_DELTA' && event.text) {

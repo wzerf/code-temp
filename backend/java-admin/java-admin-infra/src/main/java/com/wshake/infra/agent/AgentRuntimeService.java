@@ -10,6 +10,7 @@ import io.agentscope.core.event.AgentEndEvent;
 import io.agentscope.core.event.AgentEvent;
 import io.agentscope.core.event.RequestStopEvent;
 import io.agentscope.core.event.TextBlockDeltaEvent;
+import io.agentscope.core.event.ThinkingBlockDeltaEvent;
 import io.agentscope.core.event.ToolCallStartEvent;
 import io.agentscope.core.event.ToolResultEndEvent;
 import io.agentscope.core.message.GenerateReason;
@@ -60,6 +61,7 @@ public class AgentRuntimeService implements AgentRuntimeGateway {
     private static final String STATE_RECOVERING = "RECOVERING";
     private static final String EVENT_STARTED = "STARTED";
     private static final String EVENT_TEXT_DELTA = "TEXT_DELTA";
+    private static final String EVENT_THINKING_DELTA = "THINKING_DELTA";
     private static final String EVENT_TOOL_STARTED = "TOOL_STARTED";
     private static final String EVENT_TOOL_COMPLETED = "TOOL_COMPLETED";
     private static final int MAX_REQUEST_ID_LENGTH = 128;
@@ -281,6 +283,9 @@ public class AgentRuntimeService implements AgentRuntimeGateway {
     }
 
     private Flux<AgentRunEvent> toEvent(AgentEvent event, AgentRunPlan plan, String requestId, RBucket<String> state) {
+        if (event instanceof ThinkingBlockDeltaEvent delta) {
+            return Flux.just(event(EVENT_THINKING_DELTA, plan, requestId, delta.getDelta(), null, null));
+        }
         if (event instanceof TextBlockDeltaEvent delta) {
             return Flux.just(event(EVENT_TEXT_DELTA, plan, requestId, delta.getDelta(), null, null));
         }

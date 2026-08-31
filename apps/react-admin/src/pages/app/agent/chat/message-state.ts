@@ -18,6 +18,12 @@ export interface ChatMessage {
   role: ChatRole;
 }
 
+export interface ChatMessageMutateOptions {
+  createKey: () => string;
+  /** 可注入时间戳，便于单测稳定断言思考耗时 */
+  now?: number;
+}
+
 function isOpenAssistant(message: ChatMessage): boolean {
   return message.role === 'ai' && Boolean(message.loading || message.streaming || message.thinkingStreaming);
 }
@@ -55,8 +61,7 @@ export function ensureAssistantPlaceholder(
 export function appendAssistantThinkingDelta(
   messages: ChatMessage[],
   text: string,
-  createKey: () => string,
-  now: number = Date.now(),
+  { createKey, now = Date.now() }: ChatMessageMutateOptions,
 ): ChatMessage[] {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const item = messages[index];
@@ -95,8 +100,7 @@ export function appendAssistantThinkingDelta(
 export function appendAssistantDelta(
   messages: ChatMessage[],
   text: string,
-  createKey: () => string,
-  now: number = Date.now(),
+  { createKey, now = Date.now() }: ChatMessageMutateOptions,
 ): ChatMessage[] {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const item = messages[index];

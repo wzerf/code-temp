@@ -32,7 +32,7 @@ describe('agent chat message-state', () => {
       { content: '问', key: 'u1', role: 'user' },
       { content: '', key: 'a1', loading: true, role: 'ai' },
     ];
-    const first = appendAssistantThinkingDelta(waiting, '先', nextKey, 1_000);
+    const first = appendAssistantThinkingDelta(waiting, '先', { createKey: nextKey, now: 1_000 });
     expect(first.at(-1)).toEqual({
       content: '',
       key: 'a1',
@@ -42,7 +42,7 @@ describe('agent chat message-state', () => {
       thinkingStreaming: true,
       thinkingStartedAt: 1_000,
     });
-    const second = appendAssistantThinkingDelta(first, '想', nextKey, 1_500);
+    const second = appendAssistantThinkingDelta(first, '想', { createKey: nextKey, now: 1_500 });
     expect(second.at(-1)?.thinking).toBe('先想');
     expect(second.at(-1)?.thinkingStartedAt).toBe(1_000);
   });
@@ -53,7 +53,7 @@ describe('agent chat message-state', () => {
       { content: '问', key: 'u1', role: 'user' },
       { content: '', key: 'a1', loading: true, role: 'ai' },
     ];
-    const first = appendAssistantDelta(waiting, '你', nextKey);
+    const first = appendAssistantDelta(waiting, '你', { createKey: nextKey });
     expect(first.at(-1)).toEqual({
       content: '你',
       key: 'a1',
@@ -61,7 +61,7 @@ describe('agent chat message-state', () => {
       streaming: true,
       role: 'ai',
     });
-    const second = appendAssistantDelta(first, '好', nextKey);
+    const second = appendAssistantDelta(first, '好', { createKey: nextKey });
     expect(second.at(-1)?.content).toBe('你好');
     expect(second.at(-1)?.streaming).toBe(true);
   });
@@ -79,7 +79,7 @@ describe('agent chat message-state', () => {
         thinkingStartedAt: 1_000,
       },
     ];
-    const next = appendAssistantDelta(thinking, '答案', nextKey, 4_200);
+    const next = appendAssistantDelta(thinking, '答案', { createKey: nextKey, now: 4_200 });
     expect(next.at(-1)).toMatchObject({
       content: '答案',
       streaming: true,
@@ -96,7 +96,7 @@ describe('agent chat message-state', () => {
       { content: '', key: 'a1', loading: true, role: 'ai' },
       { content: '正在调用工具：get_platform_time', key: 's1', role: 'system' },
     ];
-    const next = appendAssistantDelta(messages, '现在是', nextKey);
+    const next = appendAssistantDelta(messages, '现在是', { createKey: nextKey });
     expect(next).toEqual([
       { content: '问', key: 'u1', role: 'user' },
       { content: '现在是', key: 'a1', loading: false, streaming: true, role: 'ai' },

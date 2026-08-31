@@ -131,11 +131,13 @@ const AgentChatPage = () => {
       return;
     }
     if (event.type === 'THINKING_DELTA' && event.text) {
-      setMessages((current) => appendAssistantThinkingDelta(current, event.text, defaultIdGenerator));
+      setMessages((current) =>
+        appendAssistantThinkingDelta(current, event.text, { createKey: defaultIdGenerator }),
+      );
       return;
     }
     if (event.type === 'TEXT_DELTA' && event.text) {
-      setMessages((current) => appendAssistantDelta(current, event.text, defaultIdGenerator));
+      setMessages((current) => appendAssistantDelta(current, event.text, { createKey: defaultIdGenerator }));
       return;
     }
     if (event.type === 'TOOL_STARTED' || event.type === 'TOOL_COMPLETED') {

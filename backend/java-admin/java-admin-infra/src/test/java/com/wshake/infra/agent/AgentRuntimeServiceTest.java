@@ -8,6 +8,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -26,6 +27,7 @@ import org.redisson.api.RTopic;
 import org.redisson.api.RedissonClient;
 import org.redisson.api.bucket.CompareAndSetArgs;
 import org.redisson.api.listener.MessageListener;
+import org.redisson.client.codec.StringCodec;
 
 class AgentRuntimeServiceTest {
     private static final String RUN_KEY = "agent:runtime:request:{20:request-1}";
@@ -39,12 +41,14 @@ class AgentRuntimeServiceTest {
         RAtomicLong sequence = mock(RAtomicLong.class);
         RTopic eventsTopic = mock(RTopic.class);
         RTopic cancelTopic = mock(RTopic.class);
-        when(redissonClient.<String>getBucket(RUN_KEY)).thenReturn(state);
-        when(redissonClient.<String>getList(RUN_KEY + ":events")).thenReturn(events);
+        when(redissonClient.<String>getBucket(RUN_KEY, StringCodec.INSTANCE)).thenReturn(state);
+        when(redissonClient.<String>getList(RUN_KEY + ":events", StringCodec.INSTANCE))
+                .thenReturn(events);
         when(redissonClient.getAtomicLong(RUN_KEY + ":sequence")).thenReturn(sequence);
-        when(redissonClient.getTopic(RUN_KEY + ":events:topic")).thenReturn(eventsTopic);
+        when(redissonClient.getTopic(RUN_KEY + ":events:topic", StringCodec.INSTANCE))
+                .thenReturn(eventsTopic);
         when(events.readAll()).thenReturn(java.util.List.of());
-        when(redissonClient.getTopic(RUN_KEY + ":cancel")).thenReturn(cancelTopic);
+        when(redissonClient.getTopic(RUN_KEY + ":cancel", StringCodec.INSTANCE)).thenReturn(cancelTopic);
         ArgumentCaptor<MessageListener<String>> eventListener = ArgumentCaptor.forClass(MessageListener.class);
         when(eventsTopic.addListener(eq(String.class), eventListener.capture())).thenReturn(1);
         when(state.compareAndSet(any(CompareAndSetArgs.class))).thenReturn(true);
@@ -71,8 +75,10 @@ class AgentRuntimeServiceTest {
         RedissonClient redissonClient = mock(RedissonClient.class);
         RList<String> events = mock(RList.class);
         RTopic topic = mock(RTopic.class);
-        when(redissonClient.<String>getList(RUN_KEY + ":events")).thenReturn(events);
-        when(redissonClient.getTopic(RUN_KEY + ":events:topic")).thenReturn(topic);
+        when(redissonClient.<String>getList(RUN_KEY + ":events", StringCodec.INSTANCE))
+                .thenReturn(events);
+        when(redissonClient.getTopic(RUN_KEY + ":events:topic", StringCodec.INSTANCE))
+                .thenReturn(topic);
         ArgumentCaptor<MessageListener<String>> listener = ArgumentCaptor.forClass(MessageListener.class);
         when(topic.addListener(eq(String.class), listener.capture())).thenReturn(1);
         ObjectMapper mapper = new ObjectMapper();
@@ -116,8 +122,10 @@ class AgentRuntimeServiceTest {
         RTopic topic = mock(RTopic.class);
         RBucket<String> state = mock(RBucket.class);
         when(redissonClient.getAtomicLong(RUN_KEY + ":sequence")).thenReturn(sequence);
-        when(redissonClient.<String>getList(RUN_KEY + ":events")).thenReturn(events);
-        when(redissonClient.getTopic(RUN_KEY + ":events:topic")).thenReturn(topic);
+        when(redissonClient.<String>getList(RUN_KEY + ":events", StringCodec.INSTANCE))
+                .thenReturn(events);
+        when(redissonClient.getTopic(RUN_KEY + ":events:topic", StringCodec.INSTANCE))
+                .thenReturn(topic);
         when(sequence.incrementAndGet()).thenReturn(1L);
 
         new AgentRunEventStore(redissonClient)
@@ -139,11 +147,13 @@ class AgentRuntimeServiceTest {
         RBucket<String> consumed = mock(RBucket.class);
         RBucket<String> owner = mock(RBucket.class);
         RBucket<String> state = mock(RBucket.class);
-        when(redissonClient.<String>getBucket(RUN_KEY + ":consumed")).thenReturn(consumed);
-        when(redissonClient.<String>getBucket(RUN_KEY + ":owner")).thenReturn(owner);
-        when(redissonClient.<String>getBucket(RUN_KEY)).thenReturn(state);
+        when(redissonClient.<String>getBucket(RUN_KEY + ":consumed", StringCodec.INSTANCE))
+                .thenReturn(consumed);
+        when(redissonClient.<String>getBucket(RUN_KEY + ":owner", StringCodec.INSTANCE))
+                .thenReturn(owner);
+        when(redissonClient.<String>getBucket(RUN_KEY, StringCodec.INSTANCE)).thenReturn(state);
         RScript script = mock(RScript.class);
-        when(redissonClient.getScript()).thenReturn(script);
+        when(redissonClient.getScript(StringCodec.INSTANCE)).thenReturn(script);
         when(script.eval(
                         eq(RScript.Mode.READ_WRITE),
                         any(),
@@ -159,6 +169,15 @@ class AgentRuntimeServiceTest {
 
         assertThatThrownBy(() -> service.run(plan(), "request-1", "message").blockFirst())
                 .hasMessageContaining("expired and cannot be resumed");
+        verify(script)
+                .eval(
+                        eq(RScript.Mode.READ_WRITE),
+                        any(),
+                        eq(RScript.ReturnType.BOOLEAN),
+                        anyList(),
+                        eq("PENDING"),
+                        eq("2000"),
+                        eq("600000"));
     }
 
     private static AgentRuntimeProperties configuredProperties() {

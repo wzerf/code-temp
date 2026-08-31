@@ -1067,3 +1067,49 @@ export interface BlacklistBatchResult {
   affected: number;
   ids: number[];
 }
+
+// ============================================================
+// Agent 对话（与 java-admin AgentController 的稳定 HTTP/SSE 契约对齐）
+// ============================================================
+
+export interface AgentDefinition {
+  id: number;
+  name: string;
+  description: string;
+  ownerUserId: number;
+  currentPublishedRevisionId: number | null;
+  remark: string;
+  isEnabled: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AgentSession {
+  id: number;
+  agentDefinitionId: number;
+  agentRevisionId: number | null;
+  ownerUserId: number;
+  status: string;
+  createdAt: string;
+}
+
+export interface AgentRunEvent {
+  type: string;
+  requestId: string;
+  sessionId: number;
+  agentRevisionId: number | null;
+  text: string | null;
+  toolName: string | null;
+  message: string | null;
+}
+
+export interface CreateAgentMessageRequest {
+  requestId: string;
+  message: string;
+  /** 仅用于 POST SSE 请求头，绝不发送到后端业务载荷。 */
+  accessToken: string;
+}
+
+export interface CancelAgentRunRequest {
+  requestId: string;
+}

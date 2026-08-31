@@ -11,7 +11,7 @@ export interface ContentContainerProps {
   children: React.ReactNode;
   /** 内边距，默认 16px */
   padding?: string | number;
-  /** 是否显示滚动条，默认 false */
+  /** 固定高度内容溢出时是否允许滚动，默认 true */
   scrollable?: boolean;
   /** 
    * 高度模式：
@@ -39,12 +39,12 @@ export interface ContentContainerProps {
  * 
  * 使用示例：
  * ```tsx
- * // 方式 1：固定高度（默认）
- * <ContentContainer heightMode="fixed" bottomMargin={16}>
+ * // 固定高度模式默认允许内容溢出滚动
+ * <ContentContainer>
  *   <Card>内容</Card>
  * </ContentContainer>
- * 
- * // 方式 2：自适应高度
+ *
+ * // 自适应高度
  * <ContentContainer heightMode="auto">
  *   <Card>内容</Card>
  * </ContentContainer>
@@ -53,7 +53,7 @@ export interface ContentContainerProps {
 const ContentContainer: React.FC<ContentContainerProps> = ({
   children,
   padding = '16px',
-  scrollable = false,
+  scrollable = true,
   heightMode = 'fixed',
   bottomMargin = 0,
   style,

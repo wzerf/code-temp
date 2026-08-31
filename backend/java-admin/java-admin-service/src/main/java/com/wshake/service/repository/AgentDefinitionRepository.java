@@ -18,6 +18,16 @@ public class AgentDefinitionRepository {
                 .firstOrNull();
     }
 
+    public java.util.List<AgentDefinition> listByOwnerUserId(Long ownerUserId) {
+        return easyEntityQuery
+                .queryable(AgentDefinition.class)
+                .where(t -> {
+                    t.ownerUserId().eq(ownerUserId);
+                    t.deletedAt().eq(0L);
+                })
+                .toList();
+    }
+
     public boolean existsByName(String name) {
         return easyEntityQuery
                 .queryable(AgentDefinition.class)

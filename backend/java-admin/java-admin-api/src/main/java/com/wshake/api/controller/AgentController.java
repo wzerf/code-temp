@@ -67,6 +67,13 @@ public class AgentController {
         return Result.ok(converter.convert(agentControlService.createAgent(command), AgentRevisionVO.class));
     }
 
+    @GetMapping
+    @Operation(summary = "列出当前用户的 Agent Definition")
+    public Result<java.util.List<AgentDefinitionVO>> listDefinitions() {
+        return Result.ok(converter.convert(
+                agentControlService.listDefinitions(RequestContext.requireUserId()), AgentDefinitionVO.class));
+    }
+
     @GetMapping("/{id}")
     @Operation(summary = "获取 Agent Definition")
     public Result<AgentDefinitionVO> getDefinition(@PathVariable Long id) {

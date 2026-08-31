@@ -62,6 +62,7 @@ const rawPageModules = import.meta.glob(
     '../pages/app/system/**/*.tsx',
     '../pages/app/log/**/*.tsx',
     '../pages/app/task/**/*.tsx',
+    '../pages/app/agent/**/*.tsx',
   ],
   { eager: true },
 );

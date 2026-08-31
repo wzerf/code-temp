@@ -14,6 +14,7 @@ import org.redisson.api.RBucket;
 import org.redisson.api.RList;
 import org.redisson.api.RTopic;
 import org.redisson.api.RedissonClient;
+import org.redisson.client.codec.StringCodec;
 import reactor.core.publisher.Flux;
 
 /** Redis 持久化运行事件，供断线 SSE 重放和跨副本续接。 */
@@ -30,11 +31,13 @@ final class AgentRunEventStore {
     void append(String runKey, AgentRunEvent event, Duration ttl) {
         RAtomicLong sequence = redissonClient.getAtomicLong(sequenceKey(runKey));
         long next = sequence.incrementAndGet();
-        RList<String> events = redissonClient.getList(eventsKey(runKey));
+        RList<String> events = redissonClient.getList(eventsKey(runKey), StringCodec.INSTANCE);
         events.add(write(new StoredEvent(next, event)));
         events.expire(ttl);
         sequence.expire(ttl);
-        redissonClient.getTopic(eventsTopicKey(runKey)).publish(write(new StoredEvent(next, event)));
+        redissonClient
+                .getTopic(eventsTopicKey(runKey), StringCodec.INSTANCE)
+                .publish(write(new StoredEvent(next, event)));
     }
 
     void appendAndUpdateState(String runKey, AgentRunEvent event, RBucket<String> state, Duration ttl) {
@@ -45,7 +48,7 @@ final class AgentRunEventStore {
     }
 
     void refresh(String runKey, Duration ttl) {
-        redissonClient.getList(eventsKey(runKey)).expire(ttl);
+        redissonClient.getList(eventsKey(runKey), StringCodec.INSTANCE).expire(ttl);
         redissonClient.getAtomicLong(sequenceKey(runKey)).expire(ttl);
     }
 
@@ -53,7 +56,7 @@ final class AgentRunEventStore {
         if (isTerminal(state)) {
             return Flux.fromIterable(readAll(runKey)).map(StoredEvent::event);
         }
-        RTopic topic = redissonClient.getTopic(eventsTopicKey(runKey));
+        RTopic topic = redissonClient.getTopic(eventsTopicKey(runKey), StringCodec.INSTANCE);
         return Flux.<AgentRunEvent>create(sink -> {
             List<StoredEvent> buffered = new ArrayList<>();
             boolean[] replaying = {true};
@@ -91,7 +94,7 @@ final class AgentRunEventStore {
             return CompletableFuture.completedFuture(last);
         }
         CompletableFuture<AgentRunEvent> result = new CompletableFuture<>();
-        RTopic topic = redissonClient.getTopic(eventsTopicKey(runKey));
+        RTopic topic = redissonClient.getTopic(eventsTopicKey(runKey), StringCodec.INSTANCE);
         int listenerId = topic.addListener(String.class, (channel, value) -> {
             StoredEvent event = read(value);
             if (isTerminal(event.event().type())) {
@@ -113,7 +116,7 @@ final class AgentRunEventStore {
     }
 
     private List<StoredEvent> readAll(String runKey) {
-        return redissonClient.<String>getList(eventsKey(runKey)).readAll().stream()
+        return redissonClient.<String>getList(eventsKey(runKey), StringCodec.INSTANCE).readAll().stream()
                 .map(AgentRunEventStore::read)
                 .toList();
     }

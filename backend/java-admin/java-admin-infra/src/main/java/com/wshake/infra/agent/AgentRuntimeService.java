@@ -31,6 +31,7 @@ import org.redisson.api.RScript;
 import org.redisson.api.RTopic;
 import org.redisson.api.RedissonClient;
 import org.redisson.api.bucket.CompareAndSetArgs;
+import org.redisson.client.codec.StringCodec;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.stereotype.Service;
 import reactor.core.Disposable;
@@ -84,7 +85,7 @@ public class AgentRuntimeService implements AgentRuntimeGateway {
         properties.validate();
         validatePlan(plan, requestId, message);
         String runKey = runKey(plan.sessionId(), requestId);
-        RBucket<String> state = redissonClient.getBucket(runKey);
+        RBucket<String> state = redissonClient.getBucket(runKey, StringCodec.INSTANCE);
         AgentRunEventStore events = new AgentRunEventStore(redissonClient);
         if (!initializeRun(runKey)) {
             String currentState =
@@ -107,14 +108,14 @@ public class AgentRuntimeService implements AgentRuntimeGateway {
         requireEnabled();
         properties.validate();
         String runKey = runKey(sessionId, requestId);
-        RBucket<String> state = redissonClient.getBucket(runKey);
+        RBucket<String> state = redissonClient.getBucket(runKey, StringCodec.INSTANCE);
         AgentRunEventStore events = new AgentRunEventStore(redissonClient);
         var terminal = events.awaitTerminal(runKey);
         if (!markCancelling(state)) {
             terminal.cancel(false);
             throw BizException.of(ResultCode.PARAM_INVALID, "agent run is not running");
         }
-        redissonClient.getTopic(cancelTopicKey(runKey)).publish(CANCEL_SIGNAL);
+        redissonClient.getTopic(cancelTopicKey(runKey), StringCodec.INSTANCE).publish(CANCEL_SIGNAL);
         try {
             return terminal.get(properties.getExecutionLease().toMillis(), TimeUnit.MILLISECONDS);
         } catch (InterruptedException exception) {
@@ -141,7 +142,7 @@ public class AgentRuntimeService implements AgentRuntimeGateway {
             throw BizException.of(ResultCode.PARAM_INVALID, "requestId is required");
         }
         String runKey = runKey(sessionId, requestId);
-        RBucket<String> state = redissonClient.getBucket(runKey);
+        RBucket<String> state = redissonClient.getBucket(runKey, StringCodec.INSTANCE);
         AgentRunEventStore events = new AgentRunEventStore(redissonClient);
         String currentState = recoverState(sessionId, requestId, null, state, events, runKey);
         if (currentState == null) {
@@ -158,7 +159,7 @@ public class AgentRuntimeService implements AgentRuntimeGateway {
             String runKey,
             AgentRunEventStore events) {
         return Flux.defer(() -> {
-            RBucket<String> owner = redissonClient.getBucket(ownerKey(runKey));
+            RBucket<String> owner = redissonClient.getBucket(ownerKey(runKey), StringCodec.INSTANCE);
             SessionLock lock;
             try {
                 lock = acquireSessionLock(plan.sessionId());
@@ -176,7 +177,7 @@ public class AgentRuntimeService implements AgentRuntimeGateway {
                 return Flux.just(event(STATE_CANCELLED, plan, requestId, null, null, null))
                         .doFinally(ignored -> lock.release());
             }
-            RTopic cancelTopic = redissonClient.getTopic(cancelTopicKey(runKey));
+            RTopic cancelTopic = redissonClient.getTopic(cancelTopicKey(runKey), StringCodec.INSTANCE);
             Disposable[] heartbeat = new Disposable[1];
             int[] cancelListenerIdHolder = {NO_LISTENER_ID};
             try {
@@ -311,7 +312,7 @@ public class AgentRuntimeService implements AgentRuntimeGateway {
 
     private boolean initializeRun(String runKey) {
         return redissonClient
-                .getScript()
+                .getScript(StringCodec.INSTANCE)
                 .eval(
                         RScript.Mode.READ_WRITE,
                         "if redis.call('EXISTS', KEYS[1]) == 1 then return 0 end "
@@ -321,8 +322,8 @@ public class AgentRuntimeService implements AgentRuntimeGateway {
                         RScript.ReturnType.BOOLEAN,
                         List.of(consumedKey(runKey), ownerKey(runKey), runKey),
                         STATE_PENDING,
-                        properties.getExecutionLease().toMillis(),
-                        properties.getRequestIdTtl().toMillis());
+                        Long.toString(properties.getExecutionLease().toMillis()),
+                        Long.toString(properties.getRequestIdTtl().toMillis()));
     }
 
     private SessionLock acquireSessionLock(Long sessionId) {
@@ -409,7 +410,7 @@ public class AgentRuntimeService implements AgentRuntimeGateway {
             AgentRunEventStore events,
             String runKey) {
         String current = state.get();
-        RBucket<String> owner = redissonClient.getBucket(ownerKey(runKey));
+        RBucket<String> owner = redissonClient.getBucket(ownerKey(runKey), StringCodec.INSTANCE);
         if (current == null && !owner.isExists()) {
             return null;
         }

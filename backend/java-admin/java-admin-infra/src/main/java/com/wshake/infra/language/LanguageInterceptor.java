@@ -4,6 +4,7 @@ import com.wshake.common.constant.SecurityHeaders;
 import com.wshake.common.request.RequestContext;
 import com.wshake.infra.satoken.SaTokenConfigure;
 import com.wshake.infra.security.SecurityProperties;
+import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -36,6 +37,9 @@ public final class LanguageInterceptor implements HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
+        if (request.getDispatcherType() == DispatcherType.ASYNC) {
+            return true;
+        }
         Long userId = SaTokenConfigure.currentUserIdOrNull();
         if (userId != null) {
             RequestContext.setUserId(userId);

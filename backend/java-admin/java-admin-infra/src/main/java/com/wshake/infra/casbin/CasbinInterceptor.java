@@ -2,6 +2,7 @@ package com.wshake.infra.casbin;
 
 import com.wshake.common.exception.AuthException;
 import com.wshake.common.request.RequestContext;
+import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +32,9 @@ public final class CasbinInterceptor implements HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
+        if (request.getDispatcherType() == DispatcherType.ASYNC) {
+            return true;
+        }
         // LanguageInterceptor 已在此前写入 RequestContext。
         Long userId = RequestContext.userIdOrNull();
         if (userId == null) {

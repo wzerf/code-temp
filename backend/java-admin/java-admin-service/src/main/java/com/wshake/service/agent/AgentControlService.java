@@ -60,6 +60,13 @@ public class AgentControlService {
         return toDefinitionView(requireDefinitionOwned(id, ownerUserId));
     }
 
+    public java.util.List<AgentDefinitionView> listDefinitions(Long ownerUserId) {
+        return definitionRepository.listByOwnerUserId(ownerUserId).stream()
+                .filter(definition -> definition.getCurrentPublishedRevisionId() != null)
+                .map(AgentControlService::toDefinitionView)
+                .toList();
+    }
+
     @Transactional
     public AgentRevisionView createDraft(CreateRevisionCommand command, Long ownerUserId) {
         AgentDefinition definition = requireDefinitionOwned(command.agentDefinitionId(), ownerUserId);

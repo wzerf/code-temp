@@ -1,8 +1,4 @@
-import {
-  createBrowserRouter,
-  type RouteObject,
-  type RouterProviderProps,
-} from 'react-router-dom';
+import { createBrowserRouter, type RouteObject, type RouterProviderProps } from 'react-router-dom';
 import { injectRedirects } from './utils/inject-redirect';
 import { flattenLayoutAbsoluteChildren } from './utils/flatten-absolute-routes';
 import { sortRoutes } from './utils/sort-routes';
@@ -59,8 +55,7 @@ export const createAccessibleRouter = async (
           options.permissions ?? [],
           options.forbiddenElement,
         );
-        menuRoutes =
-          routes.find((route) => route.path === '/' && route.children)?.children ?? [];
+        menuRoutes = routes.find((route) => route.path === '/' && route.children)?.children ?? [];
       } else {
         const { layoutRoutes, otherRoutes } = separateRoutes(routes);
         const backendRoutes = await generateRoutesByBackend({
@@ -80,7 +75,8 @@ export const createAccessibleRouter = async (
               child.index ||
               child.path === '/' ||
               !child.path ||
-              child.path === '*',
+              child.path === '*' ||
+              child.meta?.alwaysAvailable === true,
           );
           const splatChildren = staticChildren.filter((c) => c.path === '*');
           const nonSplatStatic = staticChildren.filter((c) => c.path !== '*');
@@ -116,8 +112,7 @@ export const createAccessibleRouter = async (
         options.permissions ?? [],
         options.forbiddenElement,
       );
-      menuRoutes =
-        routes.find((route) => route.path === '/' && route.children)?.children ?? [];
+      menuRoutes = routes.find((route) => route.path === '/' && route.children)?.children ?? [];
       break;
     }
   }

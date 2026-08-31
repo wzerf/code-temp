@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Bubble, Sender, Welcome } from '@ant-design/x';
 import { AppstoreOutlined, PlusOutlined, StopOutlined } from '@ant-design/icons';
-import { Alert, Avatar, Button, Flex, Select, Spin, Tag, Tooltip, Typography, message } from 'antd';
+import { Alert, Avatar, Button, Card, Flex, Select, Spin, Tag, Tooltip, Typography, message } from 'antd';
 import { useSearchParams } from 'react-router-dom';
 import {
   cancelAgentRunApi,
@@ -16,31 +16,21 @@ import type { AgentDefinition, AgentRunEvent, AgentSession } from '@/api/rest/ty
 import { defaultIdGenerator } from '@/core/transport/rest/utils';
 import ContentContainer from '@/layouts/components/PageContainer/ContentContainer';
 import { useAuthStore } from '@/stores';
+import {
+  appendAssistantDelta,
+  ensureAssistantPlaceholder,
+  finalizeAssistant,
+  type ChatMessage,
+} from './message-state';
 import './index.css';
 
-type ChatRole = 'ai' | 'user' | 'system';
 type RunState = 'idle' | 'running' | 'cancelling' | 'completed' | 'failed' | 'cancelled';
-
-interface ChatMessage {
-  content: string;
-  key: string;
-  loading?: boolean;
-  role: ChatRole;
-}
 
 const terminalEvents: Record<string, RunState> = {
   CANCELLED: 'cancelled',
   COMPLETED: 'completed',
   FAILED: 'failed',
 };
-
-function appendAssistantDelta(messages: ChatMessage[], text: string): ChatMessage[] {
-  const last = messages.at(-1);
-  if (last?.role === 'ai' && last.loading) {
-    return [...messages.slice(0, -1), { ...last, content: last.content + text }];
-  }
-  return [...messages, { content: text, key: defaultIdGenerator(), loading: true, role: 'ai' }];
-}
 
 function statusLabel(state: RunState): string {
   return {
@@ -66,6 +56,7 @@ const AgentChatPage = () => {
   const [session, setSession] = useState<AgentSession | null>(null);
   const [resumable, setResumable] = useState(false);
   const [sending, setSending] = useState(false);
+  const [inputValue, setInputValue] = useState('');
   const requestIdRef = useRef<string | null>(null);
   const sendingRef = useRef(false);
   const streamAbortRef = useRef<AbortController | null>(null);
@@ -110,13 +101,20 @@ const AgentChatPage = () => {
   const bubbles = useMemo(() => messages, [messages]);
 
   function consumeEvent(event: AgentRunEvent): void {
+    if (event.type === 'STARTED') {
+      setMessages((current) => ensureAssistantPlaceholder(current, defaultIdGenerator));
+      return;
+    }
     if (event.type === 'TEXT_DELTA' && event.text) {
-      setMessages((current) => appendAssistantDelta(current, event.text));
+      setMessages((current) => appendAssistantDelta(current, event.text, defaultIdGenerator));
       return;
     }
     if (event.type === 'TOOL_STARTED' || event.type === 'TOOL_COMPLETED') {
       const action = event.type === 'TOOL_STARTED' ? '正在调用工具' : '工具调用完成';
-      setMessages((current) => [...current, { content: `${action}：${event.toolName ?? '未知工具'}`, key: defaultIdGenerator(), role: 'system' }]);
+      setMessages((current) => [
+        ...ensureAssistantPlaceholder(current, defaultIdGenerator),
+        { content: `${action}：${event.toolName ?? '未知工具'}`, key: defaultIdGenerator(), role: 'system' },
+      ]);
       return;
     }
     const terminal = terminalEvents[event.type];
@@ -126,7 +124,7 @@ const AgentChatPage = () => {
       requestIdRef.current = null;
       setRunState(terminal);
       setResumable(false);
-      setMessages((current) => current.map((item) => item.loading ? { ...item, loading: false } : item));
+      setMessages((current) => finalizeAssistant(current));
       if (event.message) message[terminal === 'failed' ? 'error' : 'success'](event.message);
     }
   }
@@ -142,6 +140,7 @@ const AgentChatPage = () => {
     if (!text || !canSend || !accessToken || !agent || sendingRef.current) return;
     sendingRef.current = true;
     setSending(true);
+    setInputValue('');
     try {
       setError(null);
       setResumable(false);
@@ -149,7 +148,12 @@ const AgentChatPage = () => {
       setSession(activeSession);
       const requestId = defaultIdGenerator();
       requestIdRef.current = requestId;
-      setMessages((current) => [...current, { content: text, key: requestId, role: 'user' }]);
+      setMessages((current) =>
+        ensureAssistantPlaceholder(
+          [...current, { content: text, key: requestId, role: 'user' }],
+          defaultIdGenerator,
+        ),
+      );
       setRunState('running');
       const controller = new AbortController();
       streamAbortRef.current = controller;
@@ -231,8 +235,13 @@ const AgentChatPage = () => {
             <span>智能体工作台</span>
           </div>
           <Button className="agent-chat-new" icon={<PlusOutlined />} onClick={() => {
- setMessages([]); setSession(null); setRunState('idle'); setResumable(false); setError(null); 
-}}>新建对话</Button>
+            setMessages([]);
+            setSession(null);
+            setRunState('idle');
+            setResumable(false);
+            setError(null);
+            setInputValue('');
+          }}>新建对话</Button>
           <div className="agent-chat-agent-list">
             <Typography.Text className="agent-chat-list-title">已发布 Agent</Typography.Text>
             {agents.map((item) => (
@@ -282,7 +291,7 @@ const AgentChatPage = () => {
             ) : <Bubble.List autoScroll className="agent-chat-bubbles" items={bubbles} role={{ ai: { placement: 'start' }, system: { placement: 'start', variant: 'borderless' }, user: { placement: 'end' } }} />}
           </section>
           <div className="agent-chat-composer">
-            <Sender autoSize={{ maxRows: 6, minRows: 2 }} disabled={!canSend} loading={sending || runState === 'cancelling'} onCancel={() => void cancel()} onSubmit={(content) => void send(content)} placeholder={canSend ? '输入消息，Enter 发送，Shift+Enter 换行' : '等待当前运行结束后再发送'} submitType="enter" suffix={sending || runState === 'cancelling' ? <Button aria-label="取消 Agent 运行" danger icon={<StopOutlined />} loading={runState === 'cancelling'} onClick={() => void cancel()} type="text" /> : undefined} />
+            <Sender autoSize={{ maxRows: 6, minRows: 2 }} disabled={!canSend} loading={sending || runState === 'cancelling'} onCancel={() => void cancel()} onChange={setInputValue} onSubmit={(content) => void send(content)} placeholder={canSend ? '输入消息，Enter 发送，Shift+Enter 换行' : '等待当前运行结束后再发送'} submitType="enter" suffix={sending || runState === 'cancelling' ? <Button aria-label="取消 Agent 运行" danger icon={<StopOutlined />} loading={runState === 'cancelling'} onClick={() => void cancel()} type="text" /> : undefined} value={inputValue} />
           </div>
         </main>
       </div>

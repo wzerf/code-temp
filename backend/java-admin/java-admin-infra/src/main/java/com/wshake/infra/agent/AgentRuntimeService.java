@@ -205,7 +205,7 @@ public class AgentRuntimeService implements AgentRuntimeGateway {
                             return Flux.concat(
                                             Flux.just(event(EVENT_STARTED, plan, requestId, null, null, null)),
                                             agent.streamEvents(message, context)
-                                                    .flatMap(event -> toEvent(event, plan, requestId, state)))
+                                                    .concatMap(event -> toEvent(event, plan, requestId, state)))
                                     .onErrorResume(error -> Flux.just(event(
                                             STATE_CANCELLING.equals(state.get()) ? STATE_CANCELLED : STATE_FAILED,
                                             plan,
@@ -235,16 +235,19 @@ public class AgentRuntimeService implements AgentRuntimeGateway {
         if (allowsPlatformTimeTool(plan)) {
             toolkit.registerTool(runtimeTools);
         }
-        OpenAIChatModel model = OpenAIChatModel.builder()
+        OpenAIChatModel.Builder modelBuilder = OpenAIChatModel.builder()
                 .apiKey(properties.getApiKey())
                 .baseUrl(properties.getBaseUrl())
                 .modelName(properties.getModelName())
                 .stream(true)
                 .httpTransport(OkHttpTransport.builder()
-                        .client(okHttpClient)
                         .config(HttpTransportConfig.defaults())
-                        .build())
-                .build();
+                        .build());
+        // xAI/Grok 仅允许 user 消息带 name；默认 OpenAI formatter 会给 assistant/system 写入 name
+        if (GrokChatFormatter.needsGrokFormatter(properties.getModelName(), properties.getBaseUrl())) {
+            modelBuilder.formatter(new GrokChatFormatter());
+        }
+        OpenAIChatModel model = modelBuilder.build();
         return HarnessAgent.builder()
                 .agentId(AGENT_ID_PREFIX + plan.agentRevisionId())
                 .name(AGENT_ID_PREFIX + plan.agentRevisionId())
@@ -468,7 +471,7 @@ public class AgentRuntimeService implements AgentRuntimeGateway {
     }
 
     private static String runKey(Long sessionId, String requestId) {
-        return KEY_PREFIX + "request:{" + sessionId + ":" + requestId + "}";
+        return KEY_PREFIX + "request:" + sessionId + ":" + requestId;
     }
 
     private static String sessionLockKey(Long sessionId) {

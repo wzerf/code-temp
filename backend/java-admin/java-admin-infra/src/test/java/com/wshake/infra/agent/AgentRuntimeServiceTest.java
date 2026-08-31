@@ -30,7 +30,7 @@ import org.redisson.api.listener.MessageListener;
 import org.redisson.client.codec.StringCodec;
 
 class AgentRuntimeServiceTest {
-    private static final String RUN_KEY = "agent:runtime:request:{20:request-1}";
+    private static final String RUN_KEY = "agent:runtime:request:20:request-1";
 
     @Test
     void cancel_waitsForPersistedTerminalEvent() throws Exception {

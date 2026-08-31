@@ -57,12 +57,13 @@ final class AgentRunEventStore {
             return Flux.fromIterable(readAll(runKey)).map(StoredEvent::event);
         }
         RTopic topic = redissonClient.getTopic(eventsTopicKey(runKey), StringCodec.INSTANCE);
-        return Flux.<AgentRunEvent>create(sink -> {
+        return Flux.create(sink -> {
             List<StoredEvent> buffered = new ArrayList<>();
             boolean[] replaying = {true};
             long[] lastSequence = {0};
             int listenerId = topic.addListener(String.class, (channel, value) -> {
                 StoredEvent event = read(value);
+                // Redis listener 与 snapshot 回放可能并发写 sink，统一串行化
                 synchronized (buffered) {
                     if (replaying[0]) {
                         buffered.add(event);

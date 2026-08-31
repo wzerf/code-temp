@@ -1,0 +1,9 @@
+servers:
+  typescript-language-server: {}
+  jdtls:
+    command: jdtls
+    fileTypes:
+      - .java
+    languageId: java
+    rootMarkers:
+      - .gitignore

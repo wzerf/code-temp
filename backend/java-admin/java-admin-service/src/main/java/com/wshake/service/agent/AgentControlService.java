@@ -7,6 +7,7 @@ import com.wshake.common.time.TimeZones;
 import com.wshake.service.agent.AgentControlModels.AgentDefinitionView;
 import com.wshake.service.agent.AgentControlModels.AgentRevisionView;
 import com.wshake.service.agent.AgentControlModels.AgentRunPlan;
+import com.wshake.service.agent.AgentControlModels.AgentSessionHistoryView;
 import com.wshake.service.agent.AgentControlModels.AgentSessionView;
 import com.wshake.service.agent.AgentControlModels.CreateAgentCommand;
 import com.wshake.service.agent.AgentControlModels.CreateRevisionCommand;
@@ -29,6 +30,7 @@ public class AgentControlService {
     private final AgentDefinitionRepository definitionRepository;
     private final AgentRevisionRepository revisionRepository;
     private final AgentSessionRepository sessionRepository;
+    private final AgentRuntimeGateway agentRuntimeGateway;
 
     @Transactional
     public AgentRevisionView createAgent(CreateAgentCommand command) {
@@ -64,6 +66,16 @@ public class AgentControlService {
         return definitionRepository.listByOwnerUserId(ownerUserId).stream()
                 .filter(definition -> definition.getCurrentPublishedRevisionId() != null)
                 .map(AgentControlService::toDefinitionView)
+                .toList();
+    }
+
+    public java.util.List<AgentSessionView> listSessions(Long definitionId, Long ownerUserId) {
+        requireDefinitionOwned(definitionId, ownerUserId);
+        return sessionRepository
+                .listByOwnerUserIdAndAgentDefinitionId(requireOwnerUserId(ownerUserId), definitionId)
+                .stream()
+                .filter(session -> agentRuntimeGateway.hasSessionHistory(session.getId(), session.getOwnerUserId()))
+                .map(AgentControlService::toSessionView)
                 .toList();
     }
 
@@ -146,6 +158,7 @@ public class AgentControlService {
         session.setOwnerUserId(ownerUserId);
         session.setStatus(AgentControlModels.SESSION_ACTIVE);
         session.setCreatedAt(TimeZones.now());
+        session.setLastActiveAt(session.getCreatedAt());
         sessionRepository.insert(session);
         return toSessionView(session);
     }
@@ -186,6 +199,19 @@ public class AgentControlService {
             throw BizException.of(ResultCode.PARAM_INVALID, "agent session not found");
         }
         return toSessionView(session);
+    }
+
+    public AgentSessionHistoryView getSessionHistory(Long sessionId, Long ownerUserId) {
+        AgentSession session = requireSession(sessionId, ownerUserId);
+        return new AgentSessionHistoryView(
+                toSessionView(session),
+                agentRuntimeGateway.getSessionHistory(session.getId(), session.getOwnerUserId()));
+    }
+
+    @Transactional
+    public void touchSession(Long sessionId, Long ownerUserId) {
+        AgentSession session = requireSession(sessionId, ownerUserId);
+        sessionRepository.touch(session.getId(), session.getOwnerUserId(), TimeZones.now());
     }
 
     /** 紧急禁用只阻止新会话/首次运行；已固定会话继续由后续运行策略决定。 */
@@ -369,6 +395,7 @@ public class AgentControlService {
                 session.getAgentRevisionId(),
                 session.getOwnerUserId(),
                 session.getStatus(),
-                session.getCreatedAt());
+                session.getCreatedAt(),
+                session.getLastActiveAt());
     }
 }

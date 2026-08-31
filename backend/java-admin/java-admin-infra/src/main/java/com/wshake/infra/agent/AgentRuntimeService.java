@@ -4,6 +4,7 @@ import com.wshake.common.exception.BizException;
 import com.wshake.common.result.ResultCode;
 import com.wshake.service.agent.AgentControlModels.AgentRunEvent;
 import com.wshake.service.agent.AgentControlModels.AgentRunPlan;
+import com.wshake.service.agent.AgentControlModels.AgentSessionMessageView;
 import com.wshake.service.agent.AgentRuntimeGateway;
 import io.agentscope.core.agent.RuntimeContext;
 import io.agentscope.core.event.AgentEndEvent;
@@ -13,10 +14,16 @@ import io.agentscope.core.event.TextBlockDeltaEvent;
 import io.agentscope.core.event.ThinkingBlockDeltaEvent;
 import io.agentscope.core.event.ToolCallStartEvent;
 import io.agentscope.core.event.ToolResultEndEvent;
+import io.agentscope.core.message.ContentBlock;
 import io.agentscope.core.message.GenerateReason;
+import io.agentscope.core.message.Msg;
+import io.agentscope.core.message.MsgRole;
+import io.agentscope.core.message.TextBlock;
+import io.agentscope.core.message.ThinkingBlock;
 import io.agentscope.core.model.ExecutionConfig;
 import io.agentscope.core.model.transport.HttpTransportConfig;
 import io.agentscope.core.model.transport.OkHttpTransport;
+import io.agentscope.core.state.AgentState;
 import io.agentscope.core.tool.Toolkit;
 import io.agentscope.extensions.model.openai.OpenAIChatModel;
 import io.agentscope.extensions.redis.state.RedisAgentStateStore;
@@ -97,7 +104,6 @@ public class AgentRuntimeService implements AgentRuntimeGateway {
             }
             return events.replayAndFollow(runKey, currentState);
         }
-        // 后台启动执行，客户端只观察 Redis 事件流
         execute(plan, requestId, message, state, runKey, events)
                 .doOnNext(event -> events.appendAndUpdateState(runKey, event, state, properties.getRequestIdTtl()))
                 .subscribe();
@@ -151,6 +157,27 @@ public class AgentRuntimeService implements AgentRuntimeGateway {
             throw BizException.of(ResultCode.PARAM_INVALID, "agent run is not found");
         }
         return events.replayAndFollow(runKey, currentState);
+    }
+
+    @Override
+    public boolean hasSessionHistory(Long sessionId, Long ownerUserId) {
+        return redissonClient
+                .getSet(agentStateKeysKey(sessionId, ownerUserId), StringCodec.INSTANCE)
+                .contains("agent_state");
+    }
+
+    @Override
+    public List<AgentSessionMessageView> getSessionHistory(Long sessionId, Long ownerUserId) {
+        String json = redissonClient
+                .<String>getBucket(agentStateKey(sessionId, ownerUserId), StringCodec.INSTANCE)
+                .get();
+        if (json == null) {
+            return List.of();
+        }
+        return AgentState.fromJsonString(json).getContext().stream()
+                .filter(message -> message.getRole() == MsgRole.USER || message.getRole() == MsgRole.ASSISTANT)
+                .map(AgentRuntimeService::toHistoryMessage)
+                .toList();
     }
 
     private Flux<AgentRunEvent> execute(
@@ -493,6 +520,36 @@ public class AgentRuntimeService implements AgentRuntimeGateway {
 
     private static String ownerKey(String runKey) {
         return runKey + ":owner";
+    }
+
+    private static String agentStateKey(Long sessionId, Long ownerUserId) {
+        return agentStateSlotKey(sessionId, ownerUserId) + ":agent_state";
+    }
+
+    private static String agentStateKeysKey(Long sessionId, Long ownerUserId) {
+        return agentStateSlotKey(sessionId, ownerUserId) + ":_keys";
+    }
+
+    private static String agentStateSlotKey(Long sessionId, Long ownerUserId) {
+        return KEY_PREFIX + "state:" + ownerUserId + "/" + sessionId;
+    }
+
+    private static AgentSessionMessageView toHistoryMessage(Msg message) {
+        StringBuilder content = new StringBuilder();
+        StringBuilder thinking = new StringBuilder();
+        for (ContentBlock block : message.getContent()) {
+            if (block instanceof TextBlock text) {
+                content.append(text.getText());
+            } else if (block instanceof ThinkingBlock reasoning) {
+                thinking.append(reasoning.getThinking());
+            }
+        }
+        return new AgentSessionMessageView(
+                message.getId(),
+                message.getRole() == MsgRole.ASSISTANT ? "ai" : "user",
+                content.toString(),
+                thinking.isEmpty() ? null : thinking.toString(),
+                message.getTimestamp());
     }
 
     private static AgentRunEvent event(

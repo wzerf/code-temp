@@ -19,4 +19,5 @@ public class AgentSessionVO {
     private Long ownerUserId;
     private String status;
     private LocalDateTime createdAt;
+    private LocalDateTime lastActiveAt;
 }

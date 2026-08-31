@@ -2,6 +2,7 @@ package com.wshake.infra.agent;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.groups.Tuple.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
@@ -13,6 +14,12 @@ import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wshake.service.agent.AgentControlModels.AgentRunEvent;
+import com.wshake.service.agent.AgentControlModels.AgentSessionMessageView;
+import io.agentscope.core.message.AssistantMessage;
+import io.agentscope.core.message.TextBlock;
+import io.agentscope.core.message.ThinkingBlock;
+import io.agentscope.core.message.UserMessage;
+import io.agentscope.core.state.AgentState;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -23,6 +30,7 @@ import org.redisson.api.RAtomicLong;
 import org.redisson.api.RBucket;
 import org.redisson.api.RList;
 import org.redisson.api.RScript;
+import org.redisson.api.RSet;
 import org.redisson.api.RTopic;
 import org.redisson.api.RedissonClient;
 import org.redisson.api.bucket.CompareAndSetArgs;
@@ -178,6 +186,38 @@ class AgentRuntimeServiceTest {
                         eq("PENDING"),
                         eq("2000"),
                         eq("600000"));
+    }
+
+    @Test
+    void history_readsAgentScopeRedisStateForCurrentUserSession() {
+        RedissonClient redissonClient = mock(RedissonClient.class);
+        RSet<String> stateKeys = mock(RSet.class);
+        RBucket<String> state = mock(RBucket.class);
+        String stateKey = "agent:runtime:state:7/20:agent_state";
+        when(redissonClient.<String>getSet("agent:runtime:state:7/20:_keys", StringCodec.INSTANCE))
+                .thenReturn(stateKeys);
+        when(stateKeys.contains("agent_state")).thenReturn(true);
+        when(redissonClient.<String>getBucket(stateKey, StringCodec.INSTANCE)).thenReturn(state);
+        when(state.get())
+                .thenReturn(AgentState.builder()
+                        .userId("7")
+                        .sessionId("20")
+                        .context(List.of(
+                                new UserMessage("问题"),
+                                new AssistantMessage(
+                                        TextBlock.builder().text("答案").build(),
+                                        ThinkingBlock.builder().thinking("推理").build())))
+                        .build()
+                        .toJson());
+        AgentRuntimeService service = new AgentRuntimeService(configuredProperties(), redissonClient, mock(), mock());
+
+        assertThat(service.hasSessionHistory(20L, 7L)).isTrue();
+        assertThat(service.getSessionHistory(20L, 7L))
+                .extracting(
+                        AgentSessionMessageView::role,
+                        AgentSessionMessageView::content,
+                        AgentSessionMessageView::thinking)
+                .containsExactly(tuple("user", "问题", null), tuple("ai", "答案", "推理"));
     }
 
     private static AgentRuntimeProperties configuredProperties() {

@@ -9,6 +9,7 @@ import com.wshake.api.dto.UpdateAgentRevisionRequest;
 import com.wshake.api.vo.AgentDefinitionVO;
 import com.wshake.api.vo.AgentRevisionVO;
 import com.wshake.api.vo.AgentRunEventVO;
+import com.wshake.api.vo.AgentSessionHistoryVO;
 import com.wshake.api.vo.AgentSessionVO;
 import com.wshake.common.request.RequestContext;
 import com.wshake.common.result.Result;
@@ -151,6 +152,13 @@ public class AgentController {
                 agentControlService.createSession(id, RequestContext.requireUserId()), AgentSessionVO.class));
     }
 
+    @GetMapping("/{id}/sessions")
+    @Operation(summary = "列出当前用户的 Agent 历史会话")
+    public Result<java.util.List<AgentSessionVO>> listSessions(@PathVariable Long id) {
+        return Result.ok(converter.convert(
+                agentControlService.listSessions(id, RequestContext.requireUserId()), AgentSessionVO.class));
+    }
+
     @PostMapping("/sessions/{id}/resolve-revision")
     @Operation(summary = "首次运行时固定当前已发布 Revision")
     public Result<AgentSessionVO> resolveSessionRevision(@PathVariable Long id) {
@@ -162,6 +170,7 @@ public class AgentController {
     @Operation(summary = "发送消息并接收 Agent SSE 事件")
     public SseEmitter run(@PathVariable Long id, @Valid @RequestBody AgentMessageRequest request) {
         var plan = agentControlService.prepareRun(id, RequestContext.requireUserId());
+        agentControlService.touchSession(id, RequestContext.requireUserId());
         SseEmitter emitter = new SseEmitter(0L);
         Disposable subscription = agentRuntimeGateway
                 .run(plan, request.getRequestId(), request.getMessage())
@@ -202,6 +211,18 @@ public class AgentController {
     public Result<AgentSessionVO> getSession(@PathVariable Long id) {
         return Result.ok(converter.convert(
                 agentControlService.getSession(id, RequestContext.requireUserId()), AgentSessionVO.class));
+    }
+
+    @GetMapping("/sessions/{id}/history")
+    @Operation(summary = "获取当前用户的 Agent 会话历史")
+    public Result<AgentSessionHistoryVO> getSessionHistory(@PathVariable Long id) {
+        var history = agentControlService.getSessionHistory(id, RequestContext.requireUserId());
+        return Result.ok(new AgentSessionHistoryVO(
+                converter.convert(history.session(), AgentSessionVO.class),
+                history.messages().stream()
+                        .map(item -> new AgentSessionHistoryVO.MessageVO(
+                                item.id(), item.role(), item.content(), item.thinking(), item.createdAt()))
+                        .toList()));
     }
 
     private static void bindSubscription(SseEmitter emitter, Disposable subscription) {

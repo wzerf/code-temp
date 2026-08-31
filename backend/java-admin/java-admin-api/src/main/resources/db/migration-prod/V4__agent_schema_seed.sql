@@ -1,4 +1,4 @@
--- Flyway V4: Agent 控制面 API Resource；Root 已由通配 Casbin policy 覆盖。
+-- Flyway V4: Agent 控制面 API Resource 与个人历史会话权限；Root 已由通配 Casbin policy 覆盖。
 -- 非 Root 管理员可在既有角色-接口授权界面显式绑定这些资源。
 INSERT INTO sys_api (name, method, path, permission_code, api_group, remark, is_enabled, deleted_at, created_by, updated_by)
 VALUES
@@ -16,7 +16,9 @@ VALUES
     ('运行 Agent 会话', 'POST', '/api/agent/sessions/:id/events', 'agent:session:run', 'Agent 管理', '', 1, 0, 0, 0),
     ('续接 Agent 会话事件', 'GET', '/api/agent/sessions/:id/events', 'agent:session:resume', 'Agent 管理', '', 1, 0, 0, 0),
     ('取消 Agent 会话运行', 'POST', '/api/agent/sessions/:id/cancel', 'agent:session:cancel', 'Agent 管理', '', 1, 0, 0, 0),
-    ('获取 Agent 会话', 'GET', '/api/agent/sessions/:id', 'agent:session:read', 'Agent 管理', '', 1, 0, 0, 0);
+    ('获取 Agent 会话', 'GET', '/api/agent/sessions/:id', 'agent:session:read', 'Agent 管理', '', 1, 0, 0, 0),
+    ('列出 Agent 历史会话', 'GET', '/api/agent/:id/sessions', 'agent:session:list', 'Agent 管理', '', 1, 0, 0, 0),
+    ('获取 Agent 会话历史', 'GET', '/api/agent/sessions/:id/history', 'agent:session:history', 'Agent 管理', '', 1, 0, 0, 0);
 
 INSERT INTO sys_menu (id, parent_id, name, type, path, component, icon, redirect, permission_code, tree_path, metadata, sort, is_hidden, is_enabled, deleted_at, remark, created_by, updated_by)
 VALUES (500, NULL, 'Agent 对话', 'MENU', '/agent/chat', '/agent/chat/index', 'lucide:bot-message-square', '', 'agent:session:run', '/500/', '{"routeName":"AgentChat","order":2002,"fullPathKey":false}', 2002, 0, 1, 0, '', 0, 0);
@@ -26,7 +28,7 @@ INSERT INTO sys_role_menu (role_id, menu_id) VALUES (1, 500);
 INSERT INTO sys_menu_api (menu_id, api_id, created_by)
 SELECT 500, id, 0
 FROM sys_api
-WHERE permission_code IN ('agent:definition:list', 'agent:definition:read', 'agent:session:create', 'agent:session:resolve', 'agent:session:run', 'agent:session:resume', 'agent:session:cancel', 'agent:session:read');
+WHERE permission_code IN ('agent:definition:list', 'agent:definition:read', 'agent:session:create', 'agent:session:resolve', 'agent:session:run', 'agent:session:resume', 'agent:session:cancel', 'agent:session:read', 'agent:session:list', 'agent:session:history');
 
 -- 默认通用 Agent：为本地联调和后续 Agent UI 测试提供可直接选择的已发布 Revision。
 INSERT INTO agent_definition (id, name, description, owner_user_id, current_published_revision_id, remark, is_enabled, deleted_at, created_by, updated_by)

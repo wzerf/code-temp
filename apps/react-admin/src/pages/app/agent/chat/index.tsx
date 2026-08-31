@@ -8,11 +8,13 @@ import {
   createAgentSessionApi,
   getAgentDefinitionApi,
   getAgentSessionApi,
+  getAgentSessionHistoryApi,
   listAgentDefinitionsApi,
+  listAgentSessionsApi,
   resumeAgentSessionApi,
   runAgentSessionApi,
 } from '@/api/rest/agent';
-import type { AgentDefinition, AgentRunEvent, AgentSession } from '@/api/rest/types';
+import type { AgentDefinition, AgentRunEvent, AgentSession, AgentSessionMessage } from '@/api/rest/types';
 import { defaultIdGenerator } from '@/core/transport/rest/utils';
 import ContentContainer from '@/layouts/components/PageContainer/ContentContainer';
 import { useAuthStore } from '@/stores';
@@ -45,10 +47,20 @@ function statusLabel(state: RunState): string {
   }[state];
 }
 
+function restoreMessage(item: AgentSessionMessage): ChatMessage {
+  return {
+    content: item.content,
+    key: item.id,
+    role: item.role,
+    thinking: item.thinking ?? undefined,
+  };
+}
+
 const AgentChatPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const accessToken = useAuthStore((state) => state.accessToken);
   const agentDefinitionId = Number(searchParams.get('agentDefinitionId'));
+  const sessionId = Number(searchParams.get('sessionId'));
   const [agent, setAgent] = useState<AgentDefinition | null>(null);
   const [agents, setAgents] = useState<AgentDefinition[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -57,11 +69,14 @@ const AgentChatPage = () => {
   const [runState, setRunState] = useState<RunState>('idle');
   const [session, setSession] = useState<AgentSession | null>(null);
   const [resumable, setResumable] = useState(false);
+  const [sessions, setSessions] = useState<AgentSession[]>([]);
+  const [sessionsLoaded, setSessionsLoaded] = useState(false);
   const [sending, setSending] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const requestIdRef = useRef<string | null>(null);
   const sendingRef = useRef(false);
   const streamAbortRef = useRef<AbortController | null>(null);
+  const activeSessionIdRef = useRef<number | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -97,6 +112,74 @@ const AgentChatPage = () => {
       streamAbortRef.current?.abort();
     };
   }, [agentDefinitionId, setSearchParams]);
+
+  useEffect(() => {
+    let active = true;
+    streamAbortRef.current?.abort();
+    sendingRef.current = false;
+    requestIdRef.current = null;
+    activeSessionIdRef.current = null;
+    queueMicrotask(() => {
+      if (!active) return;
+      setAgent(null);
+      setMessages([]);
+      setSession(null);
+      setRunState('idle');
+      setResumable(false);
+      setSending(false);
+      setInputValue('');
+      setSessionsLoaded(false);
+      if (!Number.isSafeInteger(agentDefinitionId) || agentDefinitionId <= 0) {
+        setSessions([]);
+      }
+    });
+    if (!Number.isSafeInteger(agentDefinitionId) || agentDefinitionId <= 0) {
+      return () => {
+        active = false;
+      };
+    }
+    void listAgentSessionsApi(agentDefinitionId)
+      .then((items) => {
+        if (active) {
+          setSessions(items);
+          setSessionsLoaded(true);
+        }
+      })
+      .catch((cause: unknown) => {
+        if (active) {
+          setSessionsLoaded(true);
+          setError(cause instanceof Error ? cause.message : '加载历史会话失败。');
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [agentDefinitionId]);
+
+  useEffect(() => {
+    let active = true;
+    if (!Number.isSafeInteger(agentDefinitionId) || agentDefinitionId <= 0 || !Number.isSafeInteger(sessionId) || sessionId <= 0) {
+      return () => {
+        active = false;
+      };
+    }
+    void getAgentSessionHistoryApi(sessionId)
+      .then((history) => {
+        if (!active) return;
+        if (history.session.agentDefinitionId !== agentDefinitionId) {
+          throw new Error('会话不属于当前 Agent。');
+        }
+        activeSessionIdRef.current = history.session.id;
+        setSession(history.session);
+        setMessages(history.messages.map(restoreMessage));
+      })
+      .catch((cause: unknown) => {
+        if (active) setError(cause instanceof Error ? cause.message : '加载历史会话失败。');
+      });
+    return () => {
+      active = false;
+    };
+  }, [agentDefinitionId, sessionId]);
 
   const canSend = Boolean(agent?.isEnabled && accessToken && !sending && runState !== 'cancelling');
   const statusColor = runState === 'failed' ? 'error' : runState === 'cancelling' ? 'warning' : runState === 'running' ? 'processing' : runState === 'cancelled' ? 'default' : 'success';
@@ -156,8 +239,21 @@ const AgentChatPage = () => {
       setRunState(terminal);
       setResumable(false);
       setMessages((current) => finalizeAssistant(current));
+      const activeSessionId = activeSessionIdRef.current;
+      if (activeSessionId) {
+        const next = new URLSearchParams(searchParams);
+        next.set('sessionId', String(activeSessionId));
+        setSearchParams(next, { replace: true });
+      }
       if (event.message) message[terminal === 'failed' ? 'error' : 'success'](event.message);
     }
+  }
+
+  function selectSession(nextSessionId: number): void {
+    if (sending || session?.id === nextSessionId) return;
+    const next = new URLSearchParams(searchParams);
+    next.set('sessionId', String(nextSessionId));
+    setSearchParams(next);
   }
 
   function markResumable(detail: string): void {
@@ -176,6 +272,7 @@ const AgentChatPage = () => {
       setError(null);
       setResumable(false);
       const activeSession = session ?? await createAgentSessionApi(agent.id);
+      activeSessionIdRef.current = activeSession.id;
       setSession(activeSession);
       const requestId = defaultIdGenerator();
       requestIdRef.current = requestId;
@@ -190,6 +287,7 @@ const AgentChatPage = () => {
       streamAbortRef.current = controller;
       await runAgentSessionApi(activeSession.id, { accessToken, message: text, requestId }, { onEvent: consumeEvent, signal: controller.signal });
       if (requestIdRef.current === requestId) markResumable('Agent 流连接已关闭，运行状态未知；');
+      void listAgentSessionsApi(agent.id).then(setSessions).catch(() => undefined);
     } catch (cause: unknown) {
       if (cause instanceof DOMException && cause.name === 'AbortError') return;
       markResumable(cause instanceof Error ? cause.message : 'Agent 流连接中断。');
@@ -266,12 +364,17 @@ const AgentChatPage = () => {
             <span>智能体工作台</span>
           </div>
           <Button className="agent-chat-new" icon={<PlusOutlined />} onClick={() => {
+            activeSessionIdRef.current = null;
+            requestIdRef.current = null;
             setMessages([]);
             setSession(null);
             setRunState('idle');
             setResumable(false);
             setError(null);
             setInputValue('');
+            const next = new URLSearchParams(searchParams);
+            next.delete('sessionId');
+            setSearchParams(next);
           }}>新建对话</Button>
           <div className="agent-chat-agent-list">
             <Typography.Text className="agent-chat-list-title">已发布 Agent</Typography.Text>
@@ -280,10 +383,31 @@ const AgentChatPage = () => {
                 className={`agent-chat-agent${item.id === agent.id ? ' agent-chat-agent--active' : ''}`}
                 icon={<Avatar size={24}>{item.name.slice(0, 1)}</Avatar>}
                 key={item.id}
-                onClick={() => setSearchParams({ agentDefinitionId: String(item.id) })}
+                disabled={sending}
+                onClick={() => {
+                  const next = new URLSearchParams(searchParams);
+                  next.set('agentDefinitionId', String(item.id));
+                  next.delete('sessionId');
+                  setSearchParams(next);
+                }}
                 type="text"
               >
                 <span className="agent-chat-agent-name">{item.name}</span>
+              </Button>
+            ))}
+          </div>
+          <div className="agent-chat-session-list">
+            <Typography.Text className="agent-chat-list-title">历史对话</Typography.Text>
+            {!sessionsLoaded ? <Spin size="small" /> : sessions.length === 0 ? <Typography.Text className="agent-chat-session-empty" type="secondary">暂无历史对话</Typography.Text> : sessions.map((item) => (
+              <Button
+                className={`agent-chat-session${item.id === session?.id ? ' agent-chat-session--active' : ''}`}
+                disabled={sending}
+                key={item.id}
+                onClick={() => selectSession(item.id)}
+                type="text"
+              >
+                <span className="agent-chat-session-title">对话 #{item.id}</span>
+                <span className="agent-chat-session-time">{new Date(item.lastActiveAt).toLocaleString()}</span>
               </Button>
             ))}
           </div>

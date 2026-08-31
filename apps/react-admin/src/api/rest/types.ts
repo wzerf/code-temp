@@ -1091,6 +1091,20 @@ export interface AgentSession {
   ownerUserId: number;
   status: string;
   createdAt: string;
+  lastActiveAt: string;
+}
+
+export interface AgentSessionMessage {
+  id: string;
+  role: 'ai' | 'user';
+  content: string;
+  thinking: string | null;
+  createdAt: string;
+}
+
+export interface AgentSessionHistory {
+  session: AgentSession;
+  messages: AgentSessionMessage[];
 }
 
 export interface AgentRunEvent {

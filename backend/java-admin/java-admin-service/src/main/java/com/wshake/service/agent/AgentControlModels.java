@@ -78,7 +78,12 @@ public final class AgentControlModels {
             Long agentRevisionId,
             Long ownerUserId,
             String status,
-            LocalDateTime createdAt) {}
+            LocalDateTime createdAt,
+            LocalDateTime lastActiveAt) {}
+
+    public record AgentSessionMessageView(String id, String role, String content, String thinking, String createdAt) {}
+
+    public record AgentSessionHistoryView(AgentSessionView session, java.util.List<AgentSessionMessageView> messages) {}
 
     /** 运行面唯一可消费的不可变 Revision 输入；不包含密钥或 Redis 状态。 */
     public record AgentRunPlan(

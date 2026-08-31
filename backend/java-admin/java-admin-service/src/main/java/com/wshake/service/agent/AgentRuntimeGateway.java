@@ -2,6 +2,8 @@ package com.wshake.service.agent;
 
 import com.wshake.service.agent.AgentControlModels.AgentRunEvent;
 import com.wshake.service.agent.AgentControlModels.AgentRunPlan;
+import com.wshake.service.agent.AgentControlModels.AgentSessionMessageView;
+import java.util.List;
 import reactor.core.publisher.Flux;
 
 /** API 与 Agent 运行基础设施之间的领域端口。 */
@@ -12,4 +14,8 @@ public interface AgentRuntimeGateway {
     AgentRunEvent cancel(Long sessionId, String requestId);
 
     Flux<AgentRunEvent> resume(Long sessionId, String requestId);
+
+    boolean hasSessionHistory(Long sessionId, Long ownerUserId);
+
+    List<AgentSessionMessageView> getSessionHistory(Long sessionId, Long ownerUserId);
 }

@@ -22,4 +22,5 @@ public class AgentSession implements ProxyEntityAvailable<AgentSession, AgentSes
     private Long ownerUserId;
     private String status;
     private LocalDateTime createdAt;
+    private LocalDateTime lastActiveAt;
 }

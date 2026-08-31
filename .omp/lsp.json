@@ -1,0 +1,27 @@
+{
+  "servers": {
+    "jdtls": {
+      "command": "jdtls",
+      "args": [],
+      "fileTypes": [".java"],
+      "rootMarkers": [".omp", "pom.xml", "build.gradle", "build.gradle.kts", "settings.gradle", ".project"]
+    },
+    "typescript-language-server": {
+      "command": "typescript-language-server",
+      "args": ["--stdio"],
+      "fileTypes": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"],
+      "rootMarkers": [".omp", "package.json", "tsconfig.json", "jsconfig.json"],
+      "initOptions": {
+        "tsserver": {
+          "path": "apps/react-admin/node_modules/typescript/lib"
+        },
+        "hostInfo": "omp-coding-agent",
+        "preferences": {
+          "includeInlayParameterNameHints": "all",
+          "includeInlayVariableTypeHints": true,
+          "includeInlayFunctionParameterTypeHints": true
+        }
+      }
+    }
+  }
+}

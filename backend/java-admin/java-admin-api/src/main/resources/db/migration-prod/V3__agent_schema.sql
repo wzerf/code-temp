@@ -52,9 +52,11 @@ CREATE TABLE agent_session (
     owner_user_id       BIGINT UNSIGNED NOT NULL,
     status              VARCHAR(32)     NOT NULL DEFAULT 'ACTIVE',
     created_at          TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_active_at      TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     INDEX idx_agent_session_owner_user_id_created_at (owner_user_id, created_at),
     INDEX idx_agent_session_definition_id_created_at (agent_definition_id, created_at),
-    INDEX idx_agent_session_revision_id (agent_revision_id)
+    INDEX idx_agent_session_revision_id (agent_revision_id),
+    INDEX idx_agent_session_owner_definition_active_at (owner_user_id, agent_definition_id, last_active_at, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   COMMENT='Agent 会话控制面元数据与固定 Revision';

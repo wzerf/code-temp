@@ -3,6 +3,7 @@ import type {
   AgentDefinition,
   AgentRunEvent,
   AgentSession,
+  AgentSessionHistory,
   CancelAgentRunRequest,
   CreateAgentMessageRequest,
 } from './types';
@@ -19,8 +20,16 @@ export function createAgentSessionApi(agentDefinitionId: number) {
   return post<AgentSession>(`/agent/${agentDefinitionId}/sessions`);
 }
 
+export function listAgentSessionsApi(agentDefinitionId: number) {
+  return get<AgentSession[]>(`/agent/${agentDefinitionId}/sessions`);
+}
+
 export function getAgentSessionApi(sessionId: number) {
   return get<AgentSession>(`/agent/sessions/${sessionId}`);
+}
+
+export function getAgentSessionHistoryApi(sessionId: number) {
+  return get<AgentSessionHistory>(`/agent/sessions/${sessionId}/history`);
 }
 
 export function cancelAgentRunApi(sessionId: number, body: CancelAgentRunRequest) {

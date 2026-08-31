@@ -76,7 +76,7 @@ class AgentControllerTest {
     @Test
     void cancel_returnsRuntimeStateWithoutResolvingRevision() {
         when(agentControlService.getSession(20L, 7L))
-                .thenReturn(new AgentSessionView(20L, 1L, null, 7L, "ACTIVE", null));
+                .thenReturn(new AgentSessionView(20L, 1L, null, 7L, "ACTIVE", null, null));
         when(agentRuntimeGateway.cancel(20L, "request-1"))
                 .thenReturn(new AgentRunEvent("CANCELLED", "request-1", 20L, 10L, null, null, null));
         CancelAgentRunRequest request = new CancelAgentRunRequest();
@@ -99,7 +99,7 @@ class AgentControllerTest {
     @Test
     void resume_checksSessionOwnershipBeforeSubscribing() {
         when(agentControlService.getSession(20L, 7L))
-                .thenReturn(new AgentSessionView(20L, 1L, 10L, 7L, "ACTIVE", null));
+                .thenReturn(new AgentSessionView(20L, 1L, 10L, 7L, "ACTIVE", null, null));
         when(agentRuntimeGateway.resume(20L, "request-1")).thenReturn(reactor.core.publisher.Flux.empty());
 
         RequestContext.open();
@@ -112,6 +112,24 @@ class AgentControllerTest {
 
         verify(agentControlService).getSession(20L, 7L);
         verify(agentRuntimeGateway).resume(20L, "request-1");
+    }
+
+    @Test
+    void listSessions_usesCurrentUser() {
+        when(agentControlService.listSessions(1L, 7L))
+                .thenReturn(java.util.List.of(new AgentSessionView(20L, 1L, 10L, 7L, "ACTIVE", null, null)));
+
+        RequestContext.open();
+        RequestContext.setUserId(7L);
+        try {
+            var result = controller.listSessions(1L);
+            assertThat(result.getData()).hasSize(1);
+            assertThat(result.getData().getFirst().getId()).isEqualTo(20L);
+        } finally {
+            RequestContext.close();
+        }
+
+        verify(agentControlService).listSessions(1L, 7L);
     }
 
     private static AgentRevisionView revision(Long id, Long definitionId, String status) {

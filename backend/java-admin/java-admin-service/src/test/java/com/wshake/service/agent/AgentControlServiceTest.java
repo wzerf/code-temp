@@ -26,11 +26,13 @@ class AgentControlServiceTest {
     private final AgentDefinitionRepository definitionRepository = mock(AgentDefinitionRepository.class);
     private final AgentRevisionRepository revisionRepository = mock(AgentRevisionRepository.class);
     private final AgentSessionRepository sessionRepository = mock(AgentSessionRepository.class);
+    private final AgentRuntimeGateway agentRuntimeGateway = mock(AgentRuntimeGateway.class);
     private AgentControlService service;
 
     @BeforeEach
     void setUp() {
-        service = new AgentControlService(definitionRepository, revisionRepository, sessionRepository);
+        service = new AgentControlService(
+                definitionRepository, revisionRepository, sessionRepository, agentRuntimeGateway);
     }
 
     @Test
@@ -137,6 +139,26 @@ class AgentControlServiceTest {
                         new CreateRevisionCommand(1L, "prompt", Map.of(), null, null, null, ""), 7L))
                 .isInstanceOf(BizException.class)
                 .hasMessageContaining("disabled");
+    }
+
+    @Test
+    void listSessions_returnsOnlyCurrentUsersRedisConversations() {
+        AgentSession visible = new AgentSession();
+        visible.setId(100L);
+        visible.setAgentDefinitionId(1L);
+        visible.setOwnerUserId(7L);
+        AgentSession empty = new AgentSession();
+        empty.setId(101L);
+        empty.setAgentDefinitionId(1L);
+        empty.setOwnerUserId(7L);
+        when(definitionRepository.findById(1L)).thenReturn(definition(1L, 7L, 1, 11L));
+        when(sessionRepository.listByOwnerUserIdAndAgentDefinitionId(7L, 1L))
+                .thenReturn(java.util.List.of(visible, empty));
+        when(agentRuntimeGateway.hasSessionHistory(100L, 7L)).thenReturn(true);
+
+        var sessions = service.listSessions(1L, 7L);
+
+        assertThat(sessions).extracting(AgentControlModels.AgentSessionView::id).containsExactly(100L);
     }
 
     private static AgentDefinition definition(Long id, Long ownerUserId, int enabled, Long currentRevisionId) {

@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ThoughtChain } from '@ant-design/x';
 import { MdPreview } from 'md-editor-rt';
 import 'md-editor-rt/lib/preview.css';
+import { isDarkMode } from '@/components/common/Editor/src/utils';
 
 export interface AssistantContentProps {
   content: string;
@@ -41,6 +42,18 @@ const AssistantContent = ({
 }: AssistantContentProps) => {
   const hasThinking = Boolean(thinking?.trim());
   const [, bump] = useState(0);
+  const [isDark, setIsDark] = useState(isDarkMode);
+
+  useEffect(() => {
+    const checkDark = () => setIsDark(isDarkMode());
+    checkDark();
+    const observer = new MutationObserver(checkDark);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class', 'data-theme'],
+    });
+    return () => observer.disconnect();
+  }, []);
 
   const thoughtItems = useMemo(
     () =>
@@ -76,6 +89,7 @@ const AssistantContent = ({
           className="agent-chat-markdown"
           editorId={`agent-md-${messageKey}`}
           previewTheme="vuepress"
+          theme={isDark ? 'dark' : 'light'}
           value={content}
         />
       ) : null}

@@ -249,7 +249,7 @@ const AgentChatPage = () => {
           {error ? <Alert message="无法加载 Agent" description={error} showIcon type="error" /> : (
             <Flex gap={16} vertical>
               <Typography.Title level={3} style={{ margin: 0 }}>选择已发布 Agent</Typography.Title>
-              {agents.length === 0 ? <Alert message="暂无已发布 Agent" description="请先发布一个 Agent Revision，再返回此页开始对话。" showIcon type="info" /> : <Select aria-label="选择 Agent" onChange={(id: number) => setSearchParams({ agentDefinitionId: String(id) })} options={agents.map((item) => ({ label: item.name, value: item.id }))} placeholder="选择 Agent" />}
+              {agents.length === 0 ? <Alert title="暂无已发布 Agent" description="请先发布一个 Agent Revision，再返回此页开始对话。" showIcon type="info" /> : <Select aria-label="选择 Agent" onChange={(id: number) => setSearchParams({ agentDefinitionId: String(id) })} options={agents.map((item) => ({ label: item.name, value: item.id }))} placeholder="选择 Agent" />}
             </Flex>
           )}
         </Card>

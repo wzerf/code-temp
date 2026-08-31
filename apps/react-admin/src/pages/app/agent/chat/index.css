@@ -3,10 +3,10 @@
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  background: #fff;
-  border: 1px solid #f0f0f0;
+  background: var(--ant-color-bg-container);
+  border: 1px solid var(--ant-color-border-secondary);
   border-radius: 16px;
-  box-shadow: 0 8px 30px rgb(16 24 40 / 6%);
+  box-shadow: 0 8px 30px rgb(0 0 0 / 6%);
 }
 
 .agent-chat-sidebar {
@@ -15,8 +15,8 @@
   flex: 0 0 268px;
   flex-direction: column;
   padding: 18px 12px 12px;
-  background: linear-gradient(180deg, #fafbff 0%, #f6f7fb 100%);
-  border-right: 1px solid #f0f0f0;
+  background: var(--ant-color-bg-layout);
+  border-right: 1px solid var(--ant-color-border-secondary);
 }
 
 .agent-chat-brand {
@@ -24,7 +24,7 @@
   align-items: center;
   gap: 10px;
   padding: 4px 12px 20px;
-  color: #1f1f1f;
+  color: var(--ant-color-text);
   font-size: 16px;
   font-weight: 650;
 }
@@ -35,7 +35,7 @@
   height: 28px;
   place-items: center;
   color: #fff;
-  background: linear-gradient(135deg, #6b55f6, #9e61ff);
+  background: linear-gradient(135deg, var(--ant-color-primary), var(--ant-color-primary-hover, var(--ant-color-primary)));
   border-radius: 9px;
 }
 
@@ -43,8 +43,8 @@
   width: 100%;
   height: 38px;
   margin-bottom: 18px;
-  color: #403294;
-  background: #f0edff;
+  color: var(--ant-color-primary);
+  background: var(--ant-color-primary-bg);
   border: 0;
   border-radius: 9px;
   font-weight: 600;
@@ -58,7 +58,7 @@
 .agent-chat-list-title {
   display: block;
   padding: 0 10px 8px;
-  color: #8c8c8c;
+  color: var(--ant-color-text-secondary);
   font-size: 12px;
 }
 
@@ -69,7 +69,7 @@
   gap: 10px;
   padding: 9px 10px;
   overflow: hidden;
-  color: #434343;
+  color: var(--ant-color-text);
   text-align: left;
   border: 0;
   border-radius: 8px;
@@ -77,8 +77,8 @@
 
 .agent-chat-agent:hover,
 .agent-chat-agent--active {
-  color: #3e2eae;
-  background: #ece9ff;
+  color: var(--ant-color-primary);
+  background: var(--ant-color-primary-bg);
 }
 
 .agent-chat-agent-name {
@@ -93,7 +93,7 @@
   justify-content: space-between;
   margin-top: auto;
   padding: 14px 8px 0;
-  border-top: 1px solid #e8e8e8;
+  border-top: 1px solid var(--ant-color-border-secondary);
 }
 
 .agent-chat-main {
@@ -110,7 +110,7 @@
   justify-content: space-between;
   gap: 16px;
   padding: 12px 28px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--ant-color-border-secondary);
 }
 
 .agent-chat-header-title {
@@ -136,13 +136,22 @@
   min-height: 0;
   flex: 1;
   flex-direction: column;
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 .agent-chat-bubbles {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  max-height: 100%;
+  box-sizing: border-box;
+}
+
+/* 滚动在列表全宽容器上，内容居中限宽，滚动条贴主区域最右 */
+.agent-chat-bubbles .ant-bubble-list-scroll-content {
   width: 100%;
   max-width: 920px;
-  margin: 0 auto;
+  margin-inline: auto;
   padding: 28px;
   box-sizing: border-box;
 }
@@ -165,10 +174,10 @@
   height: auto;
   min-height: 72px;
   padding: 14px 16px;
-  color: #3d347c;
+  color: var(--ant-color-primary);
   text-align: left;
   white-space: normal;
-  background: linear-gradient(120deg, #eef7ff, #f4edff);
+  background: var(--ant-color-primary-bg);
   border: 0;
   border-radius: 12px;
   font-weight: 500;
@@ -181,7 +190,7 @@
 
 .agent-chat-composer .ant-sender {
   border-radius: 14px;
-  box-shadow: 0 4px 18px rgb(16 24 40 / 8%);
+  box-shadow: 0 4px 18px rgb(0 0 0 / 8%);
 }
 
 .agent-chat-alert {
@@ -200,7 +209,7 @@
 }
 
 .agent-chat-thought-chain .ant-thought-chain-node-title {
-  color: #8c8c8c;
+  color: var(--ant-color-text-secondary);
   font-size: 13px;
   font-weight: 500;
 }
@@ -209,7 +218,7 @@
   margin: 0;
   padding: 0;
   overflow: auto;
-  color: #595959;
+  color: var(--ant-color-text-secondary);
   font-family: inherit;
   font-size: 13px;
   line-height: 1.6;
@@ -249,7 +258,7 @@
   margin: 0.75em 0;
   padding: 12px 14px;
   overflow: auto;
-  background: #f6f8fa;
+  background: var(--ant-color-fill-tertiary);
   border-radius: 8px;
 }
 
@@ -263,7 +272,7 @@
   .agent-chat-sidebar { display: none; }
   .agent-chat-header { padding-inline: 16px; }
   .agent-chat-header .ant-tag:nth-of-type(n + 2) { display: none; }
-  .agent-chat-bubbles { padding: 16px; }
+  .agent-chat-bubbles .ant-bubble-list-scroll-content { padding: 16px; }
   .agent-chat-welcome { padding-inline: 16px; }
   .agent-chat-suggestions { grid-template-columns: 1fr; }
 }

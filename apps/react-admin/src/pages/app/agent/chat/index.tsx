@@ -5,7 +5,6 @@ import {
   Alert,
   Avatar,
   Button,
-  Card,
   Flex,
   Select,
   Spin,
@@ -120,10 +119,14 @@ const AgentChatPage = () => {
       .then((definitions) => {
         if (!active) return;
         setAgents(definitions);
-        setAgentsLoaded(true);
-        if (!agentDefinitionId && definitions.length === 1) {
-          setSearchParams({ agentDefinitionId: String(definitions[0].id) }, { replace: true });
+        if (!Number.isSafeInteger(agentDefinitionId) || agentDefinitionId <= 0) {
+          const firstAgent = definitions[0];
+          if (firstAgent) {
+            setSearchParams({ agentDefinitionId: String(firstAgent.id) }, { replace: true });
+            return;
+          }
         }
+        setAgentsLoaded(true);
       })
       .catch((cause: unknown) => {
         if (active) {
@@ -452,32 +455,16 @@ const AgentChatPage = () => {
     }
     return (
       <ContentContainer>
-        <Card style={{ maxWidth: 560, margin: '48px auto' }}>
-          {error ? (
-            <Alert message="无法加载 Agent" description={error} showIcon type="error" />
-          ) : (
-            <Flex gap={16} vertical>
-              <Typography.Title level={3} style={{ margin: 0 }}>
-                选择已发布 Agent
-              </Typography.Title>
-              {agents.length === 0 ? (
-                <Alert
-                  title="暂无已发布 Agent"
-                  description="请先发布一个 Agent Revision，再返回此页开始对话。"
-                  showIcon
-                  type="info"
-                />
-              ) : (
-                <Select
-                  aria-label="选择 Agent"
-                  onChange={(id: number) => setSearchParams({ agentDefinitionId: String(id) })}
-                  options={agents.map((item) => ({ label: item.name, value: item.id }))}
-                  placeholder="选择 Agent"
-                />
-              )}
-            </Flex>
-          )}
-        </Card>
+        {error ? (
+          <Alert message="无法加载 Agent" description={error} showIcon type="error" />
+        ) : (
+          <Alert
+            title="暂无已发布 Agent"
+            description="请先发布一个 Agent Revision，再返回此页开始对话。"
+            showIcon
+            type="info"
+          />
+        )}
       </ContentContainer>
     );
   }
@@ -668,3 +655,4 @@ const AgentChatPage = () => {
 };
 
 export { AgentChatPage };
+export default AgentChatPage;

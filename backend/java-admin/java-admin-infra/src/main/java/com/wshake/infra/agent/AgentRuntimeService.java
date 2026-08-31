@@ -82,7 +82,6 @@ public class AgentRuntimeService implements AgentRuntimeGateway {
 
     private final AgentRuntimeProperties properties;
     private final RedissonClient redissonClient;
-    private final okhttp3.OkHttpClient okHttpClient;
     private final AgentRuntimeTools runtimeTools;
 
     /**

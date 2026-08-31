@@ -21,8 +21,6 @@ import io.agentscope.core.message.MsgRole;
 import io.agentscope.core.message.TextBlock;
 import io.agentscope.core.message.ThinkingBlock;
 import io.agentscope.core.model.ExecutionConfig;
-import io.agentscope.core.model.transport.HttpTransportConfig;
-import io.agentscope.core.model.transport.OkHttpTransport;
 import io.agentscope.core.state.AgentState;
 import io.agentscope.core.tool.Toolkit;
 import io.agentscope.extensions.model.openai.OpenAIChatModel;
@@ -73,8 +71,6 @@ public class AgentRuntimeService implements AgentRuntimeGateway {
     private static final String EVENT_TOOL_COMPLETED = "TOOL_COMPLETED";
     private static final int MAX_REQUEST_ID_LENGTH = 128;
     private static final int MAX_MESSAGE_LENGTH = 65_535;
-    private static final int MAX_EXECUTION_ATTEMPTS = 1;
-    private static final int MAX_AGENT_ITERATIONS = 2;
     private static final int HEARTBEAT_DIVISOR = 2;
     private static final int NO_LISTENER_ID = -1;
     private static final long LOCK_WAIT_MILLIS = 0;
@@ -267,10 +263,7 @@ public class AgentRuntimeService implements AgentRuntimeGateway {
                 .apiKey(properties.getApiKey())
                 .baseUrl(properties.getBaseUrl())
                 .modelName(properties.getModelName())
-                .stream(true)
-                .httpTransport(OkHttpTransport.builder()
-                        .config(HttpTransportConfig.defaults())
-                        .build());
+                .stream(true);
         // xAI/Grok 仅允许 user 消息带 name；默认 OpenAI formatter 会给 assistant/system 写入 name
         if (GrokChatFormatter.needsGrokFormatter(properties.getModelName(), properties.getBaseUrl())) {
             modelBuilder.formatter(new GrokChatFormatter());
@@ -288,13 +281,10 @@ public class AgentRuntimeService implements AgentRuntimeGateway {
                         .build())
                 .modelExecutionConfig(ExecutionConfig.builder()
                         .timeout(properties.getModelTimeout())
-                        .maxAttempts(MAX_EXECUTION_ATTEMPTS)
                         .build())
                 .toolExecutionConfig(ExecutionConfig.builder()
                         .timeout(properties.getModelTimeout())
-                        .maxAttempts(MAX_EXECUTION_ATTEMPTS)
                         .build())
-                .maxIters(MAX_AGENT_ITERATIONS)
                 .disableFilesystemTools()
                 .disableShellTool()
                 .disableMemoryTools()
@@ -460,7 +450,7 @@ public class AgentRuntimeService implements AgentRuntimeGateway {
                 String recovered = state.get();
                 return recovered == null ? STATE_STARTING : recovered;
             }
-            if (state.get() != null && !current.equals(state.get())) {
+            if (current != null && state.get() != null && !current.equals(state.get())) {
                 return state.get();
             }
             events.appendAndUpdateState(

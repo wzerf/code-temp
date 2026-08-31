@@ -71,7 +71,7 @@ class AgentRuntimeServiceTest {
                 .when(cancelTopic)
                 .publish("cancel");
 
-        AgentRuntimeService service = new AgentRuntimeService(properties, redissonClient, mock(), mock());
+        AgentRuntimeService service = new AgentRuntimeService(properties, redissonClient, mock());
 
         AgentRunEvent result = service.cancel(20L, "request-1");
 
@@ -114,7 +114,7 @@ class AgentRuntimeServiceTest {
     @Test
     void run_rejectsUnavailableMemoryOrCompressionPolicy() {
         AgentRuntimeProperties properties = configuredProperties();
-        AgentRuntimeService service = new AgentRuntimeService(properties, mock(), mock(), mock());
+        AgentRuntimeService service = new AgentRuntimeService(properties, mock(), mock());
         var plan = new com.wshake.service.agent.AgentControlModels.AgentRunPlan(
                 20L, 1L, 10L, 7L, "prompt", null, null, java.util.Map.of("enabled", true), null);
 
@@ -173,7 +173,7 @@ class AgentRuntimeServiceTest {
                 .thenReturn(false);
         when(state.get()).thenReturn(null);
         when(owner.isExists()).thenReturn(false);
-        AgentRuntimeService service = new AgentRuntimeService(properties, redissonClient, mock(), mock());
+        AgentRuntimeService service = new AgentRuntimeService(properties, redissonClient, mock());
 
         assertThatThrownBy(() -> service.run(plan(), "request-1", "message").blockFirst())
                 .hasMessageContaining("expired and cannot be resumed");
@@ -209,7 +209,7 @@ class AgentRuntimeServiceTest {
                                         ThinkingBlock.builder().thinking("推理").build())))
                         .build()
                         .toJson());
-        AgentRuntimeService service = new AgentRuntimeService(configuredProperties(), redissonClient, mock(), mock());
+        AgentRuntimeService service = new AgentRuntimeService(configuredProperties(), redissonClient, mock());
 
         assertThat(service.hasSessionHistory(20L, 7L)).isTrue();
         assertThat(service.getSessionHistory(20L, 7L))

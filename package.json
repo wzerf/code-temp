@@ -16,6 +16,7 @@
     "commitlint": "catalog:",
     "cspell": "catalog:",
     "lefthook": "catalog:",
+    "typescript-language-server": "catalog:",
     "vite-plus": "catalog:"
   },
   "engines": {

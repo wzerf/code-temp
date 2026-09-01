@@ -30,6 +30,7 @@ AgentScope Agent 后台系统架构
 
 3.  Skill 市场与个人 Skill
 
+- 细节：[`docs/agent-module-skill.md`](agent-module-skill.md)。
 - Skill 是指令和资料包，不是可直接执行的工具；可包含 SKILL.md、参考资料、受控脚本。
 - 支持私有 Skill、市场 Skill、草稿、提交审核、发布、下架、弃用、安装。
 - 发布 Skill 后生成不可变 Release 与内容哈希；后续修改必须发新版本。
@@ -72,6 +73,7 @@ AgentScope Agent 后台系统架构
 - [AgentScope Java：上生产](https://java.agentscope.io/v2/zh/docs/others/going-to-production.html)：`RedisDistributedStore`、多副本状态、Remote workspace、sandbox 快照与执行锁。
 - [AgentScope Java：Harness 架构](https://java.agentscope.io/v2/zh/docs/harness/architecture.html)：Harness 的状态、记忆、压缩、Skill、MCP 和 Channel 装配边界。
 - [AgentScope Java：Skill](https://java.agentscope.io/v2/zh/docs/harness/skill.html)：市场仓库、工作区层级、同名覆盖、审核与制品物化机制。
+- [`docs/agent-module-skill.md`](agent-module-skill.md)：Skill 表结构与控制面/运行面流程。
 - [AgentScope Java：Redis State Store](https://java.agentscope.io/v2/en/integration/session/redis.html)：Redis 状态存储与 client adapter。
 - [AgentScope Java：Tool](https://java.agentscope.io/v2/zh/docs/building-blocks/tool.html)：`Toolkit`、Java Tool、MCP 命名 `mcp__{server}__{tool}`、Skill Tool Group。
 - [AgentScope Java：智能体](https://java.agentscope.io/v2/zh/docs/building-blocks/agent.html)：`RuntimeContext` 一等字段、`AgentStateStore`、流式事件、中断、HITL 恢复。

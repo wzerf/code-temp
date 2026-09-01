@@ -1,6 +1,7 @@
 package com.wshake.api.dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import java.util.List;
 import java.util.Map;
 import lombok.Getter;
 
@@ -38,6 +39,11 @@ public class UpdateAgentRevisionRequest {
     @JsonIgnore
     private boolean remarkPresent;
 
+    private List<SkillBindingRequest> skillBindings;
+
+    @JsonIgnore
+    private boolean skillBindingsPresent;
+
     public void setSystemPrompt(String systemPrompt) {
         this.systemPrompt = systemPrompt;
         this.systemPromptPresent = true;
@@ -66,5 +72,10 @@ public class UpdateAgentRevisionRequest {
     public void setRemark(String remark) {
         this.remark = remark;
         this.remarkPresent = true;
+    }
+
+    public void setSkillBindings(List<SkillBindingRequest> skillBindings) {
+        this.skillBindings = skillBindings;
+        this.skillBindingsPresent = true;
     }
 }

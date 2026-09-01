@@ -5,6 +5,7 @@ import com.wshake.api.dto.CancelAgentRunRequest;
 import com.wshake.api.dto.CreateAgentRequest;
 import com.wshake.api.dto.CreateAgentRevisionRequest;
 import com.wshake.api.dto.RollbackAgentRevisionRequest;
+import com.wshake.api.dto.SkillBindingRequest;
 import com.wshake.api.dto.UpdateAgentRevisionRequest;
 import com.wshake.api.vo.AgentDefinitionVO;
 import com.wshake.api.vo.AgentRevisionVO;
@@ -16,6 +17,7 @@ import com.wshake.common.result.Result;
 import com.wshake.service.agent.AgentControlModels.AgentRunEvent;
 import com.wshake.service.agent.AgentControlModels.CreateAgentCommand;
 import com.wshake.service.agent.AgentControlModels.CreateRevisionCommand;
+import com.wshake.service.agent.AgentControlModels.SkillBindingCommand;
 import com.wshake.service.agent.AgentControlModels.UpdateRevisionCommand;
 import com.wshake.service.agent.AgentControlService;
 import com.wshake.service.agent.AgentRuntimeGateway;
@@ -26,6 +28,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -86,15 +89,15 @@ public class AgentController {
     @Operation(summary = "创建草稿 Revision")
     public Result<AgentRevisionVO> createDraft(
             @PathVariable Long id, @Valid @RequestBody CreateAgentRevisionRequest request) {
-        CreateRevisionCommand body = converter.convert(request, CreateRevisionCommand.class);
         CreateRevisionCommand command = new CreateRevisionCommand(
                 id,
-                body.systemPrompt(),
-                body.modelConfig(),
-                body.permissionPolicy(),
-                body.memoryPolicy(),
-                body.compressionPolicy(),
-                body.remark());
+                request.getSystemPrompt(),
+                request.getModelConfig(),
+                request.getPermissionPolicy(),
+                request.getMemoryPolicy(),
+                request.getCompressionPolicy(),
+                request.getRemark(),
+                toBindingCommands(request.getSkillBindings()));
         return Result.ok(converter.convert(
                 agentControlService.createDraft(command, RequestContext.requireUserId()), AgentRevisionVO.class));
     }
@@ -124,7 +127,9 @@ public class AgentController {
                 request.getCompressionPolicy(),
                 request.isCompressionPolicyPresent(),
                 request.getRemark(),
-                request.isRemarkPresent());
+                request.isRemarkPresent(),
+                toBindingCommands(request.getSkillBindings()),
+                request.isSkillBindingsPresent());
         return Result.ok(converter.convert(
                 agentControlService.updateDraft(command, RequestContext.requireUserId()), AgentRevisionVO.class));
     }
@@ -237,5 +242,14 @@ public class AgentController {
         } catch (Exception exception) {
             emitter.completeWithError(exception);
         }
+    }
+
+    private static List<SkillBindingCommand> toBindingCommands(List<SkillBindingRequest> requests) {
+        if (requests == null) {
+            return null;
+        }
+        return requests.stream()
+                .map(item -> new SkillBindingCommand(item.getSkillReleaseId(), item.isOverrideWinner()))
+                .toList();
     }
 }

@@ -18,7 +18,22 @@ VALUES
     ('取消 Agent 会话运行', 'POST', '/api/agent/sessions/:id/cancel', 'agent:session:cancel', 'Agent 管理', '', 1, 0, 0, 0),
     ('获取 Agent 会话', 'GET', '/api/agent/sessions/:id', 'agent:session:read', 'Agent 管理', '', 1, 0, 0, 0),
     ('列出 Agent 历史会话', 'GET', '/api/agent/:id/sessions', 'agent:session:list', 'Agent 管理', '', 1, 0, 0, 0),
-    ('获取 Agent 会话历史', 'GET', '/api/agent/sessions/:id/history', 'agent:session:history', 'Agent 管理', '', 1, 0, 0, 0);
+    ('获取 Agent 会话历史', 'GET', '/api/agent/sessions/:id/history', 'agent:session:history', 'Agent 管理', '', 1, 0, 0, 0),
+    ('创建 Skill 草稿', 'POST', '/api/agent/skills/drafts', 'skill:draft:create', 'Agent Skill', '', 1, 0, 0, 0),
+    ('列出 Skill 草稿', 'GET', '/api/agent/skills/drafts', 'skill:draft:list', 'Agent Skill', '', 1, 0, 0, 0),
+    ('获取 Skill 草稿', 'GET', '/api/agent/skills/drafts/:id', 'skill:draft:read', 'Agent Skill', '', 1, 0, 0, 0),
+    ('更新 Skill 草稿', 'PUT', '/api/agent/skills/drafts/:id', 'skill:draft:update', 'Agent Skill', '', 1, 0, 0, 0),
+    ('提交 Skill 审核', 'POST', '/api/agent/skills/drafts/:id/submit', 'skill:draft:submit', 'Agent Skill', '', 1, 0, 0, 0),
+    ('撤回 Skill 审核', 'POST', '/api/agent/skills/drafts/:id/withdraw', 'skill:draft:withdraw', 'Agent Skill', '', 1, 0, 0, 0),
+    ('发布 Skill Release', 'POST', '/api/agent/skills/drafts/:id/approve', 'skill:draft:approve', 'Agent Skill', '', 1, 0, 0, 0),
+    ('驳回 Skill 草稿', 'POST', '/api/agent/skills/drafts/:id/reject', 'skill:draft:reject', 'Agent Skill', '', 1, 0, 0, 0),
+    ('列出 Skill 市场', 'GET', '/api/agent/skills/market', 'skill:market:list', 'Agent Skill', '', 1, 0, 0, 0),
+    ('下架 Skill 市场', 'DELETE', '/api/agent/skills/market/:name', 'skill:market:unlist', 'Agent Skill', '', 1, 0, 0, 0),
+    ('安装 Skill', 'POST', '/api/agent/skills/install', 'skill:install:create', 'Agent Skill', '', 1, 0, 0, 0),
+    ('卸载 Skill', 'DELETE', '/api/agent/skills/install/:id', 'skill:install:delete', 'Agent Skill', '', 1, 0, 0, 0),
+    ('列出可绑定 Skill', 'GET', '/api/agent/skills/bindable', 'skill:bindable:list', 'Agent Skill', '', 1, 0, 0, 0),
+    ('获取 Skill Release', 'GET', '/api/agent/skills/releases/:id', 'skill:release:read', 'Agent Skill', '', 1, 0, 0, 0),
+    ('弃用 Skill Release', 'POST', '/api/agent/skills/releases/:id/deprecate', 'skill:release:deprecate', 'Agent Skill', '', 1, 0, 0, 0);
 
 INSERT INTO sys_menu (id, parent_id, name, type, path, component, icon, redirect, permission_code, tree_path, metadata, sort, is_hidden, is_enabled, deleted_at, remark, created_by, updated_by)
 VALUES (500, NULL, 'Agent 对话', 'MENU', '/agent/chat', '/agent/chat/index', 'lucide:bot-message-square', '', 'agent:session:run', '/500/', '{"routeName":"AgentChat","order":2002,"fullPathKey":false}', 2002, 0, 1, 0, '', 0, 0);

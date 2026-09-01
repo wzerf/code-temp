@@ -27,12 +27,13 @@ class AgentControlServiceTest {
     private final AgentRevisionRepository revisionRepository = mock(AgentRevisionRepository.class);
     private final AgentSessionRepository sessionRepository = mock(AgentSessionRepository.class);
     private final AgentRuntimeGateway agentRuntimeGateway = mock(AgentRuntimeGateway.class);
+    private final AgentRevisionSkillBinder skillBinder = mock(AgentRevisionSkillBinder.class);
     private AgentControlService service;
 
     @BeforeEach
     void setUp() {
         service = new AgentControlService(
-                definitionRepository, revisionRepository, sessionRepository, agentRuntimeGateway);
+                definitionRepository, revisionRepository, sessionRepository, agentRuntimeGateway, skillBinder);
     }
 
     @Test
@@ -60,7 +61,8 @@ class AgentControlServiceTest {
         when(revisionRepository.findById(11L)).thenReturn(published(11L, 1L, 10L, "draft prompt"));
         assertThatThrownBy(() -> service.updateDraft(
                         new UpdateRevisionCommand(
-                                11L, "changed", true, null, false, null, false, null, false, null, false, null, false),
+                                11L, "changed", true, null, false, null, false, null, false, null, false, null, false,
+                                null, false),
                         7L))
                 .isInstanceOf(BizException.class)
                 .hasMessageContaining("only draft");
@@ -136,7 +138,7 @@ class AgentControlServiceTest {
         when(definitionRepository.findById(1L)).thenReturn(definition(1L, 7L, 0, null));
 
         assertThatThrownBy(() -> service.createDraft(
-                        new CreateRevisionCommand(1L, "prompt", Map.of(), null, null, null, ""), 7L))
+                        new CreateRevisionCommand(1L, "prompt", Map.of(), null, null, null, "", null), 7L))
                 .isInstanceOf(BizException.class)
                 .hasMessageContaining("disabled");
     }

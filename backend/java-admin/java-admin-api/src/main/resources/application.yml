@@ -140,6 +140,8 @@ app:
     request-id-ttl: ${AGENT_RUNTIME_REQUEST_ID_TTL:10m}
     execution-lease: ${AGENT_RUNTIME_EXECUTION_LEASE:10m}
     model-timeout: ${AGENT_RUNTIME_MODEL_TIMEOUT:2m}
+  agent-skill:
+    database-name: ${AGENT_SKILL_DATABASE_NAME:}
   # 平台墙钟（仅 Asia/Shanghai，见 ADR 0004）
   time:
     zone: Asia/Shanghai

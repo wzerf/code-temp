@@ -275,6 +275,12 @@
                 <artifactId>agentscope-extensions-model-openai</artifactId>
                 <version>${agentscope.version}</version>
             </dependency>
+            <dependency>
+                <groupId>io.agentscope</groupId>
+                <artifactId>agentscope-extensions-skill-mysql-repository</artifactId>
+                <version>${agentscope.version}</version>
+            </dependency>
+
 
             <!-- AWS SDK v2 BOM（S3 适配 MinIO） -->
             <dependency>

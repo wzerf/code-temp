@@ -31,6 +31,7 @@ public class AgentControlService {
     private final AgentRevisionRepository revisionRepository;
     private final AgentSessionRepository sessionRepository;
     private final AgentRuntimeGateway agentRuntimeGateway;
+    private final AgentRevisionSkillBinder skillBinder;
 
     @Transactional
     public AgentRevisionView createAgent(CreateAgentCommand command) {
@@ -54,7 +55,8 @@ public class AgentControlService {
                         command.permissionPolicy(),
                         command.memoryPolicy(),
                         command.compressionPolicy(),
-                        command.remark()),
+                        command.remark(),
+                        null),
                 ownerUserId);
     }
 
@@ -85,6 +87,7 @@ public class AgentControlService {
         requireEnabled(definition);
         AgentRevision draft = newDraft(definition.getId(), command);
         revisionRepository.insert(draft);
+        skillBinder.replaceDraftBindings(draft.getId(), command.skillBindings(), ownerUserId);
         return toRevisionView(draft);
     }
 
@@ -115,6 +118,9 @@ public class AgentControlService {
             draft.setRemark(nullable(command.remark()));
         }
         revisionRepository.update(draft);
+        if (command.skillBindingsPresent()) {
+            skillBinder.replaceDraftBindings(draft.getId(), command.skillBindings(), ownerUserId);
+        }
         return toRevisionView(draft);
     }
 
@@ -127,6 +133,7 @@ public class AgentControlService {
 
         AgentRevision published = copyAsPublished(draft);
         revisionRepository.insert(published);
+        skillBinder.copyToPublished(draft.getId(), published.getId(), ownerUserId);
         definition.setCurrentPublishedRevisionId(published.getId());
         definitionRepository.update(definition);
         return toRevisionView(published);
@@ -190,7 +197,8 @@ public class AgentControlService {
                 AgentJsonSupport.parse(revision.getModelConfig(), "modelConfig"),
                 AgentJsonSupport.parse(revision.getPermissionPolicy(), "permissionPolicy"),
                 AgentJsonSupport.parse(revision.getMemoryPolicy(), "memoryPolicy"),
-                AgentJsonSupport.parse(revision.getCompressionPolicy(), "compressionPolicy"));
+                AgentJsonSupport.parse(revision.getCompressionPolicy(), "compressionPolicy"),
+                skillBinder.snapshotsForRun(revision.getId()));
     }
 
     public AgentSessionView getSession(Long sessionId, Long ownerUserId) {
@@ -372,7 +380,7 @@ public class AgentControlService {
                 definition.getUpdatedAt());
     }
 
-    private static AgentRevisionView toRevisionView(AgentRevision revision) {
+    private AgentRevisionView toRevisionView(AgentRevision revision) {
         return new AgentRevisionView(
                 revision.getId(),
                 revision.getAgentDefinitionId(),
@@ -385,7 +393,8 @@ public class AgentControlService {
                 AgentJsonSupport.parse(revision.getCompressionPolicy(), "compressionPolicy"),
                 revision.getRemark(),
                 revision.getCreatedAt(),
-                revision.getUpdatedAt());
+                revision.getUpdatedAt(),
+                skillBinder.list(revision.getId()));
     }
 
     private static AgentSessionView toSessionView(AgentSession session) {

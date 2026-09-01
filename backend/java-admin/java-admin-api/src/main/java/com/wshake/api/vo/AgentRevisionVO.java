@@ -3,6 +3,7 @@ package com.wshake.api.vo;
 import com.wshake.service.agent.AgentControlModels.AgentRevisionView;
 import io.github.linpeilie.annotations.AutoMapper;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -26,4 +27,5 @@ public class AgentRevisionVO {
     private String remark;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private List<SkillBindingVO> skillBindings;
 }

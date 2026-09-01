@@ -133,6 +133,7 @@ class AgentControllerTest {
     }
 
     private static AgentRevisionView revision(Long id, Long definitionId, String status) {
-        return new AgentRevisionView(id, definitionId, status, null, "prompt", null, null, null, null, "", null, null);
+        return new AgentRevisionView(
+                id, definitionId, status, null, "prompt", null, null, null, null, "", null, null, java.util.List.of());
     }
 }

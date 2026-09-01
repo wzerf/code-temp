@@ -269,7 +269,7 @@ public class AgentRuntimeService implements AgentRuntimeGateway {
             modelBuilder.formatter(new GrokChatFormatter());
         }
         OpenAIChatModel model = modelBuilder.build();
-        return HarnessAgent.builder()
+        var builder = HarnessAgent.builder()
                 .agentId(AGENT_ID_PREFIX + plan.agentRevisionId())
                 .name(AGENT_ID_PREFIX + plan.agentRevisionId())
                 .sysPrompt(plan.systemPrompt())
@@ -294,8 +294,11 @@ public class AgentRuntimeService implements AgentRuntimeGateway {
                 .disableSubagents()
                 .disableDynamicSkills()
                 .disableDefaultWorkspaceSkills()
-                .disableToolsConfig()
-                .build();
+                .disableToolsConfig();
+        if (plan.skills() != null && !plan.skills().isEmpty()) {
+            builder.skillRepository(new BindingSnapshotSkillRepository(plan.skills()));
+        }
+        return builder.build();
     }
 
     private Flux<AgentRunEvent> toEvent(AgentEvent event, AgentRunPlan plan, String requestId, RBucket<String> state) {

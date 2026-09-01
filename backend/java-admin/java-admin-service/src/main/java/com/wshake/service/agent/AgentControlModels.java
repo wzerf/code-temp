@@ -1,6 +1,7 @@
 package com.wshake.service.agent;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 
 /** Agent 控制面命令与视图；不包含运行面状态。 */
@@ -23,6 +24,18 @@ public final class AgentControlModels {
             Map<String, Object> compressionPolicy,
             String remark) {}
 
+    public record SkillBindingCommand(Long skillReleaseId, boolean overrideWinner) {}
+
+    public record SkillBindingView(Long skillReleaseId, String skillName, String contentHash, boolean overrideWinner) {}
+
+    public record SkillSnapshot(
+            String name,
+            String description,
+            String skillContent,
+            String source,
+            String contentHash,
+            Map<String, String> resources) {}
+
     public record CreateRevisionCommand(
             Long agentDefinitionId,
             String systemPrompt,
@@ -30,7 +43,8 @@ public final class AgentControlModels {
             Map<String, Object> permissionPolicy,
             Map<String, Object> memoryPolicy,
             Map<String, Object> compressionPolicy,
-            String remark) {}
+            String remark,
+            List<SkillBindingCommand> skillBindings) {}
 
     public record UpdateRevisionCommand(
             Long id,
@@ -45,7 +59,9 @@ public final class AgentControlModels {
             Map<String, Object> compressionPolicy,
             boolean compressionPolicyPresent,
             String remark,
-            boolean remarkPresent) {}
+            boolean remarkPresent,
+            List<SkillBindingCommand> skillBindings,
+            boolean skillBindingsPresent) {}
 
     public record AgentDefinitionView(
             Long id,
@@ -70,7 +86,8 @@ public final class AgentControlModels {
             Map<String, Object> compressionPolicy,
             String remark,
             LocalDateTime createdAt,
-            LocalDateTime updatedAt) {}
+            LocalDateTime updatedAt,
+            List<SkillBindingView> skillBindings) {}
 
     public record AgentSessionView(
             Long id,
@@ -95,7 +112,8 @@ public final class AgentControlModels {
             Map<String, Object> modelConfig,
             Map<String, Object> permissionPolicy,
             Map<String, Object> memoryPolicy,
-            Map<String, Object> compressionPolicy) {}
+            Map<String, Object> compressionPolicy,
+            List<SkillSnapshot> skills) {}
 
     /** 运行面向 API 暴露的稳定事件载荷；不泄漏 AgentScope SDK 事件。 */
     public record AgentRunEvent(

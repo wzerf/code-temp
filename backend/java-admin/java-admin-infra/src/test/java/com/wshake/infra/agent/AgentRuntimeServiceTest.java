@@ -116,7 +116,7 @@ class AgentRuntimeServiceTest {
         AgentRuntimeProperties properties = configuredProperties();
         AgentRuntimeService service = new AgentRuntimeService(properties, mock(), mock());
         var plan = new com.wshake.service.agent.AgentControlModels.AgentRunPlan(
-                20L, 1L, 10L, 7L, "prompt", null, null, java.util.Map.of("enabled", true), null);
+                20L, 1L, 10L, 7L, "prompt", null, null, java.util.Map.of("enabled", true), null, java.util.List.of());
 
         assertThatThrownBy(() -> service.run(plan, "request-1", "message"))
                 .hasMessageContaining("memoryPolicy and compressionPolicy are not enabled");
@@ -233,7 +233,7 @@ class AgentRuntimeServiceTest {
 
     private static com.wshake.service.agent.AgentControlModels.AgentRunPlan plan() {
         return new com.wshake.service.agent.AgentControlModels.AgentRunPlan(
-                20L, 1L, 10L, 7L, "prompt", null, null, null, null);
+                20L, 1L, 10L, 7L, "prompt", null, null, null, null, java.util.List.of());
     }
 
     private record StoredEvent(long sequence, AgentRunEvent event) {}

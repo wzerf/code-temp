@@ -79,6 +79,7 @@
 
         <!-- OkHttp 出站 HTTP 客户端（Boot BOM 不管理；Maven 须用 okhttp-jvm） -->
         <okhttp.version>5.4.0</okhttp.version>
+        <jgit.version>7.3.0.202506031305-r</jgit.version>
     </properties>
 
     <dependencyManagement>
@@ -178,6 +179,11 @@
                 <version>${ip2region.version}</version>
             </dependency>
 
+            <dependency>
+                <groupId>org.eclipse.jgit</groupId>
+                <artifactId>org.eclipse.jgit</artifactId>
+                <version>${jgit.version}</version>
+            </dependency>
             <!-- Flyway（覆盖 SB BOM 的 flyway.version；core/mysql 必须同版本，否则 MySQL 支持矩阵不一致） -->
             <dependency>
                 <groupId>org.flywaydb</groupId>

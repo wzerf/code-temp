@@ -1127,3 +1127,33 @@ export interface CreateAgentMessageRequest {
 export interface CancelAgentRunRequest {
   requestId: string;
 }
+
+// ============================================================
+// Agent Skill 控制面
+// ============================================================
+
+export type SkillVisibility = 'MARKET' | 'PRIVATE';
+export type SkillDraftStatus = 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED' | 'CONSUMED';
+export type SkillReleaseStatus = 'PUBLISHED' | 'DEPRECATED';
+
+export interface SkillResource { path: string; content: string; contentHash: string; }
+export interface SkillDraft { id: number; name: string; description: string; skillContent: string; visibility: SkillVisibility; status: SkillDraftStatus; ownerUserId: number; basedOnReleaseId: number | null; contentHash: string; reviewComment: string; reviewedBy: number; reviewedAt: string | null; remark: string; resources: SkillResource[]; createdAt: string; updatedAt: string; }
+export interface SkillRelease { id: number; name: string; version: number; description: string; skillContent: string; visibility: SkillVisibility; status: SkillReleaseStatus; ownerUserId: number; sourceDraftId: number | null; contentHash: string; source: string; remark: string; resources: SkillResource[]; createdAt: string; }
+export interface SkillMarket { id: number; name: string; description: string; contentHash: string; currentReleaseId: number; source: string; }
+export interface SkillInstall { id: number; userId: number; skillName: string; visibility: SkillVisibility; ownerUserId: number; currentReleaseId: number; }
+export interface BindableSkill { skillReleaseId: number; name: string; visibility: SkillVisibility; ownerUserId: number; contentHash: string; version: number; }
+export interface SkillBinding { skillReleaseId: number; skillName: string; contentHash: string; overrideWinner: boolean; }
+export interface SkillBindingRequest { skillReleaseId: number; overrideWinner?: boolean; }
+export interface CreateSkillDraftRequest { name: string; description?: string; skillContent: string; visibility: SkillVisibility; resources?: Record<string, string>; basedOnReleaseId?: number | null; remark?: string; }
+export interface UpdateSkillDraftRequest { description?: string; skillContent?: string; resources?: Record<string, string>; remark?: string; }
+export interface AgentRevision { id: number; agentDefinitionId: number; status: string; sourceDraftRevisionId: number | null; systemPrompt: string; modelConfig: Record<string, unknown> | null; permissionPolicy: Record<string, unknown> | null; memoryPolicy: Record<string, unknown> | null; compressionPolicy: Record<string, unknown> | null; remark: string; createdAt: string; updatedAt: string; skillBindings: SkillBinding[]; }
+export interface CreateAgentRevisionRequest { systemPrompt: string; modelConfig?: Record<string, unknown>; permissionPolicy?: Record<string, unknown>; memoryPolicy?: Record<string, unknown>; compressionPolicy?: Record<string, unknown>; remark?: string; skillBindings?: SkillBindingRequest[]; }
+export interface UpdateAgentRevisionRequest { systemPrompt?: string; modelConfig?: Record<string, unknown> | null; permissionPolicy?: Record<string, unknown> | null; memoryPolicy?: Record<string, unknown> | null; compressionPolicy?: Record<string, unknown> | null; remark?: string | null; skillBindings?: SkillBindingRequest[]; }
+export type GitSkillSourceScope = SkillVisibility;
+export interface GitSkillSource { id: number; scope: GitSkillSourceScope; ownerUserId: number; url: string; ref: string; subdirectory: string; hasSecretRef: boolean; lastCommitSha: string | null; lastSyncedAt: string | null; status: 'READY' | 'FAILED'; lastError: string; createdAt: string; updatedAt: string; }
+export interface GitSkillPreviewItem { skillPath: string; name: string; description: string; contentHash: string; resourceCount: number; totalBytes: number; }
+export interface GitSkillPreview { sourceId: number; commitSha: string; skills: GitSkillPreviewItem[]; }
+export interface GitSkillSyncItem { skillPath: string; name: string | null; status: 'CREATED' | 'UNCHANGED' | 'UPDATED' | 'CONFLICT' | 'FAILED'; draftId: number | null; message: string; }
+export interface GitSkillSyncResult { sourceId: number; commitSha: string; results: GitSkillSyncItem[]; }
+export interface CreateGitSkillSourceRequest { scope: GitSkillSourceScope; url: string; ref?: string; subdirectory?: string; secretRef?: string | null; }
+export interface UpdateGitSkillSourceRequest { url?: string; ref?: string; subdirectory?: string; secretRef?: string | null; }

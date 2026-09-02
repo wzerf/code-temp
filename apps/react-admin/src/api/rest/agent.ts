@@ -1,11 +1,26 @@
-import { get, post } from './request';
+import { del, get, post, put } from './request';
 import type {
   AgentDefinition,
+  AgentRevision,
   AgentRunEvent,
   AgentSession,
   AgentSessionHistory,
+  BindableSkill,
   CancelAgentRunRequest,
   CreateAgentMessageRequest,
+  CreateAgentRevisionRequest,
+  CreateGitSkillSourceRequest,
+  CreateSkillDraftRequest,
+  GitSkillPreview,
+  GitSkillSource,
+  GitSkillSyncResult,
+  SkillDraft,
+  SkillInstall,
+  SkillMarket,
+  SkillRelease,
+  UpdateAgentRevisionRequest,
+  UpdateGitSkillSourceRequest,
+  UpdateSkillDraftRequest,
 } from './types';
 
 export function getAgentDefinitionApi(id: number) {
@@ -112,4 +127,80 @@ export function resumeAgentSessionApi(
 ): Promise<void> {
   const params = new URLSearchParams({ requestId });
   return consumeAgentEventStream(`/api/agent/sessions/${sessionId}/events?${params}`, accessToken, options);
+}
+
+export function listSkillDraftsApi() {
+ return get<SkillDraft[]>('/agent/skills/drafts'); 
+}
+export function getSkillDraftApi(id: number) {
+ return get<SkillDraft>(`/agent/skills/drafts/${id}`); 
+}
+export function createSkillDraftApi(body: CreateSkillDraftRequest) {
+ return post<SkillDraft>('/agent/skills/drafts', body); 
+}
+export function updateSkillDraftApi(id: number, body: UpdateSkillDraftRequest) {
+ return put<SkillDraft>(`/agent/skills/drafts/${id}`, body); 
+}
+export function submitSkillDraftApi(id: number) {
+ return post<SkillDraft>(`/agent/skills/drafts/${id}/submit`); 
+}
+export function withdrawSkillDraftApi(id: number) {
+ return post<SkillDraft>(`/agent/skills/drafts/${id}/withdraw`); 
+}
+export function approveSkillDraftApi(id: number) {
+ return post<SkillRelease>(`/agent/skills/drafts/${id}/approve`); 
+}
+export function rejectSkillDraftApi(id: number, comment?: string) {
+ return post<SkillDraft>(`/agent/skills/drafts/${id}/reject`, { comment }); 
+}
+export function listSkillMarketApi() {
+ return get<SkillMarket[]>('/agent/skills/market'); 
+}
+export function unlistSkillMarketApi(name: string) {
+ return del<void>(`/agent/skills/market/${encodeURIComponent(name)}`); 
+}
+export function installSkillApi(name: string) {
+ return post<SkillInstall>('/agent/skills/install', { name }); 
+}
+export function uninstallSkillApi(id: number) {
+ return del<void>(`/agent/skills/install/${id}`); 
+}
+export function listBindableSkillsApi() {
+ return get<BindableSkill[]>('/agent/skills/bindable'); 
+}
+export function getSkillReleaseApi(id: number) {
+ return get<SkillRelease>(`/agent/skills/releases/${id}`); 
+}
+export function deprecateSkillReleaseApi(id: number) {
+ return post<SkillRelease>(`/agent/skills/releases/${id}/deprecate`); 
+}
+export function listGitSkillSourcesApi() {
+ return get<GitSkillSource[]>('/agent/skills/git-sources'); 
+}
+export function createGitSkillSourceApi(body: CreateGitSkillSourceRequest) {
+ return post<GitSkillSource>('/agent/skills/git-sources', body); 
+}
+export function updateGitSkillSourceApi(id: number, body: UpdateGitSkillSourceRequest) {
+ return put<GitSkillSource>(`/agent/skills/git-sources/${id}`, body); 
+}
+export function deleteGitSkillSourceApi(id: number) {
+ return del<void>(`/agent/skills/git-sources/${id}`); 
+}
+export function previewGitSkillSourceApi(id: number) {
+ return post<GitSkillPreview>(`/agent/skills/git-sources/${id}/preview`); 
+}
+export function syncGitSkillSourceApi(id: number, expectedCommitSha: string, skillPaths: string[]) {
+ return post<GitSkillSyncResult>(`/agent/skills/git-sources/${id}/sync`, { expectedCommitSha, skillPaths }); 
+}
+export function createAgentRevisionApi(definitionId: number, body: CreateAgentRevisionRequest) {
+ return post<AgentRevision>(`/agent/${definitionId}/revisions`, body); 
+}
+export function getAgentRevisionApi(id: number) {
+ return get<AgentRevision>(`/agent/revisions/${id}`); 
+}
+export function updateAgentRevisionApi(id: number, body: UpdateAgentRevisionRequest) {
+ return put<AgentRevision>(`/agent/revisions/${id}`, body); 
+}
+export function publishAgentRevisionApi(id: number) {
+ return post<AgentRevision>(`/agent/revisions/${id}/publish`); 
 }

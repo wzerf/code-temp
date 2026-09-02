@@ -109,6 +109,7 @@
     "apps/react-admin/**",
     ".agents/skills/**",
     ".claude/skills/**",
+    ".commandcode/skills/**",
     ".grok/skills/**"
   ]
 }

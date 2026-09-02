@@ -84,7 +84,7 @@ export default function SkillDraftsPage() {
     ] },
   ];
   return <ContentContainer scrollable>
-    <ProTable<SkillDraft> rowKey="id" headerTitle="我的 Skill 草稿" actionRef={actionRef} columns={columns}
+    <ProTable<SkillDraft> rowKey="id" headerTitle="Skill 草稿" actionRef={actionRef} columns={columns}
       request={async () => ({ data: await listSkillDraftsApi(), success: true })} search={{ labelWidth: 'auto' }} pagination={{ defaultPageSize: 20 }} scroll={{ x: 1050 }}
       toolBarRender={() => [<Button key="create" type="primary" icon={<PlusOutlined />} onClick={() => openEditor()}>新建 Skill</Button>]}/>
     <Drawer title={editing ? `编辑 ${editing.name}` : '新建 Skill'} open={open} onClose={() => setOpen(false)} width={760} destroyOnClose

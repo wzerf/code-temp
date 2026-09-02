@@ -476,7 +476,7 @@ skillBindings?: SkillBinding[];
 1. **我的草稿**：列表 + 编辑器（`SKILL.md` + 资源文件表）+ 提交审核。
 2. **审核 / 市场**：待审列表（管理员/发布者调通过/驳回）；市场目录 + 安装/下架。
 3. **Agent 草稿配置**：在现有创建/编辑 Revision 表单增加「绑定 Skill」多选，数据源 `GET /agent/skills/bindable`。
-4. **Git 来源**：管理员在市场管理下维护 `MARKET` 来源；用户在「我的 Skill」下维护 `PRIVATE` 来源。新建/编辑使用来源表单，`secretRef` 使用凭据引用选择控件；预览以 commit 和包清单供用户勾选，同步结果逐项链接到草稿。禁止用浏览器 clone、裸 `fetch` 或 token 输入框替代这些接口。
+4. **Git 来源**：管理员在市场管理下维护 `MARKET` 来源；用户在「Skill 草稿」下维护 `PRIVATE` 来源。新建/编辑使用来源表单，`secretRef` 使用凭据引用选择控件；预览以 commit 和包清单供用户勾选，同步结果逐项链接到草稿。禁止用浏览器 clone、裸 `fetch` 或 token 输入框替代这些接口。
    对话页（`/agent/chat`）**首期不必**加 Skill 选择器：会话使用已固定 Revision 的 Binding。
 
 权限码已写入 `V4__agent_schema_seed.sql`（Root 通配仍可用）。非 Root 角色需在「角色-接口」里绑定，例如：

@@ -51,7 +51,7 @@ export default function AgentManagePage() {
  setSaving(false); 
 } 
 };
-  return <ContentContainer scrollable heightMode="auto"><Card title="Agent 草稿 Revision · Skill 绑定" extra={draftId && <Tag color="processing">草稿 #{draftId}</Tag>}>
+  return <ContentContainer scrollable heightMode="auto"><Card extra={draftId && <Tag color="processing">草稿 #{draftId}</Tag>}>
     <Alert type="info" showIcon message="安装不等于绑定。此表单只列出当前用户可绑定的 Release；发布后新会话固定到 Release 的 contentHash。" style={{ marginBottom: 16 }} />
     <Form form={form} layout="vertical" initialValues={{ systemPrompt: '', skillReleaseIds: [], winners: [] }}>
       <Row gutter={16}><Col xs={24} md={12}><Form.Item name="definitionId" label="Agent" rules={[{ required: true, message: '请选择 Agent' }]}><Select options={agents.map((agent) => ({ value: agent.id, label: `${agent.name}${agent.currentPublishedRevisionId ? ` · 已发布 #${agent.currentPublishedRevisionId}` : ''}` }))} /></Form.Item></Col><Col xs={24} md={12}><Form.Item name="remark" label="备注"><Input /></Form.Item></Col></Row>

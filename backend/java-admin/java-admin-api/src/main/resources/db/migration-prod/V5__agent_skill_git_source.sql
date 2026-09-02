@@ -56,7 +56,7 @@ VALUES
 INSERT INTO sys_menu (id, parent_id, name, type, path, component, icon, redirect, permission_code, tree_path, metadata, sort, is_hidden, is_enabled, deleted_at, remark, created_by, updated_by)
 VALUES
     (502, 500, 'Agent 管理', 'MENU', '/agent/manage', '/agent/manage/index', 'lucide:bot', '', 'agent:revision:create', '/500/502/', '{"routeName":"AgentManage","order":2,"fullPathKey":false}', 2, 0, 1, 0, '', 0, 0),
-    (503, 500, '我的 Skill', 'MENU', '/agent/skill/drafts', '/agent/skill/drafts/index', 'lucide:package', '', 'skill:draft:list', '/500/503/', '{"routeName":"AgentSkillDrafts","order":3,"fullPathKey":false}', 3, 0, 1, 0, '', 0, 0),
+    (503, 500, 'Skill 草稿', 'MENU', '/agent/skill/drafts', '/agent/skill/drafts/index', 'lucide:package', '', 'skill:draft:list', '/500/503/', '{"routeName":"AgentSkillDrafts","order":3,"fullPathKey":false}', 3, 0, 1, 0, '', 0, 0),
     (504, 500, 'Skill 市场', 'MENU', '/agent/skill/market', '/agent/skill/market/index', 'lucide:store', '', 'skill:market:list', '/500/504/', '{"routeName":"AgentSkillMarket","order":4,"fullPathKey":false}', 4, 0, 1, 0, '', 0, 0),
     (505, 500, 'Git Skill 来源', 'MENU', '/agent/skill/git', '/agent/skill/git/index', 'lucide:git-branch', '', 'skill:git-source:list', '/500/505/', '{"routeName":"AgentSkillGit","order":5,"fullPathKey":false}', 5, 0, 1, 0, '', 0, 0);
 

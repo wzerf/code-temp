@@ -19,7 +19,18 @@ public final class SkillControlModels {
     public static final String SOURCE_MYSQL = "mysql";
     public static final long MARKET_OWNER_USER_ID = 0L;
 
-    public record SkillResourceView(String path, String content, String contentHash) {}
+    public record SkillResourceView(Long id, String path, String content, String contentHash) {}
+
+    public record CreateSkillDraftResourceCommand(Long draftId, Long ownerUserId, String path, String content) {}
+
+    public record UpdateSkillDraftResourceCommand(
+            Long draftId,
+            Long resourceId,
+            Long ownerUserId,
+            String path,
+            boolean pathPresent,
+            String content,
+            boolean contentPresent) {}
 
     public record CreateSkillDraftCommand(
             Long ownerUserId,

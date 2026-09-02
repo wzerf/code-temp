@@ -11,6 +11,7 @@ import type {
   CreateAgentRevisionRequest,
   CreateGitSkillSourceRequest,
   CreateSkillDraftRequest,
+  CreateSkillDraftResourceRequest,
   GitSkillPreview,
   GitSkillSource,
   GitSkillSyncResult,
@@ -18,9 +19,11 @@ import type {
   SkillInstall,
   SkillMarket,
   SkillRelease,
+  SkillResource,
   UpdateAgentRevisionRequest,
   UpdateGitSkillSourceRequest,
   UpdateSkillDraftRequest,
+  UpdateSkillDraftResourceRequest,
 } from './types';
 
 export function getAgentDefinitionApi(id: number) {
@@ -140,6 +143,22 @@ export function createSkillDraftApi(body: CreateSkillDraftRequest) {
 }
 export function updateSkillDraftApi(id: number, body: UpdateSkillDraftRequest) {
  return put<SkillDraft>(`/agent/skills/drafts/${id}`, body); 
+}
+export function listSkillDraftResourcesApi(draftId: number) {
+  return get<SkillResource[]>(`/agent/skills/drafts/${draftId}/resources`);
+}
+export function createSkillDraftResourceApi(draftId: number, body: CreateSkillDraftResourceRequest) {
+  return post<SkillResource>(`/agent/skills/drafts/${draftId}/resources`, body);
+}
+export function updateSkillDraftResourceApi(
+  draftId: number,
+  resourceId: number,
+  body: UpdateSkillDraftResourceRequest,
+) {
+  return put<SkillResource>(`/agent/skills/drafts/${draftId}/resources/${resourceId}`, body);
+}
+export function deleteSkillDraftResourceApi(draftId: number, resourceId: number) {
+  return del<void>(`/agent/skills/drafts/${draftId}/resources/${resourceId}`);
 }
 export function submitSkillDraftApi(id: number) {
  return post<SkillDraft>(`/agent/skills/drafts/${id}/submit`); 

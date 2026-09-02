@@ -2,11 +2,13 @@ package com.wshake.api.controller;
 
 import com.wshake.api.dto.CreateGitSkillSourceRequest;
 import com.wshake.api.dto.CreateSkillDraftRequest;
+import com.wshake.api.dto.CreateSkillDraftResourceRequest;
 import com.wshake.api.dto.InstallSkillRequest;
 import com.wshake.api.dto.RejectSkillDraftRequest;
 import com.wshake.api.dto.SyncGitSkillSourceRequest;
 import com.wshake.api.dto.UpdateGitSkillSourceRequest;
 import com.wshake.api.dto.UpdateSkillDraftRequest;
+import com.wshake.api.dto.UpdateSkillDraftResourceRequest;
 import com.wshake.api.vo.BindableSkillVO;
 import com.wshake.api.vo.GitSkillPreviewVO;
 import com.wshake.api.vo.GitSkillSourceVO;
@@ -15,14 +17,17 @@ import com.wshake.api.vo.SkillDraftVO;
 import com.wshake.api.vo.SkillInstallVO;
 import com.wshake.api.vo.SkillMarketVO;
 import com.wshake.api.vo.SkillReleaseVO;
+import com.wshake.api.vo.SkillResourceVO;
 import com.wshake.common.request.RequestContext;
 import com.wshake.common.result.Result;
-import com.wshake.service.agent.SkillControlModels.CreateSkillDraftCommand;
-import com.wshake.service.agent.SkillControlModels.UpdateSkillDraftCommand;
-import com.wshake.service.agent.SkillControlService;
 import com.wshake.service.agent.GitSkillSourceModels.CreateCommand;
 import com.wshake.service.agent.GitSkillSourceModels.UpdateCommand;
 import com.wshake.service.agent.GitSkillSourceService;
+import com.wshake.service.agent.SkillControlModels.CreateSkillDraftCommand;
+import com.wshake.service.agent.SkillControlModels.CreateSkillDraftResourceCommand;
+import com.wshake.service.agent.SkillControlModels.UpdateSkillDraftCommand;
+import com.wshake.service.agent.SkillControlModels.UpdateSkillDraftResourceCommand;
+import com.wshake.service.agent.SkillControlService;
 import com.wshake.service.repository.SysUserRoleRepository;
 import io.github.linpeilie.Converter;
 import io.swagger.v3.oas.annotations.Operation;
@@ -102,6 +107,49 @@ public class AgentSkillController {
                 SkillDraftVO.class));
     }
 
+    @GetMapping("/drafts/{id}/resources")
+    @Operation(summary = "列出 Skill 草稿资源文件")
+    public Result<List<SkillResourceVO>> listDraftResources(@PathVariable Long id) {
+        return Result.ok(converter.convert(
+                skillControlService.listDraftResources(id, RequestContext.requireUserId()), SkillResourceVO.class));
+    }
+
+    @PostMapping("/drafts/{id}/resources")
+    @Operation(summary = "新增 Skill 草稿资源文件")
+    public Result<SkillResourceVO> createDraftResource(
+            @PathVariable Long id, @Valid @RequestBody CreateSkillDraftResourceRequest request) {
+        return Result.ok(converter.convert(
+                skillControlService.createDraftResource(new CreateSkillDraftResourceCommand(
+                        id, RequestContext.requireUserId(), request.getPath(), request.getContent())),
+                SkillResourceVO.class));
+    }
+
+    @PutMapping("/drafts/{id}/resources/{resourceId}")
+    @Operation(summary = "更新 Skill 草稿资源文件")
+    public Result<SkillResourceVO> updateDraftResource(
+            @PathVariable Long id,
+            @PathVariable Long resourceId,
+            @RequestBody(required = false) UpdateSkillDraftResourceRequest body) {
+        UpdateSkillDraftResourceRequest request = body == null ? new UpdateSkillDraftResourceRequest() : body;
+        return Result.ok(converter.convert(
+                skillControlService.updateDraftResource(new UpdateSkillDraftResourceCommand(
+                        id,
+                        resourceId,
+                        RequestContext.requireUserId(),
+                        request.getPath(),
+                        request.isPathPresent(),
+                        request.getContent(),
+                        request.isContentPresent())),
+                SkillResourceVO.class));
+    }
+
+    @DeleteMapping("/drafts/{id}/resources/{resourceId}")
+    @Operation(summary = "删除 Skill 草稿资源文件")
+    public Result<Void> deleteDraftResource(@PathVariable Long id, @PathVariable Long resourceId) {
+        skillControlService.deleteDraftResource(id, resourceId, RequestContext.requireUserId());
+        return Result.ok(null);
+    }
+
     @PostMapping("/drafts/{id}/submit")
     @Operation(summary = "提交 Skill 草稿审核")
     public Result<SkillDraftVO> submit(@PathVariable Long id) {
@@ -178,19 +226,28 @@ public class AgentSkillController {
         return Result.ok(converter.convert(
                 skillControlService.deprecate(id, RequestContext.requireUserId()), SkillReleaseVO.class));
     }
+
     @PostMapping("/git-sources")
     @Operation(summary = "创建 Git Skill 来源")
     public Result<GitSkillSourceVO> createGitSource(@Valid @RequestBody CreateGitSkillSourceRequest request) {
         Long userId = RequestContext.requireUserId();
         return Result.ok(toGitSourceVO(gitSkillSourceService.create(new CreateCommand(
-                userId, isAdministrator(userId), request.getScope(), request.getUrl(), request.getRef(), request.getSubdirectory(), request.getSecretRef()))));
+                userId,
+                isAdministrator(userId),
+                request.getScope(),
+                request.getUrl(),
+                request.getRef(),
+                request.getSubdirectory(),
+                request.getSecretRef()))));
     }
 
     @GetMapping("/git-sources")
     @Operation(summary = "列出可管理的 Git Skill 来源")
     public Result<List<GitSkillSourceVO>> listGitSources() {
         Long userId = RequestContext.requireUserId();
-        return Result.ok(gitSkillSourceService.list(userId, isAdministrator(userId)).stream().map(this::toGitSourceVO).toList());
+        return Result.ok(gitSkillSourceService.list(userId, isAdministrator(userId)).stream()
+                .map(this::toGitSourceVO)
+                .toList());
     }
 
     @GetMapping("/git-sources/{id}")
@@ -207,7 +264,17 @@ public class AgentSkillController {
         Long userId = RequestContext.requireUserId();
         UpdateGitSkillSourceRequest request = body == null ? new UpdateGitSkillSourceRequest() : body;
         return Result.ok(toGitSourceVO(gitSkillSourceService.update(new UpdateCommand(
-                id, userId, isAdministrator(userId), request.getUrl(), request.isUrlPresent(), request.getRef(), request.isRefPresent(), request.getSubdirectory(), request.isSubdirectoryPresent(), request.getSecretRef(), request.isSecretRefPresent()))));
+                id,
+                userId,
+                isAdministrator(userId),
+                request.getUrl(),
+                request.isUrlPresent(),
+                request.getRef(),
+                request.isRefPresent(),
+                request.getSubdirectory(),
+                request.isSubdirectoryPresent(),
+                request.getSecretRef(),
+                request.isSecretRefPresent()))));
     }
 
     @DeleteMapping("/git-sources/{id}")
@@ -223,9 +290,18 @@ public class AgentSkillController {
     public Result<GitSkillPreviewVO> previewGitSource(@PathVariable Long id) {
         Long userId = RequestContext.requireUserId();
         var view = gitSkillSourceService.preview(id, userId, isAdministrator(userId));
-        return Result.ok(new GitSkillPreviewVO(view.sourceId(), view.commitSha(), view.skills().stream()
-                .map(item -> new GitSkillPreviewVO.Item(item.skillPath(), item.name(), item.description(), item.contentHash(), item.resourceCount(), item.totalBytes()))
-                .toList()));
+        return Result.ok(new GitSkillPreviewVO(
+                view.sourceId(),
+                view.commitSha(),
+                view.skills().stream()
+                        .map(item -> new GitSkillPreviewVO.Item(
+                                item.skillPath(),
+                                item.name(),
+                                item.description(),
+                                item.contentHash(),
+                                item.resourceCount(),
+                                item.totalBytes()))
+                        .toList()));
     }
 
     @PostMapping("/git-sources/{id}/sync")
@@ -233,10 +309,15 @@ public class AgentSkillController {
     public Result<GitSkillSyncResultVO> syncGitSource(
             @PathVariable Long id, @Valid @RequestBody SyncGitSkillSourceRequest request) {
         Long userId = RequestContext.requireUserId();
-        var view = gitSkillSourceService.sync(id, request.getExpectedCommitSha(), request.getSkillPaths(), userId, isAdministrator(userId));
-        return Result.ok(new GitSkillSyncResultVO(view.sourceId(), view.commitSha(), view.results().stream()
-                .map(item -> new GitSkillSyncResultVO.Item(item.skillPath(), item.name(), item.status(), item.draftId(), item.message()))
-                .toList()));
+        var view = gitSkillSourceService.sync(
+                id, request.getExpectedCommitSha(), request.getSkillPaths(), userId, isAdministrator(userId));
+        return Result.ok(new GitSkillSyncResultVO(
+                view.sourceId(),
+                view.commitSha(),
+                view.results().stream()
+                        .map(item -> new GitSkillSyncResultVO.Item(
+                                item.skillPath(), item.name(), item.status(), item.draftId(), item.message()))
+                        .toList()));
     }
 
     private boolean isAdministrator(Long userId) {
@@ -244,6 +325,19 @@ public class AgentSkillController {
     }
 
     private GitSkillSourceVO toGitSourceVO(com.wshake.service.agent.GitSkillSourceModels.SourceView view) {
-        return new GitSkillSourceVO(view.id(), view.scope(), view.ownerUserId(), view.url(), view.ref(), view.subdirectory(), view.hasSecretRef(), view.lastCommitSha(), view.lastSyncedAt(), view.status(), view.lastError(), view.createdAt(), view.updatedAt());
+        return new GitSkillSourceVO(
+                view.id(),
+                view.scope(),
+                view.ownerUserId(),
+                view.url(),
+                view.ref(),
+                view.subdirectory(),
+                view.hasSecretRef(),
+                view.lastCommitSha(),
+                view.lastSyncedAt(),
+                view.status(),
+                view.lastError(),
+                view.createdAt(),
+                view.updatedAt());
     }
 }

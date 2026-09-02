@@ -1,30 +1,23 @@
 import { useMemo, useRef, useState } from 'react';
-import { Button, Drawer, Form, Input, Popconfirm, Select, Space, Tag, message } from 'antd';
+import { Button, Col, Modal, Popconfirm, Row, Space, Tag, message } from 'antd';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { ProTable } from '@ant-design/pro-components';
 import { PlusOutlined } from '@ant-design/icons';
 import {
   approveSkillDraftApi,
-  createSkillDraftApi,
+  deleteSkillDraftResourceApi,
+  listSkillDraftResourcesApi,
   listSkillDraftsApi,
   rejectSkillDraftApi,
   submitSkillDraftApi,
-  updateSkillDraftApi,
   withdrawSkillDraftApi,
 } from '@/api/rest/agent';
-import type { CreateSkillDraftRequest, SkillDraft, SkillVisibility } from '@/api/rest/types';
+import type { SkillDraft, SkillResource } from '@/api/rest/types';
 import ContentContainer from '@/layouts/components/PageContainer/ContentContainer';
+import SkillDraftDrawer from './modules/skill-draft-drawer';
+import SkillResourceDrawer from './modules/skill-resource-drawer';
 
-const DEFAULT_SKILL = '---\nname: my-skill\ndescription: Describe when the agent should use this skill\n---\n\nWrite instructions for the agent.\n';
-type FormValues = { name: string; description?: string; skillContent: string; visibility: SkillVisibility; resourcesText?: string; remark?: string };
-
-function parseResources(value?: string): Record<string, string> {
-  if (!value?.trim()) return {};
-  const parsed: unknown = JSON.parse(value);
-  if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') throw new Error('资源必须是“相对路径: 文件内容”的 JSON 对象');
-  return parsed as Record<string, string>;
-}
-function tag(status: SkillDraft['status']) {
+function statusTag(status: SkillDraft['status']) {
   const color: Record<SkillDraft['status'], string> = {
     DRAFT: 'default',
     PENDING_REVIEW: 'processing',
@@ -34,69 +27,372 @@ function tag(status: SkillDraft['status']) {
   return <Tag color={color[status]}>{status}</Tag>;
 }
 
-export default function SkillDraftsPage() {
-  const actionRef = useRef<ActionType | undefined>(undefined);
-  const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState<SkillDraft | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [form] = Form.useForm<FormValues>();
-  const reload = () => actionRef.current?.reload();
-  const initialValues = useMemo<FormValues>(() => editing ? {
-    name: editing.name, description: editing.description, skillContent: editing.skillContent,
-    visibility: editing.visibility, resourcesText: JSON.stringify(Object.fromEntries(editing.resources.map((item) => [item.path, item.content])), null, 2), remark: editing.remark,
-  } : { name: '', description: '', skillContent: DEFAULT_SKILL, visibility: 'PRIVATE', resourcesText: '{}', remark: '' }, [editing]);
-  const openEditor = (row?: SkillDraft) => {
- setEditing(row ?? null); setOpen(true); 
-};
-  const save = async () => {
-    const values = await form.validateFields();
-    const resources = parseResources(values.resourcesText);
-    setSaving(true);
-    try {
-      if (editing) await updateSkillDraftApi(editing.id, { description: values.description, skillContent: values.skillContent, resources, remark: values.remark });
-      else await createSkillDraftApi({ name: values.name, description: values.description, skillContent: values.skillContent, visibility: values.visibility, resources, remark: values.remark } satisfies CreateSkillDraftRequest);
-      message.success('已保存草稿'); setOpen(false); reload();
-    } catch (error) {
- message.error((error as Error).message); 
-} finally {
- setSaving(false); 
+function isResourceEditable(draft: SkillDraft | null) {
+  return !!draft && (draft.status === 'DRAFT' || draft.status === 'REJECTED');
 }
+
+/** 估算表体可用高度；仅当行数超出时才启用 scroll.y，避免内容不满也出现滚动条 */
+const TABLE_ROW_HEIGHT = 55;
+const TABLE_BODY_OFFSET = 400;
+
+function resolveTableScrollY(rowCount: number): number | undefined {
+  if (typeof window === 'undefined' || rowCount <= 0) return undefined;
+  const maxBody = Math.max(240, window.innerHeight - TABLE_BODY_OFFSET);
+  return rowCount * TABLE_ROW_HEIGHT > maxBody ? maxBody : undefined;
+}
+
+export default function SkillDraftsPage() {
+  const draftActionRef = useRef<ActionType | undefined>(undefined);
+  const resourceActionRef = useRef<ActionType | undefined>(undefined);
+
+  const [selectedDraftId, setSelectedDraftId] = useState<number | null>(null);
+  const [selectedDraft, setSelectedDraft] = useState<SkillDraft | null>(null);
+  const selectedDraftIdRef = useRef<number | null>(null);
+  const [draftRowCount, setDraftRowCount] = useState(0);
+  const [resourceRowCount, setResourceRowCount] = useState(0);
+
+  const [draftDrawerOpen, setDraftDrawerOpen] = useState(false);
+  const [editingDraft, setEditingDraft] = useState<SkillDraft | null>(null);
+
+  const [resourceDrawerOpen, setResourceDrawerOpen] = useState(false);
+  const [editingResource, setEditingResource] = useState<SkillResource | null>(null);
+
+  const reloadDrafts = () => draftActionRef.current?.reload();
+  const reloadResources = () => resourceActionRef.current?.reload();
+  const draftScrollY = resolveTableScrollY(draftRowCount);
+  const resourceScrollY = resolveTableScrollY(resourceRowCount);
+
+  const clearSelection = () => {
+    selectedDraftIdRef.current = null;
+    setSelectedDraftId(null);
+    setSelectedDraft(null);
+    reloadResources();
   };
+
+  const selectDraft = (row: SkillDraft) => {
+    selectedDraftIdRef.current = row.id;
+    setSelectedDraftId(row.id);
+    setSelectedDraft(row);
+    reloadResources();
+  };
+
   const action = async (work: () => Promise<unknown>, text: string) => {
- try {
- await work(); message.success(text); reload(); 
-} catch (error) {
- message.error((error as Error).message); 
-} 
-};
-  const columns: ProColumns<SkillDraft>[] = [
-    { title: '名称', dataIndex: 'name', width: 180 },
-    { title: '范围', dataIndex: 'visibility', width: 100, valueEnum: { MARKET: { text: 'MARKET' }, PRIVATE: { text: 'PRIVATE' } } },
-    { title: '状态', dataIndex: 'status', width: 140, render: (_, row) => tag(row.status) },
-    { title: '内容哈希', dataIndex: 'contentHash', search: false, ellipsis: true, width: 170 },
-    { title: '审核意见', dataIndex: 'reviewComment', search: false, ellipsis: true },
-    { title: '操作', valueType: 'option', width: 260, fixed: 'right', render: (_, row) => [
-      (row.status === 'DRAFT' || row.status === 'REJECTED') && <a key="edit" onClick={() => openEditor(row)}>编辑</a>,
-      (row.status === 'DRAFT' || row.status === 'REJECTED') && <a key="submit" onClick={() => action(() => submitSkillDraftApi(row.id), '已提交审核')}>提交</a>,
-      row.status === 'PENDING_REVIEW' && <a key="withdraw" onClick={() => action(() => withdrawSkillDraftApi(row.id), '已撤回')}>撤回</a>,
-      row.status === 'PENDING_REVIEW' && <a key="approve" onClick={() => action(() => approveSkillDraftApi(row.id), '已发布 Release')}>通过</a>,
-      row.status === 'PENDING_REVIEW' && <Popconfirm key="reject" title="驳回草稿" description="确定驳回此草稿？" onConfirm={() => action(() => rejectSkillDraftApi(row.id), '已驳回')}><a>驳回</a></Popconfirm>,
-    ] },
-  ];
-  return <ContentContainer scrollable>
-    <ProTable<SkillDraft> rowKey="id" headerTitle="Skill 草稿" actionRef={actionRef} columns={columns}
-      request={async () => ({ data: await listSkillDraftsApi(), success: true })} search={{ labelWidth: 'auto' }} pagination={{ defaultPageSize: 20 }} scroll={{ x: 1050 }}
-      toolBarRender={() => [<Button key="create" type="primary" icon={<PlusOutlined />} onClick={() => openEditor()}>新建 Skill</Button>]}/>
-    <Drawer title={editing ? `编辑 ${editing.name}` : '新建 Skill'} open={open} onClose={() => setOpen(false)} width={760} destroyOnClose
-      footer={<Space style={{ float: 'right' }}><Button onClick={() => setOpen(false)} disabled={saving}>取消</Button><Button type="primary" loading={saving} onClick={save}>保存</Button></Space>}>
-      <Form key={editing?.id ?? 'new'} form={form} initialValues={initialValues} layout="vertical" preserve={false}>
-        <Form.Item name="name" label="Skill 名称" rules={[{ required: true }, { max: 255 }]}><Input disabled={!!editing} placeholder="如 code-reviewer" /></Form.Item>
-        <Form.Item name="visibility" label="可见范围" rules={[{ required: true }]}><Select disabled={!!editing} options={[{ value: 'PRIVATE', label: 'PRIVATE（仅自己可绑定）' }, { value: 'MARKET', label: 'MARKET（需审核后进入市场）' }]} /></Form.Item>
-        <Form.Item name="description" label="描述" extra="必须与 SKILL.md frontmatter 中的 description 一致"><Input /></Form.Item>
-        <Form.Item name="skillContent" label="SKILL.md" rules={[{ required: true }]}><Input.TextArea rows={14} style={{ fontFamily: 'ui-monospace, monospace' }} /></Form.Item>
-        <Form.Item name="resourcesText" label="资源文件 JSON" extra="键为相对路径；不可使用 ..、绝对路径或反斜杠"><Input.TextArea rows={6} style={{ fontFamily: 'ui-monospace, monospace' }} /></Form.Item>
-        <Form.Item name="remark" label="备注"><Input.TextArea rows={2} /></Form.Item>
-      </Form>
-    </Drawer>
-  </ContentContainer>;
+    try {
+      await work();
+      message.success(text);
+      reloadDrafts();
+      if (selectedDraftIdRef.current != null) {
+        reloadResources();
+      }
+    } catch (error) {
+      message.error((error as Error).message);
+    }
+  };
+
+  const draftColumns: ProColumns<SkillDraft>[] = useMemo(
+    () => [
+      { title: '名称', dataIndex: 'name', width: 160, ellipsis: true },
+      {
+        title: '范围',
+        dataIndex: 'visibility',
+        width: 100,
+        valueEnum: { MARKET: { text: 'MARKET' }, PRIVATE: { text: 'PRIVATE' } },
+      },
+      {
+        title: '状态',
+        dataIndex: 'status',
+        width: 130,
+        render: (_, row) => statusTag(row.status),
+      },
+      {
+        title: '资源数',
+        dataIndex: 'resources',
+        width: 90,
+        search: false,
+        render: (_, row) => row.resources?.length ?? 0,
+      },
+      {
+        title: '内容哈希',
+        dataIndex: 'contentHash',
+        search: false,
+        ellipsis: true,
+        width: 150,
+      },
+      {
+        title: '审核意见',
+        dataIndex: 'reviewComment',
+        search: false,
+        ellipsis: true,
+      },
+      {
+        title: '操作',
+        valueType: 'option',
+        width: 220,
+        fixed: 'right',
+        render: (_, row) => [
+          (row.status === 'DRAFT' || row.status === 'REJECTED') && (
+            <a
+              key="edit"
+              onClick={(e) => {
+                e.stopPropagation();
+                setEditingDraft(row);
+                setDraftDrawerOpen(true);
+              }}
+            >
+              编辑
+            </a>
+          ),
+          (row.status === 'DRAFT' || row.status === 'REJECTED') && (
+            <a
+              key="submit"
+              onClick={(e) => {
+                e.stopPropagation();
+                void action(() => submitSkillDraftApi(row.id), '已提交审核');
+              }}
+            >
+              提交
+            </a>
+          ),
+          row.status === 'PENDING_REVIEW' && (
+            <a
+              key="withdraw"
+              onClick={(e) => {
+                e.stopPropagation();
+                void action(() => withdrawSkillDraftApi(row.id), '已撤回');
+              }}
+            >
+              撤回
+            </a>
+          ),
+          row.status === 'PENDING_REVIEW' && (
+            <a
+              key="approve"
+              onClick={(e) => {
+                e.stopPropagation();
+                void action(() => approveSkillDraftApi(row.id), '已发布 Release');
+              }}
+            >
+              通过
+            </a>
+          ),
+          row.status === 'PENDING_REVIEW' && (
+            <Popconfirm
+              key="reject"
+              title="驳回草稿"
+              description="确定驳回此草稿？"
+              onConfirm={() => action(() => rejectSkillDraftApi(row.id), '已驳回')}
+            >
+              <a
+                onClick={(e) => {
+                  e.stopPropagation();
+                }}
+              >
+                驳回
+              </a>
+            </Popconfirm>
+          ),
+        ],
+      },
+    ],
+    // action 闭包依赖 selectedDraftIdRef，无需列入 deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
+  const resourceEditable = isResourceEditable(selectedDraft);
+
+  const resourceColumns: ProColumns<SkillResource>[] = useMemo(
+    () => [
+      { title: '路径', dataIndex: 'path', ellipsis: true },
+      {
+        title: '内容哈希',
+        dataIndex: 'contentHash',
+        search: false,
+        ellipsis: true,
+        width: 160,
+      },
+      {
+        title: '内容预览',
+        dataIndex: 'content',
+        search: false,
+        ellipsis: true,
+        render: (_, row) => row.content?.slice(0, 80) || <span style={{ color: '#999' }}>-</span>,
+      },
+      {
+        title: '操作',
+        valueType: 'option',
+        width: 120,
+        fixed: 'right',
+        render: (_, row) => [
+          <a
+            key="edit"
+            onClick={() => {
+              setEditingResource(row);
+              setResourceDrawerOpen(true);
+            }}
+          >
+            {resourceEditable ? '编辑' : '查看'}
+          </a>,
+          resourceEditable && (
+            <a
+              key="delete"
+              style={{ color: '#ff4d4f' }}
+              onClick={() => {
+                Modal.confirm({
+                  title: '确认删除该资源文件？',
+                  okText: '删除',
+                  cancelText: '取消',
+                  okButtonProps: { danger: true },
+                  onOk: async () => {
+                    if (selectedDraftIdRef.current == null || row.id == null) return;
+                    try {
+                      await deleteSkillDraftResourceApi(selectedDraftIdRef.current, row.id);
+                      message.success('已删除资源');
+                      reloadDrafts();
+                      reloadResources();
+                    } catch (error) {
+                      message.error((error as Error).message);
+                    }
+                  },
+                });
+              }}
+            >
+              删除
+            </a>
+          ),
+        ],
+      },
+    ],
+    [resourceEditable],
+  );
+
+  return (
+    <ContentContainer heightMode="auto" scrollable padding="16px">
+      <Row gutter={16}>
+        <Col xs={24} md={12}>
+          <ProTable<SkillDraft>
+            headerTitle="Skill 草稿"
+            cardBordered
+            rowKey="id"
+            actionRef={draftActionRef}
+            columns={draftColumns}
+            search={{ labelWidth: 'auto' }}
+            request={async () => {
+              const data = await listSkillDraftsApi();
+              setDraftRowCount(data.length);
+              if (selectedDraftIdRef.current != null) {
+                const latest = data.find((item) => item.id === selectedDraftIdRef.current);
+                if (latest) {
+                  setSelectedDraft(latest);
+                } else {
+                  clearSelection();
+                }
+              }
+              return { data, success: true };
+            }}
+            pagination={{ defaultPageSize: 20, showSizeChanger: true }}
+            scroll={{ x: 900, ...(draftScrollY ? { y: draftScrollY } : {}) }}
+            toolBarRender={() => [
+              <Button
+                key="create"
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={() => {
+                  setEditingDraft(null);
+                  setDraftDrawerOpen(true);
+                }}
+              >
+                新建 Skill
+              </Button>,
+            ]}
+            onRow={(record) => ({
+              onClick: () => selectDraft(record),
+              style: {
+                cursor: 'pointer',
+                background:
+                  selectedDraftId === record.id ? 'rgba(59,130,246,0.08)' : undefined,
+              },
+            })}
+          />
+        </Col>
+
+        <Col xs={24} md={12}>
+          <ProTable<SkillResource>
+            headerTitle={
+              <Space size={8} align="center" wrap>
+                <span>资源文件</span>
+                {selectedDraft && (
+                  <Tag
+                    closable
+                    onClose={(e) => {
+                      e.preventDefault();
+                      clearSelection();
+                    }}
+                    style={{ margin: 0 }}
+                  >
+                    {selectedDraft.name}
+                  </Tag>
+                )}
+              </Space>
+            }
+            cardBordered
+            rowKey={(row) => String(row.id ?? row.path)}
+            actionRef={resourceActionRef}
+            columns={resourceColumns}
+            search={false}
+            request={async () => {
+              const draftId = selectedDraftIdRef.current;
+              if (draftId == null) {
+                setResourceRowCount(0);
+                return { data: [], success: true };
+              }
+              const data = await listSkillDraftResourcesApi(draftId);
+              setResourceRowCount(data.length);
+              return { data, success: true };
+            }}
+            pagination={{ defaultPageSize: 20, showSizeChanger: true }}
+            scroll={{ x: 'max-content', ...(resourceScrollY ? { y: resourceScrollY } : {}) }}
+            toolBarRender={() => [
+              <Button
+                key="create"
+                type="primary"
+                icon={<PlusOutlined />}
+                disabled={!resourceEditable}
+                onClick={() => {
+                  setEditingResource(null);
+                  setResourceDrawerOpen(true);
+                }}
+              >
+                新建资源
+              </Button>,
+            ]}
+            locale={{
+              emptyText: selectedDraft ? '暂无资源文件' : '请先选择左侧 Skill 草稿',
+            }}
+          />
+        </Col>
+      </Row>
+
+      <SkillDraftDrawer
+        open={draftDrawerOpen}
+        row={editingDraft}
+        onClose={() => setDraftDrawerOpen(false)}
+        onSaved={(saved) => {
+          reloadDrafts();
+          selectDraft(saved);
+        }}
+      />
+      <SkillResourceDrawer
+        open={resourceDrawerOpen}
+        draftId={selectedDraftId}
+        row={editingResource}
+        editable={resourceEditable}
+        onClose={() => setResourceDrawerOpen(false)}
+        onSaved={() => {
+          reloadDrafts();
+          reloadResources();
+        }}
+      />
+    </ContentContainer>
+  );
 }

@@ -7,12 +7,14 @@ import com.wshake.common.time.TimeZones;
 import com.wshake.service.agent.AgentSkillMarkdown.Frontmatter;
 import com.wshake.service.agent.SkillControlModels.BindableSkillView;
 import com.wshake.service.agent.SkillControlModels.CreateSkillDraftCommand;
+import com.wshake.service.agent.SkillControlModels.CreateSkillDraftResourceCommand;
 import com.wshake.service.agent.SkillControlModels.SkillDraftView;
 import com.wshake.service.agent.SkillControlModels.SkillInstallView;
 import com.wshake.service.agent.SkillControlModels.SkillMarketView;
 import com.wshake.service.agent.SkillControlModels.SkillReleaseView;
 import com.wshake.service.agent.SkillControlModels.SkillResourceView;
 import com.wshake.service.agent.SkillControlModels.UpdateSkillDraftCommand;
+import com.wshake.service.agent.SkillControlModels.UpdateSkillDraftResourceCommand;
 import com.wshake.service.entity.AgentSkillDraft;
 import com.wshake.service.entity.AgentSkillDraftResource;
 import com.wshake.service.entity.AgentSkillInstall;
@@ -71,6 +73,68 @@ public class SkillControlService {
         return toDraftView(draft);
     }
 
+    public List<SkillResourceView> listDraftResources(Long draftId, Long ownerUserId) {
+        requireOwnedDraft(draftId, ownerUserId);
+        return draftRepository.listResources(draftId).stream()
+                .map(SkillControlService::toResourceView)
+                .toList();
+    }
+
+    @Transactional
+    public SkillResourceView createDraftResource(CreateSkillDraftResourceCommand command) {
+        AgentSkillDraft draft = requireOwnedDraft(command.draftId(), command.ownerUserId());
+        requireEditable(draft);
+        AgentSkillMarkdown.validateResourcePath(command.path());
+        String content = command.content() == null ? "" : command.content();
+        if (draftRepository.findResourceByDraftIdAndPath(draft.getId(), command.path()) != null) {
+            throw BizException.of(ResultCode.PARAM_INVALID, "resource path already exists");
+        }
+        AgentSkillDraftResource row = new AgentSkillDraftResource();
+        row.setDraftId(draft.getId());
+        row.setResourcePath(command.path());
+        row.setResourceContent(content);
+        row.setContentHash(AgentSkillContentHash.sha256(content));
+        draftRepository.insertResource(row);
+        refreshDraftAfterResourceChange(draft);
+        return toResourceView(row);
+    }
+
+    @Transactional
+    public SkillResourceView updateDraftResource(UpdateSkillDraftResourceCommand command) {
+        AgentSkillDraft draft = requireOwnedDraft(command.draftId(), command.ownerUserId());
+        requireEditable(draft);
+        AgentSkillDraftResource row = requireOwnedDraftResource(draft.getId(), command.resourceId());
+        if (!command.pathPresent() && !command.contentPresent()) {
+            throw BizException.of(ResultCode.PARAM_INVALID, "path or content is required");
+        }
+        if (command.pathPresent()) {
+            AgentSkillMarkdown.validateResourcePath(command.path());
+            AgentSkillDraftResource conflict =
+                    draftRepository.findResourceByDraftIdAndPath(draft.getId(), command.path());
+            if (conflict != null && !conflict.getId().equals(row.getId())) {
+                throw BizException.of(ResultCode.PARAM_INVALID, "resource path already exists");
+            }
+            row.setResourcePath(command.path());
+        }
+        if (command.contentPresent()) {
+            String content = command.content() == null ? "" : command.content();
+            row.setResourceContent(content);
+            row.setContentHash(AgentSkillContentHash.sha256(content));
+        }
+        draftRepository.updateResource(row);
+        refreshDraftAfterResourceChange(draft);
+        return toResourceView(row);
+    }
+
+    @Transactional
+    public void deleteDraftResource(Long draftId, Long resourceId, Long ownerUserId) {
+        AgentSkillDraft draft = requireOwnedDraft(draftId, ownerUserId);
+        requireEditable(draft);
+        requireOwnedDraftResource(draft.getId(), resourceId);
+        draftRepository.deleteResource(resourceId);
+        refreshDraftAfterResourceChange(draft);
+    }
+
     @Transactional
     public SkillDraftView updateDraft(UpdateSkillDraftCommand command) {
         AgentSkillDraft draft = requireOwnedDraft(command.id(), command.ownerUserId());
@@ -91,7 +155,8 @@ public class SkillControlService {
             draft.setStatus(SkillControlModels.DRAFT);
         }
         draftRepository.update(draft);
-        if (command.resourcesPresent() || command.skillContentPresent()) {
+        // 仅在显式提交 resources 时整表替换；只改 SKILL.md 时保留资源行 id，避免右侧按 resourceId 操作失效
+        if (command.resourcesPresent()) {
             draftRepository.replaceResources(draft.getId(), toDraftResources(draft.getId(), parsed.resources()));
         }
         return toDraftView(draft);
@@ -459,10 +524,34 @@ public class SkillControlService {
         return value == null ? "" : value;
     }
 
+    private void refreshDraftAfterResourceChange(AgentSkillDraft draft) {
+        Map<String, String> resources = toDraftResourceMap(draftRepository.listResources(draft.getId()));
+        draft.setContentHash(AgentSkillContentHash.sha256(draft.getSkillContent(), resources));
+        if (SkillControlModels.REJECTED.equals(draft.getStatus())) {
+            draft.setStatus(SkillControlModels.DRAFT);
+        }
+        draftRepository.update(draft);
+    }
+
+    private AgentSkillDraftResource requireOwnedDraftResource(Long draftId, Long resourceId) {
+        if (resourceId == null) {
+            throw BizException.of(ResultCode.PARAM_INVALID, "resourceId is required");
+        }
+        AgentSkillDraftResource row = draftRepository.findResourceById(resourceId);
+        if (row == null || !draftId.equals(row.getDraftId())) {
+            throw BizException.of(ResultCode.PARAM_INVALID, "skill draft resource not found");
+        }
+        return row;
+    }
+
+    private static SkillResourceView toResourceView(AgentSkillDraftResource row) {
+        return new SkillResourceView(
+                row.getId(), row.getResourcePath(), row.getResourceContent(), row.getContentHash());
+    }
+
     private SkillDraftView toDraftView(AgentSkillDraft draft) {
         List<SkillResourceView> resources = draftRepository.listResources(draft.getId()).stream()
-                .map(row ->
-                        new SkillResourceView(row.getResourcePath(), row.getResourceContent(), row.getContentHash()))
+                .map(SkillControlService::toResourceView)
                 .toList();
         return new SkillDraftView(
                 draft.getId(),
@@ -486,7 +575,7 @@ public class SkillControlService {
     private static SkillReleaseView toReleaseView(AgentSkillRelease release, Map<String, String> resources) {
         List<SkillResourceView> views = resources.entrySet().stream()
                 .map(entry -> new SkillResourceView(
-                        entry.getKey(), entry.getValue(), AgentSkillContentHash.sha256(entry.getValue())))
+                        null, entry.getKey(), entry.getValue(), AgentSkillContentHash.sha256(entry.getValue())))
                 .toList();
         return new SkillReleaseView(
                 release.getId(),

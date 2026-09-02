@@ -13,13 +13,17 @@ import static org.mockito.Mockito.when;
 
 import com.wshake.common.exception.BizException;
 import com.wshake.service.agent.SkillControlModels.CreateSkillDraftCommand;
+import com.wshake.service.agent.SkillControlModels.CreateSkillDraftResourceCommand;
+import com.wshake.service.agent.SkillControlModels.UpdateSkillDraftResourceCommand;
 import com.wshake.service.entity.AgentSkillDraft;
+import com.wshake.service.entity.AgentSkillDraftResource;
 import com.wshake.service.entity.AgentSkillMarket;
 import com.wshake.service.entity.AgentSkillRelease;
 import com.wshake.service.repository.AgentSkillDraftRepository;
 import com.wshake.service.repository.AgentSkillInstallRepository;
 import com.wshake.service.repository.AgentSkillMarketRepository;
 import com.wshake.service.repository.AgentSkillReleaseRepository;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
@@ -171,6 +175,75 @@ class SkillControlServiceTest {
                 .hasMessageContaining("frontmatter");
     }
 
+    @Test
+    void createDraftResource_insertsAndRecalculatesHash() {
+        AgentSkillDraft draft = editableDraft();
+        when(draftRepository.findById(10L)).thenReturn(draft);
+        when(draftRepository.findResourceByDraftIdAndPath(10L, "scripts/check.sh"))
+                .thenReturn(null);
+        List<AgentSkillDraftResource> stored = new ArrayList<>();
+        doAnswer(invocation -> {
+                    AgentSkillDraftResource row = invocation.getArgument(0);
+                    row.setId(101L);
+                    stored.clear();
+                    stored.add(row);
+                    return null;
+                })
+                .when(draftRepository)
+                .insertResource(any(AgentSkillDraftResource.class));
+        when(draftRepository.listResources(10L)).thenAnswer(invocation -> List.copyOf(stored));
+
+        var created = service.createDraftResource(
+                new CreateSkillDraftResourceCommand(10L, 7L, "scripts/check.sh", "echo ok"));
+
+        assertThat(created.id()).isEqualTo(101L);
+        assertThat(created.path()).isEqualTo("scripts/check.sh");
+        assertThat(draft.getContentHash())
+                .isEqualTo(AgentSkillContentHash.sha256(SKILL_MD, Map.of("scripts/check.sh", "echo ok")));
+        verify(draftRepository).update(draft);
+    }
+
+    @Test
+    void updateDraftResource_renamesPathAndRejectsDuplicate() {
+        AgentSkillDraft draft = editableDraft();
+        AgentSkillDraftResource existing = resource(101L, "old.txt", "v1");
+        AgentSkillDraftResource conflict = resource(102L, "new.txt", "other");
+        when(draftRepository.findById(10L)).thenReturn(draft);
+        when(draftRepository.findResourceById(101L)).thenReturn(existing);
+        when(draftRepository.findResourceByDraftIdAndPath(10L, "new.txt")).thenReturn(conflict);
+
+        assertThatThrownBy(() -> service.updateDraftResource(
+                        new UpdateSkillDraftResourceCommand(10L, 101L, 7L, "new.txt", true, null, false)))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("already exists");
+    }
+
+    @Test
+    void deleteDraftResource_removesAndRecalculatesHash() {
+        AgentSkillDraft draft = editableDraft();
+        draft.setContentHash(AgentSkillContentHash.sha256(SKILL_MD, Map.of("notes.md", "x")));
+        AgentSkillDraftResource existing = resource(101L, "notes.md", "x");
+        when(draftRepository.findById(10L)).thenReturn(draft);
+        when(draftRepository.findResourceById(101L)).thenReturn(existing);
+        when(draftRepository.listResources(10L)).thenReturn(List.of());
+
+        service.deleteDraftResource(10L, 101L, 7L);
+
+        verify(draftRepository).deleteResource(101L);
+        assertThat(draft.getContentHash()).isEqualTo(AgentSkillContentHash.sha256(SKILL_MD, Map.of()));
+    }
+
+    @Test
+    void createDraftResource_rejectsPendingReview() {
+        AgentSkillDraft draft = pendingDraft(SkillControlModels.VISIBILITY_PRIVATE);
+        when(draftRepository.findById(10L)).thenReturn(draft);
+
+        assertThatThrownBy(
+                        () -> service.createDraftResource(new CreateSkillDraftResourceCommand(10L, 7L, "a.txt", "x")))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("only draft or rejected");
+    }
+
     private static AgentSkillDraft pendingDraft(String visibility) {
         AgentSkillDraft draft = new AgentSkillDraft();
         draft.setId(10L);
@@ -184,5 +257,21 @@ class SkillControlServiceTest {
         draft.setRemark("");
         draft.setIsEnabled(1);
         return draft;
+    }
+
+    private static AgentSkillDraft editableDraft() {
+        AgentSkillDraft draft = pendingDraft(SkillControlModels.VISIBILITY_PRIVATE);
+        draft.setStatus(SkillControlModels.DRAFT);
+        return draft;
+    }
+
+    private static AgentSkillDraftResource resource(Long id, String path, String content) {
+        AgentSkillDraftResource row = new AgentSkillDraftResource();
+        row.setId(id);
+        row.setDraftId(10L);
+        row.setResourcePath(path);
+        row.setResourceContent(content);
+        row.setContentHash(AgentSkillContentHash.sha256(content));
+        return row;
     }
 }

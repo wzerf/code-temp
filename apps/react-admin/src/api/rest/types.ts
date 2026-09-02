@@ -1136,7 +1136,9 @@ export type SkillVisibility = 'MARKET' | 'PRIVATE';
 export type SkillDraftStatus = 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED' | 'CONSUMED';
 export type SkillReleaseStatus = 'PUBLISHED' | 'DEPRECATED';
 
-export interface SkillResource { path: string; content: string; contentHash: string; }
+export interface SkillResource { id?: number | null; path: string; content: string; contentHash: string; }
+export interface CreateSkillDraftResourceRequest { path: string; content?: string; }
+export interface UpdateSkillDraftResourceRequest { path?: string; content?: string; }
 export interface SkillDraft { id: number; name: string; description: string; skillContent: string; visibility: SkillVisibility; status: SkillDraftStatus; ownerUserId: number; basedOnReleaseId: number | null; contentHash: string; reviewComment: string; reviewedBy: number; reviewedAt: string | null; remark: string; resources: SkillResource[]; createdAt: string; updatedAt: string; }
 export interface SkillRelease { id: number; name: string; version: number; description: string; skillContent: string; visibility: SkillVisibility; status: SkillReleaseStatus; ownerUserId: number; sourceDraftId: number | null; contentHash: string; source: string; remark: string; resources: SkillResource[]; createdAt: string; }
 export interface SkillMarket { id: number; name: string; description: string; contentHash: string; currentReleaseId: number; source: string; }

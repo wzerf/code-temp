@@ -56,6 +56,39 @@ public class AgentSkillDraftRepository {
                 .toList();
     }
 
+    public AgentSkillDraftResource findResourceById(Long id) {
+        return easyEntityQuery
+                .queryable(AgentSkillDraftResource.class)
+                .where(t -> t.id().eq(id))
+                .firstOrNull();
+    }
+
+    public AgentSkillDraftResource findResourceByDraftIdAndPath(Long draftId, String path) {
+        return easyEntityQuery
+                .queryable(AgentSkillDraftResource.class)
+                .where(t -> {
+                    t.draftId().eq(draftId);
+                    t.resourcePath().eq(path);
+                })
+                .firstOrNull();
+    }
+
+    public void insertResource(AgentSkillDraftResource row) {
+        easyEntityQuery.insertable(row).executeRows(true);
+    }
+
+    public long updateResource(AgentSkillDraftResource row) {
+        return easyEntityQuery.updatable(row).executeRows();
+    }
+
+    public void deleteResource(Long id) {
+        easyEntityQuery
+                .deletable(AgentSkillDraftResource.class)
+                .where(t -> t.id().eq(id))
+                .allowDeleteStatement(true)
+                .executeRows();
+    }
+
     public void replaceResources(Long draftId, List<AgentSkillDraftResource> resources) {
         easyEntityQuery
                 .deletable(AgentSkillDraftResource.class)

@@ -36,12 +36,14 @@ VALUES
     ('弃用 Skill Release', 'POST', '/api/agent/skills/releases/:id/deprecate', 'skill:release:deprecate', 'Agent Skill', '', 1, 0, 0, 0);
 
 INSERT INTO sys_menu (id, parent_id, name, type, path, component, icon, redirect, permission_code, tree_path, metadata, sort, is_hidden, is_enabled, deleted_at, remark, created_by, updated_by)
-VALUES (500, NULL, 'Agent 对话', 'MENU', '/agent/chat', '/agent/chat/index', 'lucide:bot-message-square', '', 'agent:session:run', '/500/', '{"routeName":"AgentChat","order":2002,"fullPathKey":false}', 2002, 0, 1, 0, '', 0, 0);
+VALUES
+    (500, NULL, 'Agent', 'DIR', '/agent', NULL, 'lucide:bot-message-square', '/agent/chat', NULL, '/500/', '{"routeName":"Agent","order":2002}', 2002, 0, 1, 0, '', 0, 0),
+    (501, 500, 'Agent 对话', 'MENU', '/agent/chat', '/agent/chat/index', 'lucide:bot-message-square', '', 'agent:session:run', '/500/501/', '{"routeName":"AgentChat","order":2002,"fullPathKey":false}', 1, 0, 1, 0, '', 0, 0);
 
-INSERT INTO sys_role_menu (role_id, menu_id) VALUES (1, 500);
+INSERT INTO sys_role_menu (role_id, menu_id) VALUES (1, 500), (1, 501);
 
 INSERT INTO sys_menu_api (menu_id, api_id, created_by)
-SELECT 500, id, 0
+SELECT 501, id, 0
 FROM sys_api
 WHERE permission_code IN ('agent:definition:list', 'agent:definition:read', 'agent:session:create', 'agent:session:resolve', 'agent:session:run', 'agent:session:resume', 'agent:session:cancel', 'agent:session:read', 'agent:session:list', 'agent:session:history');
 

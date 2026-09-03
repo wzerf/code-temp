@@ -136,6 +136,12 @@
             <artifactId>okhttp-jvm</artifactId>
         </dependency>
 
+        <!-- JGit：Skill Git 受控导入（preview / sync 克隆解析） -->
+        <dependency>
+            <groupId>org.eclipse.jgit</groupId>
+            <artifactId>org.eclipse.jgit</artifactId>
+        </dependency>
+
         <!-- Test -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

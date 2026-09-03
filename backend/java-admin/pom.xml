@@ -77,6 +77,9 @@
         <!-- AWS SDK v2（S3 / MinIO） -->
         <aws.sdk.version>2.31.78</aws.sdk.version>
 
+        <!-- JGit：Skill Git 受控导入（preview / sync 克隆解析） -->
+        <jgit.version>7.1.0.202411261347-r</jgit.version>
+
         <!-- OkHttp 出站 HTTP 客户端（Boot BOM 不管理；Maven 须用 okhttp-jvm） -->
         <okhttp.version>5.4.0</okhttp.version>
     </properties>
@@ -282,6 +285,13 @@
                 <version>${okhttp.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
+            </dependency>
+
+            <!-- JGit（Skill Git 受控导入） -->
+            <dependency>
+                <groupId>org.eclipse.jgit</groupId>
+                <artifactId>org.eclipse.jgit</artifactId>
+                <version>${jgit.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

@@ -1,0 +1,2 @@
+- Runs `git status` before `git push` to verify changes. Confidence: 0.7
+- Accepts pushing despite TypeScript warnings, but notes them. Confidence: 0.5

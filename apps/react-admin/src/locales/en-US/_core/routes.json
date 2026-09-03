@@ -61,5 +61,9 @@
   "system.blacklist.title": "Access Blacklist",
   "blacklist": "Access Blacklist",
   "log.title": "Log Audit",
-  "log.loginLog.title": "Login Log"
+  "log.loginLog.title": "Login Log",
+  "agent.title": "Agent Platform",
+  "agent.agent.title": "Agent Management",
+  "agent.skill.title": "Skill Management",
+  "agent.mcp.title": "MCP Management"
 }

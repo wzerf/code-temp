@@ -11,3 +11,7 @@ export * as ApiLogApi from './api-log';
 export * as TaskConfigApi from './task-config';
 export * as TaskExecutionApi from './task-execution';
 export * as BlacklistApi from './blacklist';
+export * as AgentApi from './agent';
+export * as SkillApi from './skill';
+export * as SkillGitApi from './skill-git';
+export * as McpApi from './mcp';

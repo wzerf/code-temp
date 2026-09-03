@@ -1067,3 +1067,448 @@ export interface BlacklistBatchResult {
   affected: number;
   ids: number[];
 }
+
+// ============================================================
+// Agent 平台 — Agent 管理（agent_definition / agent_revision）
+// 对齐 Java AgentVO / AgentRevisionVO camelCase
+// ============================================================
+
+/** Agent 定义。 */
+export interface Agent {
+  id: number;
+  name: string;
+  description: string;
+  ownerUserId: number;
+  /** 当前发布 Revision 指针（首次发布前为 null） */
+  currentPublishedRevisionId: number | null;
+  remark: string;
+  isEnabled: 0 | 1;
+  deletedAt: number;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: number;
+  updatedBy: number;
+}
+
+export interface AgentQuery {
+  page?: number;
+  pageSize?: number;
+  name?: string;
+  isEnabled?: 0 | 1;
+  [k: string]: unknown;
+}
+
+export interface CreateAgentRequest {
+  name: string;
+  description?: string;
+  remark?: string;
+  ownerUserId?: number;
+  isEnabled?: 0 | 1;
+}
+
+export interface UpdateAgentRequest {
+  id: number;
+  name?: string;
+  description?: string;
+  remark?: string;
+}
+
+/** Agent Revision（DRAFT 可编辑 / PUBLISHED 不可变）。 */
+export interface AgentRevision {
+  id: number;
+  agentDefinitionId: number;
+  status: 'DRAFT' | 'PUBLISHED' | string;
+  sourceDraftRevisionId: number | null;
+  systemPrompt: string;
+  modelConfig: string | null;
+  permissionPolicy: string | null;
+  memoryPolicy: string | null;
+  compressionPolicy: string | null;
+  remark: string;
+  isEnabled: 0 | 1;
+  deletedAt: number;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: number;
+  updatedBy: number;
+}
+
+export interface SaveAgentRevisionRequest {
+  systemPrompt?: string;
+  modelConfig?: string;
+  permissionPolicy?: string;
+  memoryPolicy?: string;
+  compressionPolicy?: string;
+  remark?: string;
+}
+
+/** Revision Skill 绑定。 */
+export interface RevisionSkillBinding {
+  id: number;
+  agentRevisionId: number;
+  skillReleaseId: number;
+  skillName: string;
+  contentHash: string;
+  overrideWinner: 0 | 1;
+}
+
+export interface BindSkillRequest {
+  skillReleaseId: number;
+  skillName: string;
+  contentHash?: string;
+  overrideWinner?: 0 | 1;
+}
+
+/** Revision MCP 绑定。 */
+export interface RevisionMcpBinding {
+  id: number;
+  agentRevisionId: number;
+  mcpReleaseId: number;
+  mcpName: string;
+  hasSecret: boolean;
+}
+
+export interface BindMcpRequest {
+  mcpReleaseId: number;
+  mcpName: string;
+  /** 明文密钥（MARKET MCP 绑定到 Agent 时补配） */
+  plainSecret?: string;
+}
+
+// ============================================================
+// Agent 平台 — 会话（agent_session + Session 级绑定）
+// ============================================================
+
+/** Agent 会话（控制面元数据）。 */
+export interface AgentSession {
+  id: number;
+  agentDefinitionId: number;
+  agentRevisionId: number | null;
+  ownerUserId: number;
+  status: 'ACTIVE' | string;
+  lastActiveAt: string | null;
+  remark: string;
+  isEnabled: 0 | 1;
+  deletedAt: number;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: number;
+  updatedBy: number;
+}
+
+export interface SessionSkillBinding {
+  id: number;
+  sessionId: number;
+  skillReleaseId: number;
+  skillName: string;
+  contentHash: string;
+}
+
+export interface BindSessionSkillRequest {
+  skillReleaseId: number;
+  skillName: string;
+  contentHash?: string;
+}
+
+export interface SessionMcpBinding {
+  id: number;
+  sessionId: number;
+  mcpReleaseId: number;
+  mcpName: string;
+  hasSecret: boolean;
+}
+
+export interface BindSessionMcpRequest {
+  mcpReleaseId: number;
+  mcpName: string;
+  plainSecret?: string;
+}
+
+// ============================================================
+// Agent 平台 — Skill（agent_skill_draft / agent_skill_release）
+// ============================================================
+
+export type SkillDraftStatus = 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED' | 'CONSUMED' | string;
+export type SkillReleaseStatus = 'PUBLISHED' | 'DEPRECATED' | string;
+export type Visibility = 'MARKET' | 'PRIVATE' | string;
+
+/** Skill 草稿。 */
+export interface SkillDraft {
+  id: number;
+  ownerUserId: number;
+  name: string;
+  visibility: Visibility;
+  status: SkillDraftStatus;
+  description: string;
+  skillContent: string;
+  contentHash: string;
+  basedOnReleaseId: number | null;
+  reviewComment: string;
+  reviewedBy: number;
+  reviewedAt: string | null;
+  remark: string;
+  isEnabled: 0 | 1;
+  deletedAt: number;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: number;
+  updatedBy: number;
+  /** 资源文件数(SKILL.md 之外) */
+  resourceCount: number;
+  /** Git 来源分组(空=手动创建) */
+  groupKey?: string;
+}
+
+export interface SkillDraftQuery {
+  page?: number;
+  pageSize?: number;
+  ownerUserId?: number;
+  name?: string;
+  visibility?: Visibility;
+  status?: SkillDraftStatus;
+  [k: string]: unknown;
+}
+
+export interface SkillResourceItem {
+  resourcePath: string;
+  content: string;
+}
+
+export interface SkillDraftBundle {
+  skillContent: string;
+  resources: SkillResourceItem[];
+}
+
+export interface CreateSkillDraftRequest {
+  name: string;
+  description?: string;
+  skillContent?: string;
+  visibility: Visibility;
+  remark?: string;
+  resources?: SkillResourceItem[];
+}
+
+export interface UpdateSkillDraftRequest {
+  id: number;
+  name?: string;
+  description?: string;
+  skillContent?: string;
+  remark?: string;
+  resources?: SkillResourceItem[];
+}
+
+/** Skill Release（不可变快照）。 */
+export interface SkillRelease {
+  id: number;
+  ownerUserId: number;
+  name: string;
+  visibility: Visibility;
+  status: SkillReleaseStatus;
+  version: number;
+  description: string;
+  skillContent: string;
+  contentHash: string;
+  sourceDraftId: number | null;
+  remark: string;
+  isEnabled: 0 | 1;
+  deletedAt: number;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: number;
+  updatedBy: number;
+  /** 资源文件数(SKILL.md 之外) */
+  resourceCount: number;
+}
+
+export interface SkillReleaseQuery {
+  page?: number;
+  pageSize?: number;
+  visibility?: Visibility;
+  status?: SkillReleaseStatus;
+  name?: string;
+  [k: string]: unknown;
+}
+
+// ============================================================
+// Agent 平台 — MCP（agent_mcp_draft / agent_mcp_release）
+// ============================================================
+
+export type McpTransport = 'sse' | 'http';
+export type ReviewStatus = 'DRAFT' | 'PENDING_REVIEW' | 'REJECTED' | 'CONSUMED' | string;
+
+/** MCP 草稿。 */
+export interface McpDraft {
+  id: number;
+  ownerUserId: number;
+  name: string;
+  visibility: Visibility;
+  status: ReviewStatus;
+  transport: McpTransport;
+  url: string;
+  headersJson: string;
+  remark: string;
+  isEnabled: 0 | 1;
+  deletedAt: number;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: number;
+  updatedBy: number;
+}
+
+export interface McpDraftQuery {
+  page?: number;
+  pageSize?: number;
+  ownerUserId?: number;
+  name?: string;
+  visibility?: Visibility;
+  status?: ReviewStatus;
+  [k: string]: unknown;
+}
+
+export interface CreateMcpDraftRequest {
+  name: string;
+  transport: McpTransport;
+  url: string;
+  headersJson?: string;
+  visibility: Visibility;
+  plainSecret?: string;
+  connectTimeoutMs?: number;
+  remark?: string;
+}
+
+export interface UpdateMcpDraftRequest {
+  id: number;
+  name?: string;
+  transport?: McpTransport;
+  url?: string;
+  headersJson?: string;
+  plainSecret?: string;
+  connectTimeoutMs?: number;
+  remark?: string;
+}
+
+/** MCP Release（连接配置冻结副本;不含密钥）。 */
+export interface McpRelease {
+  id: number;
+  ownerUserId: number;
+  name: string;
+  visibility: Visibility;
+  status: SkillReleaseStatus;
+  version: number;
+  transport: McpTransport;
+  url: string;
+  headersJson: string;
+  hasSecret: boolean;
+  connectTimeoutMs: number;
+  sourceDraftId: number | null;
+  remark: string;
+  isEnabled: 0 | 1;
+  deletedAt: number;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: number;
+  updatedBy: number;
+}
+
+export interface McpReleaseQuery {
+  page?: number;
+  pageSize?: number;
+  visibility?: Visibility;
+  status?: SkillReleaseStatus;
+  name?: string;
+  [k: string]: unknown;
+}
+
+/** MCP 握手验证结果。 */
+export interface McpVerifyResult {
+  success: boolean;
+  message: string;
+  toolCount: number;
+  tools: Array<{
+    name: string;
+    description: string;
+    inputSchema: string;
+    readOnly: boolean;
+  }>;
+}
+
+// ============================================================
+// Agent 平台 — Skill Git 受控导入（agent_skill_git_source / git_sync）
+// ============================================================
+
+export type GitSourceScope = 'MARKET' | 'PRIVATE' | string;
+export type GitSourceStatus = 'READY' | 'FAILED' | string;
+export type GitSyncItemResult = 'CREATED' | 'UPDATED' | 'UNCHANGED' | 'CONFLICT' | 'FAILED' | string;
+
+/** Git Skill 来源。 */
+export interface GitSource {
+  id: number;
+  scope: GitSourceScope;
+  ownerUserId: number;
+  url: string;
+  ref: string;
+  subdirectory: string;
+  lastCommitSha: string;
+  lastSyncedAt: string | null;
+  status: GitSourceStatus;
+  lastError: string;
+  remark: string;
+  isEnabled: 0 | 1;
+  deletedAt: number;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: number;
+  updatedBy: number;
+}
+
+export interface CreateGitSourceRequest {
+  scope: GitSourceScope;
+  ownerUserId?: number;
+  url: string;
+  ref?: string;
+  subdirectory?: string;
+  /** 私有仓库密钥明文(空=匿名) */
+  plainSecret?: string;
+  remark?: string;
+}
+
+export interface UpdateGitSourceRequest {
+  id: number;
+  ref?: string;
+  subdirectory?: string;
+  plainSecret?: string;
+  remark?: string;
+}
+
+/** 预览扫描到的 Skill 包。 */
+export interface GitSkillPackage {
+  skillPath: string;
+  name: string;
+  description: string;
+  contentHash: string;
+  skillContent: string;
+  /** 资源文件数(SKILL.md 之外) */
+  resourceCount: number;
+  /** 资源文件路径列表 */
+  resourcePaths: string[];
+}
+
+export interface GitPreviewResult {
+  sourceId: number;
+  ref: string;
+  commitSha: string;
+  url: string;
+  packages: GitSkillPackage[];
+}
+
+export interface GitSyncItem {
+  skillPath: string;
+  result: GitSyncItemResult;
+  message: string;
+}
+
+export interface GitSyncResult {
+  sourceId: number;
+  commitSha: string;
+  items: GitSyncItem[];
+}

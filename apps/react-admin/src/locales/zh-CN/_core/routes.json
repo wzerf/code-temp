@@ -61,5 +61,9 @@
   "system.blacklist.title": "访问黑名单",
   "blacklist": "访问黑名单",
   "log.title": "日志审计",
-  "log.loginLog.title": "登录日志"
+  "log.loginLog.title": "登录日志",
+  "agent.title": "Agent 平台",
+  "agent.agent.title": "Agent 管理",
+  "agent.skill.title": "Skill 管理",
+  "agent.mcp.title": "MCP 管理"
 }

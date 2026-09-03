@@ -67,6 +67,13 @@
             <artifactId>mapstruct-plus-spring-boot-starter</artifactId>
         </dependency>
 
+        <!-- JGit：Skill Git 受控导入（clone/fetch 到临时目录扫描 SKILL 包） -->
+        <dependency>
+            <groupId>org.eclipse.jgit</groupId>
+            <artifactId>org.eclipse.jgit</artifactId>
+            <version>7.7.1.202607240634-r</version>
+        </dependency>
+
         <!-- Test -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>

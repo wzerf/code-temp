@@ -60,9 +60,8 @@ public class BindingMcpAssembler {
             headers.putIfAbsent("Authorization", "Bearer " + secret);
         }
 
-        Duration timeout = Duration.ofSeconds(10);
         McpClientBuilder builder =
-                McpClientBuilder.create(name).timeout(timeout).initializationTimeout(timeout);
+                McpClientBuilder.create(name).timeout(HANDSHAKE_TIMEOUT).initializationTimeout(HANDSHAKE_TIMEOUT);
         switch (transport) {
             case "sse" -> builder.sseTransport(url);
             case "http" -> builder.streamableHttpTransport(url);

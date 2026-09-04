@@ -33,6 +33,12 @@
             <artifactId>java-admin-infra</artifactId>
         </dependency>
 
+        <!-- AG-UI 协议模型（controller 直接消费 RunAgentInput;版本由父 pom 管理） -->
+        <dependency>
+            <groupId>io.agentscope</groupId>
+            <artifactId>agentscope-extensions-agui</artifactId>
+        </dependency>
+
         <!-- MapStruct Plus：@AutoMapper + Converter（View↔VO / Request→Command） -->
         <dependency>
             <groupId>io.github.linpeilie</groupId>

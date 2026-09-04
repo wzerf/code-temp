@@ -110,6 +110,21 @@ app:
   # Agent 平台业务密钥主密钥（encrypted_secret 落库加密;AES-256 Base64 32字节;生产必须注入）
   agent-secret:
     master-key: ${AGENT_SECRET_MASTER_KEY:}
+  # Agent 运行面（AG-UI SSE 会话事件流）
+  agent-runtime:
+    # SSE 单次运行最长执行时间
+    run-timeout: ${AGENT_RUN_TIMEOUT:10m}
+    # Agent 单次 ReAct 最大迭代数（防失控循环）
+    max-iters: ${AGENT_MAX_ITERS:20}
+    # 会话状态 Redis key 前缀（agentscope 状态存储,含上下文消息）
+    state-key-prefix: ${AGENT_STATE_KEY_PREFIX:agent:runtime:agentscope:}
+    # 运行幂等/状态 Redis key 前缀
+    run-key-prefix: ${AGENT_RUN_KEY_PREFIX:agent:runtime:run:}
+    # AG-UI 事件开关（对齐 docs/agent-conversation-architecture.md §6.1）
+    emit-reasoning: ${AGENT_EMIT_REASONING:true}
+    emit-tool-call-args: ${AGENT_EMIT_TOOL_CALL_ARGS:true}
+    emit-state-events: ${AGENT_EMIT_STATE_EVENTS:false}
+    emit-token-usage: ${AGENT_EMIT_TOKEN_USAGE:false}
   # 对象存储：local 默认；s3 对接 compose MinIO（127.0.0.1:4900）
   storage:
     type: ${STORAGE_TYPE:local}

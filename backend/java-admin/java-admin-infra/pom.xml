@@ -119,6 +119,19 @@
             <groupId>io.agentscope</groupId>
             <artifactId>agentscope-harness</artifactId>
         </dependency>
+        <dependency>
+            <groupId>io.agentscope</groupId>
+            <artifactId>agentscope-extensions-model-openai</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.agentscope</groupId>
+            <artifactId>agentscope-extensions-redis</artifactId>
+        </dependency>
+        <!-- AG-UI 协议扩展：AgentEvent → AG-UI 事件（docs 目标态,官方 adapter/processor/encoder） -->
+        <dependency>
+            <groupId>io.agentscope</groupId>
+            <artifactId>agentscope-extensions-agui</artifactId>
+        </dependency>
 
         <!-- MCP Java SDK（握手探测用;与 agentscope 传递版本对齐） -->
         <dependency>

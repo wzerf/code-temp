@@ -74,8 +74,13 @@
         <!-- agentscope -->
         <agentscope.version>2.0.1</agentscope.version>
 
-        <!-- Model Context Protocol Java SDK（2.x 修复 streamable HTTP 202+text/plain 兼容;agentscope-core 仅声明传递不引用类） -->
-        <mcp-sdk.version>2.0.1</mcp-sdk.version>
+        <!-- Model Context Protocol Java SDK
+             版本对齐 agentscope-core 2.0.1 的锁定依赖(0.17.0):
+             agentscope 运行面 MCP 客户端(McpClientBuilder)按 0.17.0 API 编译,
+             平台若用 2.x 会在运行时 NoSuchMethodError(Tool.inputSchema 等)。
+             0.17.0 已含 HttpClientStreamableHttpTransport/gateway 所需 API;
+             代价是缺失 2.x 的 202+text/plain 边缘兼容(正常 MCP server 不受影响)。 -->
+        <mcp-sdk.version>0.17.0</mcp-sdk.version>
 
         <!-- AWS SDK v2（S3 / MinIO） -->
         <aws.sdk.version>2.31.78</aws.sdk.version>
@@ -266,6 +271,21 @@
             <dependency>
                 <groupId>io.agentscope</groupId>
                 <artifactId>agentscope-harness</artifactId>
+                <version>${agentscope.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.agentscope</groupId>
+                <artifactId>agentscope-extensions-model-openai</artifactId>
+                <version>${agentscope.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.agentscope</groupId>
+                <artifactId>agentscope-extensions-redis</artifactId>
+                <version>${agentscope.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.agentscope</groupId>
+                <artifactId>agentscope-extensions-agui</artifactId>
                 <version>${agentscope.version}</version>
             </dependency>
 

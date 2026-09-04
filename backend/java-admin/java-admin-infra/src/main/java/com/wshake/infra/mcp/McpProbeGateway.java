@@ -45,8 +45,7 @@ public class McpProbeGateway implements McpProbePort {
                 .build();
 
         try (McpSyncClient client = McpClient.sync(transport)
-                .clientInfo(
-                        McpSchema.Implementation.builder("java-admin", "1.0").build())
+                .clientInfo(new McpSchema.Implementation("java-admin", "1.0"))
                 .requestTimeout(Duration.ofMillis(timeoutMs))
                 .build()) {
             client.initialize();

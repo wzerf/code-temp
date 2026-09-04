@@ -1433,6 +1433,150 @@ export interface McpVerifyResult {
 }
 
 // ============================================================
+// Agent 平台 — 模型（agent_model_draft / agent_model_release）
+// ============================================================
+
+export type ModelScope = 'OFFICIAL' | 'PRIVATE' | string;
+export type ModelProvider = 'openai-compatible' | 'anthropic' | string;
+
+/** 模型草稿。 */
+export interface ModelDraft {
+  id: number;
+  ownerUserId: number;
+  name: string;
+  scope: ModelScope;
+  code: string;
+  status: ReviewStatus;
+  provider: ModelProvider;
+  baseUrl: string;
+  modelName: string;
+  capabilities: string;
+  parameterGuardrails: string;
+  contextLength: number;
+  remark: string;
+  isEnabled: 0 | 1;
+  deletedAt: number;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: number;
+  updatedBy: number;
+}
+
+export interface ModelDraftQuery {
+  page?: number;
+  pageSize?: number;
+  ownerUserId?: number;
+  name?: string;
+  scope?: ModelScope;
+  status?: ReviewStatus;
+  [k: string]: unknown;
+}
+
+export interface CreateModelDraftRequest {
+  name: string;
+  scope: ModelScope;
+  code?: string;
+  provider: ModelProvider;
+  baseUrl: string;
+  modelName: string;
+  capabilities?: string;
+  parameterGuardrails?: string;
+  contextLength?: number;
+  plainSecret?: string;
+  remark?: string;
+}
+
+export interface ProbeModelRequest {
+  provider: ModelProvider;
+  baseUrl: string;
+  plainSecret?: string;
+}
+
+export interface BatchCreateModelDraftItem {
+  name?: string;
+  modelName: string;
+  code?: string;
+  capabilities?: string;
+  parameterGuardrails?: string;
+  contextLength?: number;
+}
+
+export interface BatchCreateModelDraftRequest {
+  scope: ModelScope;
+  provider: ModelProvider;
+  baseUrl: string;
+  plainSecret?: string;
+  capabilities?: string;
+  parameterGuardrails?: string;
+  remark?: string;
+  items: BatchCreateModelDraftItem[];
+}
+
+export interface UpdateModelDraftRequest {
+  id: number;
+  name?: string;
+  code?: string;
+  provider?: ModelProvider;
+  baseUrl?: string;
+  modelName?: string;
+  capabilities?: string;
+  parameterGuardrails?: string;
+  contextLength?: number;
+  plainSecret?: string;
+  remark?: string;
+}
+
+/** 模型 Release（连接配置冻结副本;不含密钥）。 */
+export interface ModelRelease {
+  id: number;
+  ownerUserId: number;
+  name: string;
+  scope: ModelScope;
+  code: string;
+  status: SkillReleaseStatus;
+  version: number;
+  provider: ModelProvider;
+  baseUrl: string;
+  modelName: string;
+  capabilities: string;
+  parameterGuardrails: string;
+  contextLength: number;
+  hasSecret: boolean;
+  sourceDraftId: number | null;
+  remark: string;
+  isEnabled: 0 | 1;
+  deletedAt: number;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: number;
+  updatedBy: number;
+}
+
+export interface ModelReleaseQuery {
+  page?: number;
+  pageSize?: number;
+  scope?: ModelScope;
+  status?: SkillReleaseStatus;
+  name?: string;
+  [k: string]: unknown;
+}
+
+/** 模型探测验证结果。 */
+export interface ModelVerifyResult {
+  success: boolean;
+  message: string;
+  modelNameMatched: boolean;
+  remoteModelIds: string[];
+}
+
+export interface SessionModelBinding {
+  id: number;
+  sessionId: number;
+  modelReleaseId: number;
+  modelName: string;
+}
+
+// ============================================================
 // Agent 平台 — Skill Git 受控导入（agent_skill_git_source / git_sync）
 // ============================================================
 

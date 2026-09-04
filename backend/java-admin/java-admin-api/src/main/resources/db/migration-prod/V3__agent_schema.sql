@@ -374,3 +374,87 @@ CREATE TABLE agent_skill_git_sync (
     CONSTRAINT fk_agent_skill_git_sync_source FOREIGN KEY (source_id) REFERENCES agent_skill_git_source (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   COMMENT='Git Skill 同步记录(幂等;保护人工修改;唯一(source,skill_path,deleted_at))';
+
+-- ============================================================
+-- Section A3: 模型草稿、Release 与 Session 模型选择
+-- ============================================================
+
+CREATE TABLE agent_model_draft (
+    id                      BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    owner_user_id           BIGINT UNSIGNED NOT NULL DEFAULT 0  COMMENT '所有者(软引用 sys_user.id;OFFICIAL 可为 0=平台)',
+    name                    VARCHAR(128)    NOT NULL  COMMENT '模型显示名(唯一键内)',
+    scope                   VARCHAR(32)     NOT NULL DEFAULT 'PRIVATE'  COMMENT 'OFFICIAL=官方全站/PRIVATE=仅所有者',
+    code                    VARCHAR(64)     NOT NULL DEFAULT ''  COMMENT '功能码(video/image 等;普通文本为空)',
+    status                  VARCHAR(32)     NOT NULL DEFAULT 'DRAFT'  COMMENT 'DRAFT/PENDING_REVIEW/REJECTED/CONSUMED',
+    provider                VARCHAR(32)     NOT NULL  COMMENT 'openai-compatible/anthropic(小写)',
+    base_url                VARCHAR(512)    NOT NULL  COMMENT '连接地址(HTTPS)',
+    model_name              VARCHAR(128)    NOT NULL  COMMENT '远端模型标识',
+    capabilities            JSON            DEFAULT NULL  COMMENT '能力 JSON:text/thinking/tool_use/vision/json_mode',
+    parameter_guardrails    JSON            DEFAULT NULL  COMMENT '参数护栏 JSON:temperature/top_p/max_tokens 范围与默认',
+    context_length          BIGINT UNSIGNED NOT NULL DEFAULT 500000 COMMENT '上下文长度(token)',
+    encrypted_secret        TEXT            DEFAULT NULL  COMMENT '加密 API Key 密文(不存明文)',
+    review_comment          VARCHAR(512)    NOT NULL DEFAULT ''  COMMENT '审核意见(对用户可见)',
+    reviewed_by             BIGINT UNSIGNED NOT NULL DEFAULT 0  COMMENT '审核人(0=未审;软引用 sys_user.id)',
+    reviewed_at             TIMESTAMP       NULL DEFAULT NULL  COMMENT '审核时间',
+    remark                  VARCHAR(512)    NOT NULL DEFAULT ''  COMMENT '内部备注',
+    is_enabled              TINYINT(1)      NOT NULL DEFAULT 1,
+    deleted_at              BIGINT UNSIGNED NOT NULL DEFAULT 0  COMMENT '软删时间戳(毫秒);0=未删;非0=删除时刻',
+    created_at              TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at              TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    created_by              BIGINT UNSIGNED NOT NULL DEFAULT 0  COMMENT '创建人(0=系统操作;非0=软引用 sys_user.id)',
+    updated_by              BIGINT UNSIGNED NOT NULL DEFAULT 0  COMMENT '最后修改人(0=系统操作;非0=软引用 sys_user.id)',
+    PRIMARY KEY (id),
+    UNIQUE KEY uniq_agent_model_draft_owner_name_scope (owner_user_id, name, scope, deleted_at),
+    INDEX idx_agent_model_draft_status (status),
+    INDEX idx_agent_model_draft_scope (scope),
+    INDEX idx_agent_model_draft_deleted_at (deleted_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='模型连接配置草稿(OFFICIAL 需审核;PRIVATE 免审但仍须探测后发布)';
+
+-- 模型 Release: 探测冻结的连接配置副本;发布即进入可用模型池
+CREATE TABLE agent_model_release (
+    id                      BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    owner_user_id           BIGINT UNSIGNED NOT NULL DEFAULT 0  COMMENT '所有者(软引用 sys_user.id)',
+    name                    VARCHAR(128)    NOT NULL  COMMENT '模型显示名(冻结)',
+    scope                   VARCHAR(32)     NOT NULL  COMMENT 'OFFICIAL/PRIVATE(冻结)',
+    code                    VARCHAR(64)     NOT NULL DEFAULT ''  COMMENT '功能码(冻结)',
+    status                  VARCHAR(32)     NOT NULL DEFAULT 'PUBLISHED'  COMMENT 'PUBLISHED=可用/DEPRECATED=弃用',
+    version                 INT UNSIGNED    NOT NULL  COMMENT '在(owner,scope,name)内递增',
+    provider                VARCHAR(32)     NOT NULL  COMMENT 'openai-compatible/anthropic(冻结)',
+    base_url                VARCHAR(512)    NOT NULL  COMMENT '连接地址(冻结)',
+    model_name              VARCHAR(128)    NOT NULL  COMMENT '远端模型标识(冻结)',
+    capabilities            JSON            DEFAULT NULL  COMMENT '能力 JSON(冻结)',
+    parameter_guardrails    JSON            DEFAULT NULL  COMMENT '参数护栏 JSON(冻结)',
+    context_length          BIGINT UNSIGNED NOT NULL DEFAULT 500000 COMMENT '上下文长度(token，冻结)',
+    encrypted_secret        TEXT            DEFAULT NULL  COMMENT '加密 API Key 密文(冻结;官方平台托管/私有用户密钥)',
+    source_draft_id         BIGINT UNSIGNED DEFAULT NULL  COMMENT '来源草稿 id(软引用)',
+    remark                  VARCHAR(512)    NOT NULL DEFAULT ''  COMMENT '备注',
+    is_enabled              TINYINT(1)      NOT NULL DEFAULT 1,
+    deleted_at              BIGINT UNSIGNED NOT NULL DEFAULT 0  COMMENT '软删时间戳(毫秒);0=未删;非0=删除时刻',
+    created_at              TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at              TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    created_by              BIGINT UNSIGNED NOT NULL DEFAULT 0  COMMENT '创建人(0=系统操作;非0=软引用 sys_user.id)',
+    updated_by              BIGINT UNSIGNED NOT NULL DEFAULT 0  COMMENT '最后修改人(0=系统操作;非0=软引用 sys_user.id)',
+    PRIMARY KEY (id),
+    UNIQUE KEY uniq_agent_model_release_owner_name_ver (owner_user_id, scope, name, version),
+    INDEX idx_agent_model_release_pool (scope, status, name),
+    INDEX idx_agent_model_release_status (status),
+    INDEX idx_agent_model_release_deleted_at (deleted_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='模型 Release(连接配置冻结副本;发布即进可用池;弃用只改 status)';
+
+-- Session 记住的模型选择: 每会话一条;无密钥(密钥已在 Release 冻结)
+CREATE TABLE agent_session_model_binding (
+    id                  BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    session_id          BIGINT UNSIGNED NOT NULL  COMMENT '归属会话(FK)',
+    model_release_id    BIGINT UNSIGNED NOT NULL  COMMENT '用户选择的模型 Release 指针(FK)',
+    model_name          VARCHAR(128)    NOT NULL  COMMENT '从 Release 拷贝的远端模型标识',
+    created_at          TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_by          BIGINT UNSIGNED NOT NULL DEFAULT 0  COMMENT '创建人(0=系统操作;非0=软引用 sys_user.id)',
+    PRIMARY KEY (id),
+    UNIQUE KEY uniq_agent_session_model_binding_session (session_id),
+    INDEX idx_agent_session_model_binding_release (model_release_id),
+    CONSTRAINT fk_agent_session_model_binding_session FOREIGN KEY (session_id) REFERENCES agent_session (id),
+    CONSTRAINT fk_agent_session_model_binding_release FOREIGN KEY (model_release_id) REFERENCES agent_model_release (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Agent Session 模型选择(每会话记住一个 model_release_id;解绑=物理删)';

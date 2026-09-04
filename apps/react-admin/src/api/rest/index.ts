@@ -15,3 +15,4 @@ export * as AgentApi from './agent';
 export * as SkillApi from './skill';
 export * as SkillGitApi from './skill-git';
 export * as McpApi from './mcp';
+export * as ModelApi from './model';

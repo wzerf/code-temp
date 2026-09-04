@@ -65,5 +65,6 @@
   "agent.title": "Agent Platform",
   "agent.agent.title": "Agent Management",
   "agent.skill.title": "Skill Management",
-  "agent.mcp.title": "MCP Management"
+  "agent.mcp.title": "MCP Management",
+  "agent.model.title": "Model Management"
 }

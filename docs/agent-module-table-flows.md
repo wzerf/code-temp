@@ -2,7 +2,7 @@
 
 > **状态：** 目标架构（已按落地 Flyway V3~V4 校准）
 > **读者：** 实施平台的工程师与 agent
-> **范围：** 四大模块涉及的全部表、字段职责、状态流转与表间关联。配套架构见 [`docs/agent-module-architecture.md`](agent-module-architecture.md)。
+> **范围：** 五大模块涉及的全部表、字段职责、状态流转与表间关联。配套架构见 [`docs/agent-module-architecture.md`](agent-module-architecture.md)。
 
 ## 1. 表总览
 
@@ -11,6 +11,9 @@
 | Agent 管理 | `agent_definition`             | 稳定定义 + 当前发布 Revision 指针                             | 否            |
 | Agent 管理 | `agent_revision`               | 草稿/不可变发布快照                                           | 否            |
 | Agent 对话 | `agent_session`                | 会话控制面元数据 + 固定 Revision                              | 否            |
+| 模型       | `agent_model_draft`            | 模型连接配置草稿（`scope` = OFFICIAL / PRIVATE）              | 否            |
+| 模型       | `agent_model_release`          | 模型连接配置 Release 副本（发布即进入可用模型池）             | 否            |
+| 模型       | `agent_session_model_binding`  | Session 记住用户选的 `model_release_id`（下次复用）           | 否            |
 | Skill      | `agent_skill_draft`            | 草稿/审核中内容                                               | 否            |
 | Skill      | `agent_skill_draft_resource`   | 草稿附属文件                                                  | 否            |
 | Skill      | `agent_skill_release`          | 不可变 Release 快照，市场列表由此派生                         | 否            |
@@ -26,6 +29,8 @@
 
 > Skill 不设 `agent_skill` / `agent_skill_resource` 市场行：Skill 市场列表直接由 `agent_skill_release` 派生，运行面用自定义加载器读取 Binding 快照，不依赖 `MysqlSkillRepository`。
 
+> 模型不设 `agent_revision_model_binding`：模型无「绑定才能用」的门槛，`agent_revision` 通过 `model_config.default_model_release_id` 引用默认模型，发布即进入可用模型池。
+
 > 运行面状态不落库，全部在 Redis：会话状态（`agent:runtime:state:*`）、事件流（`agent:runtime:request:*`）、执行锁（`agent:runtime:lock:*`）、MCP 目录缓存（`agent:runtime:mcp-catalog:*`）。
 
 ## 2. ER 关联总图
@@ -38,8 +43,12 @@ erDiagram
     agent_revision ||--o{ agent_revision_skill_binding : "agent_revision_id"
     agent_revision ||--o{ agent_revision_mcp_binding : "agent_revision_id"
 
+    agent_session ||--o{ agent_session_model_binding : "session_id"
     agent_session ||--o{ agent_session_skill_binding : "session_id"
     agent_session ||--o{ agent_session_mcp_binding : "session_id"
+
+    agent_model_draft }o--o| agent_model_release : "source_draft_id"
+    agent_model_release ||--o{ agent_session_model_binding : "model_release_id"
 
     agent_skill_draft ||--o{ agent_skill_draft_resource : "draft_id"
     agent_skill_release ||--o{ agent_skill_release_resource : "release_id"
@@ -90,6 +99,8 @@ flowchart LR
 | `system_prompt`                                                               | 系统提示词            |
 | `model_config` / `permission_policy` / `memory_policy` / `compression_policy` | 四项策略 JSON 快照    |
 
+> `model_config` 只保留默认模型引用与参数覆盖（`default_model_release_id` + `parameters`），模型连接配置统一从绑定的 Model Release 快照解析，不再内嵌在 Revision 里。
+
 流转：
 
 ```mermaid
@@ -99,7 +110,7 @@ stateDiagram-v2
     PUBLISHED --> [*]
 ```
 
-- `publish` 复制草稿为新 `PUBLISHED` 行，不改原草稿；同时复制 Skill/MCP Binding。
+- `publish` 复制草稿为新 `PUBLISHED` 行，不改原草稿；同时复制模型/Skill/MCP Binding。
 - 已发布 Revision 只读；要改组合只能开新草稿再发布。
 
 ## 4. Agent 对话表流转
@@ -125,12 +136,13 @@ flowchart LR
 
 > 运行状态（消息历史、Agent state、事件）全部在 Redis，`agent_session` 不复制。
 
-### 4.2 会话级 Skill/MCP 绑定
+### 4.2 会话级模型/Skill/MCP 绑定
 
-用户在自己的会话里可以临时追加/覆盖 Skill 与 MCP，不改 Agent 定义，也不污染其他会话。
+用户在自己的会话里可以临时追加/覆盖 Skill 与 MCP，并**自由选择模型**（模型选择被记住），不改 Agent 定义，也不污染其他会话。
 
 | 表                            | 作用                      | 唯一键                     | 关键字段                                                       |
 | ----------------------------- | ------------------------- | -------------------------- | -------------------------------------------------------------- |
+| `agent_session_model_binding` | Session 记住的模型选择    | `(session_id)`             | `session_id`、`model_release_id`、`model_name`                 |
 | `agent_session_skill_binding` | Session 追加/覆盖的 Skill | `(session_id, skill_name)` | `session_id`、`skill_release_id`、`skill_name`、`content_hash` |
 | `agent_session_mcp_binding`   | Session 追加/覆盖的 MCP   | `(session_id, mcp_name)`   | `session_id`、`mcp_release_id`、`mcp_name`、`encrypted_secret` |
 
@@ -140,19 +152,103 @@ flowchart LR
 flowchart LR
     RB[Revision Binding] --> M{合并}
     SB[Session Binding] --> M
-    M -->|同名 Session 覆盖 Revision| F[最终装配集\nSkill 快照 + MCP 快照]
+    M -->|Skill/MCP 同名 Session 覆盖 Revision\n模型记住选择| F[最终装配集\n模型 + Skill 快照 + MCP 快照]
     F --> RUN[HarnessAgent 运行]
 ```
 
-- **最终装配集 = Revision 绑定 ∪ Session 绑定**；同名时 Session 覆盖 Revision（Skill 按 `skill_name`，MCP 按 `mcp_name`）。
-- **随时可改**：Session 绑定可增删，下次运行立即生效，不要求会话尚未首启。
-- **指向不可变 Release**：绑定存 `skill_release_id` / `mcp_release_id`，不指向市场最新版。
-- **权限与 Revision 绑定一致**：MARKET 登录即可绑，PRIVATE 仅所有者可绑；MCP 密钥在 Session 绑定时补配并冻结到 `agent_session_mcp_binding.encrypted_secret`。
-- `prepareRun` 在解析 Revision Binding 后合并 Session Binding，生成合并后的快照集进入 `AgentRuntimeService`。
+- **最终装配集 = Revision 绑定 ∪ Session 绑定**；Skill/MCP 同名时 Session 覆盖 Revision（Skill 按 `skill_name`，MCP 按 `mcp_name`）。模型为**单选记住**：Session 记住用户选的模型，未选则回落到 Revision 默认模型。
+- **随时可改**：Session 绑定与模型选择可增删，下次运行立即生效，不要求会话尚未首启。
+- **指向不可变 Release**：绑定存 `model_release_id` / `skill_release_id` / `mcp_release_id`，不指向最新版。
+- **权限**：模型/Skill/MCP 可选范围 = 调用者可用集（官方全站可用，私有仅所有者可用）；MCP 密钥在 Session 绑定时补配并冻结，模型密钥无需补配（Release 已冻结）。
+- `prepareRun` 解析 Revision 默认模型 + Session 模型选择 + Session Skill/MCP 绑定，生成合并后的模型选择与快照集进入 `AgentRuntimeService`。
 
-## 5. Skill 表流转
+## 5. 模型表流转
 
-### 5.1 草稿 `agent_skill_draft` + `agent_skill_draft_resource`
+> 模型与 Skill/MCP 的关键区别：**无市场、无用户发布、无「绑定才能用」的门槛**。官方模型管理员发布即全站可用，用户私有模型创建即自己可用。模型默认引用由 `agent_revision.model_config.default_model_release_id` 表达，无独立 `agent_revision_model_binding` 表。
+
+### 5.1 草稿 `agent_model_draft`
+
+| 字段                                             | 含义                                                                       |
+| ------------------------------------------------ | -------------------------------------------------------------------------- |
+| `name`                                           | 模型显示名（唯一键内）                                                     |
+| `scope`                                          | `OFFICIAL`（官方，管理员）/ `PRIVATE`（用户私有）                          |
+| `code`                                           | 模型功能码，标识特殊功能（如 `video` / `image`），普通文本模型为空或默认码 |
+| `provider`                                       | `openai-compatible` / `anthropic`                                          |
+| `base_url`                                       | 连接地址（HTTPS）                                                          |
+| `model_name`                                     | 远端模型标识                                                               |
+| `capabilities`                                   | JSON：text/thinking/tool_use/vision/json_mode                              |
+| `parameter_guardrails`                           | JSON：参数允许范围与默认值                                                 |
+| `status`                                         | `DRAFT` / `PENDING_REVIEW` / `REJECTED` / `CONSUMED`                       |
+| `encrypted_secret`                               | 加密 API Key 密文（官方由平台配，私有由用户配）                            |
+| `review_comment` / `reviewed_by` / `reviewed_at` | 审核信息（私有模型可跳过）                                                 |
+
+唯一键：`(owner_user_id, name, scope, deleted_at)`。
+
+状态流转：
+
+```mermaid
+stateDiagram-v2
+    [*] --> DRAFT: 创建草稿
+    DRAFT --> PENDING_REVIEW: submit（官方需审核，私有可选）
+    PENDING_REVIEW --> DRAFT: withdraw
+    PENDING_REVIEW --> REJECTED: reject
+    REJECTED --> PENDING_REVIEW: 改内容后再 submit
+    PENDING_REVIEW --> CONSUMED: approve → 探测冻结并发布 Release
+    CONSUMED --> [*]
+```
+
+> 官方模型必须走审核；用户私有模型可创建后直接发布为 Release（无需审核），但仍需经过 `verify` 探测确保可用。
+
+### 5.2 Release `agent_model_release`
+
+| 字段                                    | 含义                                       |
+| --------------------------------------- | ------------------------------------------ |
+| `version`                               | 在 `(owner_user_id, scope, name)` 内递增   |
+| `scope`                                 | `OFFICIAL` / `PRIVATE`                     |
+| `code`                                  | 模型功能码（冻结），标识特殊功能           |
+| `status`                                | `PUBLISHED` / `DEPRECATED`                 |
+| `source_draft_id`                       | 来源草稿                                   |
+| `provider` / `base_url` / `model_name`  | 冻结连接配置                               |
+| `capabilities` / `parameter_guardrails` | 冻结能力与参数护栏（不入库模型目录）       |
+| `encrypted_secret`                      | 冻结密钥密文（官方平台托管，私有用户密钥） |
+
+发布流转：
+
+```mermaid
+flowchart TD
+    A[approve 草稿] --> B[ModelProbeService.probe 探测冻结连接配置]
+    B --> C[插入 Release\nversion = max+1\nscope = 草稿 scope]
+    C --> D[草稿 status = CONSUMED]
+    D --> E[进入可用模型池\nOFFICIAL 全站 / PRIVATE 仅所有者]
+```
+
+- Release 行一旦插入，连接配置、能力、参数护栏、`version` 不得 UPDATE；弃用只改 `status`。
+- **发布即用**：Release 插入后立即进入可用模型池，无需绑定到任何 Agent 才能被选择。
+
+### 5.3 可用模型池与可见性
+
+| 模型来源 | 谁创建 | 谁可用       | 发布动作           | 密钥来源                   |
+| -------- | ------ | ------------ | ------------------ | -------------------------- |
+| 官方模型 | 管理员 | 全站登录用户 | 管理员审核发布     | 平台托管，Release 冻结     |
+| 用户私有 | 用户   | 仅该用户     | 创建后发布（免审） | 用户创建时配，Release 冻结 |
+
+- **可用模型候选** = `scope=OFFICIAL` 且 `status=PUBLISHED` ∪ 调用者自己的 `scope=PRIVATE` 且 `status=PUBLISHED`。
+- **下架/弃用** = `deprecate` 对应 Release 退出可用池；已固定会话快照不受影响，新选择不可再选。
+- 用户不能发布官方模型，也不能看到或使用他人的私有模型。
+
+### 5.4 模型选择 `agent_session_model_binding`
+
+| 字段               | 含义                        |
+| ------------------ | --------------------------- |
+| `session_id`       | 归属会话                    |
+| `model_release_id` | 用户选择的模型 Release 指针 |
+| `model_name`       | 从 Release 拷贝             |
+
+唯一键：`(session_id)`，每个会话记住一个模型选择。无 `encrypted_secret`（密钥已在 Release 冻结，选择不补配）。用户下次运行直接复用，重新选择则覆盖。
+
+## 6. Skill 表流转
+
+### 6.1 草稿 `agent_skill_draft` + `agent_skill_draft_resource`
 
 | 字段                                             | 含义                                                 |
 | ------------------------------------------------ | ---------------------------------------------------- |
@@ -180,7 +276,7 @@ stateDiagram-v2
     CONSUMED --> [*]
 ```
 
-### 5.2 Release `agent_skill_release` + `agent_skill_release_resource`
+### 6.2 Release `agent_skill_release` + `agent_skill_release_resource`
 
 | 字段              | 含义                                               |
 | ----------------- | -------------------------------------------------- |
@@ -200,7 +296,7 @@ flowchart TD
 - `visibility` 只决定 Release 是否进入市场列表，不再额外写市场行。
 - Release 行一旦插入，`skill_content`、资源、`content_hash`、`version` 不得 UPDATE；弃用只改 `status`。
 
-### 5.3 市场列表（由 Release 派生）
+### 6.3 市场列表（由 Release 派生）
 
 Skill 市场列表不落独立表，直接由 `agent_skill_release` 派生，与 MCP 市场列表同构：
 
@@ -208,7 +304,7 @@ Skill 市场列表不落独立表，直接由 `agent_skill_release` 派生，与
 - **下架** = 把该 `name` 的已发布 MARKET Release 置 `DEPRECATED`，退出市场可见集；已固定 Revision/会话不受影响。
 - **弃用** = 单个 Release 置 `DEPRECATED`，不可再被新 Binding 选用；旧 Binding 仍指向该快照。
 
-### 5.4 绑定 `agent_revision_skill_binding`
+### 6.4 绑定 `agent_revision_skill_binding`
 
 | 字段                | 含义                              |
 | ------------------- | --------------------------------- |
@@ -220,9 +316,9 @@ Skill 市场列表不落独立表，直接由 `agent_skill_release` 派生，与
 
 唯一键：`(agent_revision_id, skill_name)`。同名候选来源（市场 vs 私有）必须恰好一条 `override_winner=1`，否则拒绝发布 Revision。
 
-## 6. MCP 表流转
+## 7. MCP 表流转
 
-### 6.1 草稿 `agent_mcp_draft`
+### 7.1 草稿 `agent_mcp_draft`
 
 | 字段                 | 含义                   |
 | -------------------- | ---------------------- |
@@ -250,7 +346,7 @@ stateDiagram-v2
     CONSUMED --> [*]
 ```
 
-### 6.2 Release `agent_mcp_release`
+### 7.2 Release `agent_mcp_release`
 
 只保存连接配置副本（`transport`、`url`、`headers_json`、`encrypted_secret`、`connect_timeout_ms`）；**工具目录不落库**。
 
@@ -260,7 +356,7 @@ stateDiagram-v2
 | `status`          | `PUBLISHED` / `DEPRECATED`                    |
 | `source_draft_id` | 来源草稿                                      |
 
-### 6.3 密钥流转与可见性
+### 7.3 密钥流转与可见性
 
 MCP 密钥「在哪里配」由可见性决定，核心规则：**市场 MCP 永远无密钥，密钥只落在私有 MCP 与 Agent Binding 上。**
 
@@ -288,7 +384,7 @@ flowchart LR
 3. **Agent 发布时补配密钥**：市场 MCP 无密钥，绑定到 Agent 时必须在该 Agent 发布流程补配加密密钥；私有 MCP 可沿用自带密钥或覆盖。密钥冻结到 Agent Revision 的 MCP Binding，成为运行时实际凭据。
 4. **运行时解密注入**：`McpProbeService` 按 Binding 冻结的 `encrypted_secret` 解密后注入请求头，明文不进入 MySQL、日志、审计或模型上下文。
 
-### 6.4 绑定 `agent_revision_mcp_binding`
+### 7.4 绑定 `agent_revision_mcp_binding`
 
 | 字段                | 含义                                               |
 | ------------------- | -------------------------------------------------- |
@@ -299,7 +395,7 @@ flowchart LR
 
 唯一键：`(agent_revision_id, mcp_name)`。Binding 只指 Release 指针 + server 名，不携带工具白名单；密钥在 Agent 发布时补配并冻结到该行，成为运行时实际凭据。
 
-### 6.5 工具目录（Redis，非表）
+### 7.5 工具目录（Redis，非表）
 
 会话首启实时握手后按「会话 + 固定 Revision」写入 Redis：
 
@@ -311,9 +407,9 @@ agent:runtime:mcp-catalog:{sessionId}:{revisionId}
 - `refresh`：活跃消息续期，非活跃会话随 TTL 过期。
 - 内容为 `McpToolEntry[]`（name / description / inputSchema / readOnly）。
 
-## 7. Git Skill 来源表流转
+## 8. Git Skill 来源表流转
 
-### 7.1 `agent_skill_git_source`
+### 8.1 `agent_skill_git_source`
 
 | 字段                                 | 含义                   |
 | ------------------------------------ | ---------------------- |
@@ -329,7 +425,7 @@ agent:runtime:mcp-catalog:{sessionId}:{revisionId}
 
 唯一键：`(scope, owner_user_id, url(255), deleted_at)`。
 
-### 7.2 `agent_skill_git_sync`
+### 8.2 `agent_skill_git_sync`
 
 保护人工修改并支持幂等同步。唯一键 `(source_id, skill_path, deleted_at)`。
 
@@ -355,9 +451,9 @@ flowchart TD
     D -->|解析失败| I[FAILED]
 ```
 
-## 8. 跨表关键流转（端到端）
+## 9. 跨表关键流转（端到端）
 
-### 8.1 Skill 从导入到运行
+### 9.1 Skill 从导入到运行
 
 ```mermaid
 flowchart LR
@@ -368,7 +464,24 @@ flowchart LR
     R -->|会话首启| RUN[HarnessAgent\n自定义 Skill 加载器读取快照]
 ```
 
-### 8.2 MCP 从创建到运行
+### 9.2 模型从创建到运行
+
+```mermaid
+flowchart LR
+    MD[Model Draft] -->|verify 探测| MD
+    MD -->|approve 探测冻结| MR[Model Release]
+    MR -->|OFFICIAL 全站 / PRIVATE 仅所有者| POOL[可用模型池]
+    R[Agent Revision] -->|model_config.default_model_release_id| POOL
+    S[Agent Session] -->|model_binding 记住选择| POOL
+    POOL -->|选定 model_release_id| MC[ModelClientFactory]
+    MC -->|解密注入| RUN[HarnessAgent 模型客户端]
+```
+
+- 官方模型（`OFFICIAL`）由管理员发布，全站可用；用户私有模型（`PRIVATE`）发布后仅所有者可用，二者都**发布即进入可用模型池**，无需绑定到 Agent。
+- 会话记住用户选的 `model_release_id`（`agent_session_model_binding`），未选则回落 `agent_revision.model_config.default_model_release_id`。
+- `ModelClientFactory` 按最终选定的 `model_release_id` 解析冻结快照并解密注入密钥，明文不落库、不落日志。
+
+### 9.3 MCP 从创建到运行
 
 ```mermaid
 flowchart LR
@@ -386,7 +499,7 @@ flowchart LR
 - 私有 MCP（`PRIVATE` Release）自带密钥，绑定时可沿用或覆盖；最终以 Agent Binding 冻结的密钥为准。
 - 运行时 `McpProbeService` 按 Binding 冻结的加密密钥解密后注入请求头。
 
-### 8.3 会话端到端
+### 9.4 会话端到端
 
 ```mermaid
 sequenceDiagram
@@ -397,29 +510,33 @@ sequenceDiagram
     participant RD as Redis
     participant H as HarnessAgent
 
-    U->>API: 创建会话
+    U->>API: 创建会话（选 Agent）
     API->>DB: INSERT agent_session (revision_id=NULL)
-    U->>API: 发送消息 (requestId)
-    API->>DB: prepareRun → 固定 Revision + 合并 Session 绑定
-    DB-->>API: AgentRunPlan (合并后 Skill 快照 + MCP 快照)
+    U->>API: 发送消息 (requestId, modelReleaseId?)
+    API->>DB: prepareRun → 固定 Revision + 合并 Session 绑定 + 解析模型选择
+    DB-->>API: AgentRunPlan (模型 + Skill 快照 + MCP 快照)
     API->>RT: run(plan)
     RT->>RD: 幂等初始化 + 会话锁
-    RT->>H: buildAgent + 装配 Skill/MCP
-    H-->>RT: 流式事件
+    RT->>H: buildAgent + 装配模型/Skill/MCP
+    H-->>RT: 流式事件（AgentEvent）
     RT->>RD: 追加事件 + 更新状态
-    RT-->>API: Flux<AgentRunEvent>
-    API-->>U: SSE
+    RT-->>API: Flux<AgentEvent>
+    API-->>U: AG-UI SSE
 ```
 
-## 9. 状态枚举速查
+## 10. 状态枚举速查
 
 | 域             | 字段         | 取值                                                        |
 | -------------- | ------------ | ----------------------------------------------------------- |
 | Agent Revision | `status`     | `DRAFT` / `PUBLISHED`                                       |
 | Agent Session  | `status`     | `ACTIVE`                                                    |
+| 模型草稿       | `status`     | `DRAFT` / `PENDING_REVIEW` / `REJECTED` / `CONSUMED`        |
+| 模型 Release   | `status`     | `PUBLISHED` / `DEPRECATED`                                  |
+| 模型           | `scope`      | `OFFICIAL` / `PRIVATE`                                      |
+| 模型           | `provider`   | `openai-compatible` / `anthropic`                           |
+| Skill/MCP      | `visibility` | `MARKET` / `PRIVATE`                                        |
 | Skill Draft    | `status`     | `DRAFT` / `PENDING_REVIEW` / `REJECTED` / `CONSUMED`        |
 | Skill Release  | `status`     | `PUBLISHED` / `DEPRECATED`                                  |
-| Skill/MCP      | `visibility` | `MARKET` / `PRIVATE`                                        |
 | MCP Draft      | `status`     | `DRAFT` / `PENDING_REVIEW` / `REJECTED` / `CONSUMED`        |
 | MCP Release    | `status`     | `PUBLISHED` / `DEPRECATED`                                  |
 | MCP            | `transport`  | `sse` / `http`                                              |
@@ -427,7 +544,7 @@ sequenceDiagram
 | Git Source     | `status`     | `READY` / `FAILED`                                          |
 | Git Sync       | 结果         | `CREATED` / `UPDATED` / `UNCHANGED` / `CONFLICT` / `FAILED` |
 
-## 10. 运行面 Redis key 速查
+## 11. 运行面 Redis key 速查
 
 | 用途         | key 模式                                                 |
 | ------------ | -------------------------------------------------------- |

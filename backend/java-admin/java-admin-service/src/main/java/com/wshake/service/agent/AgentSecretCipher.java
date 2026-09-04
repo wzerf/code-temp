@@ -30,7 +30,8 @@ import org.springframework.stereotype.Component;
 public class AgentSecretCipher {
 
     /** dev 本地联调默认密钥；生产必须经 {@code app.agent-secret.master-key} 覆盖。非真实凭据,仅本地回退。 */
-    static final String DEV_MASTER_KEY = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="; // gitleaks:allow 固定 dev 回退值,非真实密钥
+    static final String DEV_MASTER_KEY =
+            "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="; // gitleaks:allow 固定 dev 回退值,非真实密钥
 
     private static final String AES_ALGORITHM = "AES/GCM/NoPadding";
     private static final int GCM_IV_LENGTH = 12;

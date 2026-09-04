@@ -6,13 +6,17 @@ import com.wshake.common.exception.BizException;
 import com.wshake.common.result.PageData;
 import com.wshake.common.result.ResultCode;
 import com.wshake.service.entity.AgentDefinition;
+import com.wshake.service.entity.AgentModelRelease;
 import com.wshake.service.entity.AgentSession;
 import com.wshake.service.entity.AgentSessionMcpBinding;
+import com.wshake.service.entity.AgentSessionModelBinding;
 import com.wshake.service.entity.AgentSessionSkillBinding;
+import com.wshake.service.model.ModelControlService;
 import com.wshake.service.repository.AgentDefinitionRepository;
 import com.wshake.service.repository.AgentMcpReleaseRepository;
 import com.wshake.service.repository.AgentRevisionRepository;
 import com.wshake.service.repository.AgentSessionMcpBindingRepository;
+import com.wshake.service.repository.AgentSessionModelBindingRepository;
 import com.wshake.service.repository.AgentSessionRepository;
 import com.wshake.service.repository.AgentSessionSkillBindingRepository;
 import com.wshake.service.repository.AgentSkillReleaseRepository;
@@ -25,7 +29,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Agent 会话控制面服务：创建/列表/删除会话、Revision 固定、Session 级 Skill/MCP 绑定。
+ * Agent 会话控制面服务：创建/列表/删除会话、Revision 固定、Session 级 Skill/MCP/模型绑定。
  *
  * <p>运行状态（消息历史/事件/锁）在 Redis,由后续运行面实现；本服务只维护 MySQL 控制面。
  *
@@ -40,8 +44,10 @@ public class AgentSessionService {
     private final AgentRevisionRepository revisionRepository;
     private final AgentSessionSkillBindingRepository sessionSkillBindingRepository;
     private final AgentSessionMcpBindingRepository sessionMcpBindingRepository;
+    private final AgentSessionModelBindingRepository sessionModelBindingRepository;
     private final AgentSkillReleaseRepository skillReleaseRepository;
     private final AgentMcpReleaseRepository mcpReleaseRepository;
+    private final ModelControlService modelControlService;
     private final Converter converter;
 
     // ---------- 会话 ----------
@@ -88,6 +94,7 @@ public class AgentSessionService {
         sessionMcpBindingRepository
                 .listBySessionId(sessionId)
                 .forEach(b -> sessionMcpBindingRepository.deleteById(b.getId()));
+        sessionModelBindingRepository.deleteBySessionId(sessionId);
         sessionRepository.softDeleteById(sessionId);
     }
 
@@ -200,6 +207,44 @@ public class AgentSessionService {
         sessionMcpBindingRepository.deleteById(bindingId);
     }
 
+    // ---------- Session 模型选择（每会话一条，记住用户选择） ----------
+
+    public SessionModelBindingView getSessionModelBinding(Long sessionId) {
+        requireSession(sessionId);
+        AgentSessionModelBinding row = sessionModelBindingRepository.findBySessionId(sessionId);
+        return row == null ? null : toModelBindingView(row);
+    }
+
+    @Transactional
+    public SessionModelBindingView bindModelToSession(Long sessionId, Long modelReleaseId) {
+        AgentSession session = requireSession(sessionId);
+        AgentModelRelease release = modelControlService.requireUsableRelease(modelReleaseId, session.getOwnerUserId());
+        AgentSessionModelBinding existing = sessionModelBindingRepository.findBySessionId(sessionId);
+        if (existing == null) {
+            AgentSessionModelBinding row = new AgentSessionModelBinding();
+            row.setSessionId(sessionId);
+            row.setModelReleaseId(release.getId());
+            row.setModelName(release.getModelName());
+            sessionModelBindingRepository.insert(row);
+            return toModelBindingView(sessionModelBindingRepository.findBySessionId(sessionId));
+        }
+        existing.setModelReleaseId(release.getId());
+        existing.setModelName(release.getModelName());
+        sessionModelBindingRepository.update(existing);
+        return toModelBindingView(sessionModelBindingRepository.findBySessionId(sessionId));
+    }
+
+    @Transactional
+    public void unbindModelFromSession(Long sessionId) {
+        requireSession(sessionId);
+        sessionModelBindingRepository.deleteBySessionId(sessionId);
+    }
+
+    private static SessionModelBindingView toModelBindingView(AgentSessionModelBinding row) {
+        return new SessionModelBindingView(
+                row.getId(), row.getSessionId(), row.getModelReleaseId(), row.getModelName());
+    }
+
     // ---------- 内部 ----------
 
     private AgentSession requireSession(Long id) {
@@ -264,4 +309,6 @@ public class AgentSessionService {
             Long id, Long sessionId, Long mcpReleaseId, String mcpName, boolean hasSecret) {}
 
     public record BindSessionMcpCommand(Long mcpReleaseId, String mcpName, String encryptedSecret) {}
+
+    public record SessionModelBindingView(Long id, Long sessionId, Long modelReleaseId, String modelName) {}
 }

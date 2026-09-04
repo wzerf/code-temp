@@ -100,7 +100,31 @@ VALUES
     (158, '更新 Git 来源', 'PUT', '/api/system/skill/git-source/:id', 'skill:git:update', 'Skill 管理', '', 1, 0, 0, 0),
     (159, '删除 Git 来源', 'DELETE', '/api/system/skill/git-source/:id', 'skill:git:delete', 'Skill 管理', '', 1, 0, 0, 0),
     (160, 'Git 来源预览', 'POST', '/api/system/skill/git-source/:id/preview', 'skill:git:preview', 'Skill 管理', '', 1, 0, 0, 0),
-    (161, 'Git 来源同步', 'POST', '/api/system/skill/git-source/:id/sync', 'skill:git:sync', 'Skill 管理', '', 1, 0, 0, 0);
+    (161, 'Git 来源同步', 'POST', '/api/system/skill/git-source/:id/sync', 'skill:git:sync', 'Skill 管理', '', 1, 0, 0, 0),
+
+    -- 模型管理
+(162, '模型草稿分页',       'GET',    '/api/system/model/draft/list',              'model:draft:list',     '模型管理', '', 1, 0, 0, 0),
+    (163, '模型草稿全量',       'GET',    '/api/system/model/draft/all',               'model:draft:list__all', '模型管理', '', 1, 0, 0, 0),
+    (164, '模型草稿详情',       'GET',    '/api/system/model/draft/:id',               'model:draft:list__id', '模型管理', '', 1, 0, 0, 0),
+    (165, '创建模型草稿',       'POST',   '/api/system/model/draft',                   'model:draft:create',   '模型管理', '', 1, 0, 0, 0),
+    (166, '更新模型草稿',       'PUT',    '/api/system/model/draft/:id',               'model:draft:update',   '模型管理', '', 1, 0, 0, 0),
+    (167, '删除模型草稿',       'DELETE', '/api/system/model/draft/:id',               'model:draft:delete',   '模型管理', '', 1, 0, 0, 0),
+    (168, '模型探测验证',       'POST',   '/api/system/model/draft/:id/verify',        'model:draft:verify',   '模型管理', '', 1, 0, 0, 0),
+    (169, '提交模型审核',       'POST',   '/api/system/model/draft/:id/submit',        'model:draft:submit',   '模型管理', '', 1, 0, 0, 0),
+    (170, '撤回模型草稿',       'POST',   '/api/system/model/draft/:id/withdraw',      'model:draft:withdraw', '模型管理', '', 1, 0, 0, 0),
+    (171, '通过/发布模型',      'POST',   '/api/system/model/draft/:id/approve',       'model:draft:approve',  '模型管理', '', 1, 0, 0, 0),
+    (172, '驳回模型草稿',       'POST',   '/api/system/model/draft/:id/reject',        'model:draft:reject',   '模型管理', '', 1, 0, 0, 0),
+    (173, '模型 Release 分页',  'GET',    '/api/system/model/release/list',            'model:release:list',   '模型管理', '', 1, 0, 0, 0),
+    (174, '模型 Release 详情',  'GET',    '/api/system/model/release/:id',             'model:release:list__id', '模型管理', '', 1, 0, 0, 0),
+    (175, '可用模型池',         'GET',    '/api/system/model/available',               'model:release:list__available', '模型管理', '', 1, 0, 0, 0),
+    (176, '弃用模型 Release',   'POST',   '/api/system/model/release/:id/deprecate',   'model:release:deprecate', '模型管理', '', 1, 0, 0, 0),
+    (177, 'Session 模型选择',   'GET',    '/api/system/agent/sessions/:sessionId/model-binding', 'agent:session:bind__model-get', 'Agent 管理', '', 1, 0, 0, 0),
+    (178, '绑定 Session 模型',  'PUT',    '/api/system/agent/sessions/:sessionId/model-binding', 'agent:session:bind__model', 'Agent 管理', '', 1, 0, 0, 0),
+    (179, '解除 Session 模型',  'DELETE', '/api/system/agent/sessions/:sessionId/model-binding', 'agent:session:bind__unbind-model', 'Agent 管理', '', 1, 0, 0, 0),
+
+    -- 模型创建前探测与批量草稿
+(180, '探测模型目录',     'POST', '/api/system/model/probe',        'model:draft:verify__probe',  '模型管理', '', 1, 0, 0, 0),
+    (181, '批量创建模型草稿', 'POST', '/api/system/model/draft/batch',  'model:draft:create__batch',  '模型管理', '', 1, 0, 0, 0);
 
 ALTER TABLE sys_api AUTO_INCREMENT = 200;
 
@@ -129,7 +153,13 @@ VALUES
     (5031, 503, '新建 MCP 草稿', 'BUTTON', NULL, NULL, '', '', 'mcp:draft:create', '/500/503/5031/', NULL, 1, 0, 1, 0, '', 0, 0),
     (5032, 503, '审核 MCP', 'BUTTON', NULL, NULL, '', '', 'mcp:draft:approve', '/500/503/5032/', NULL, 2, 0, 1, 0, '', 0, 0),
     (5033, 503, 'MCP 握手验证', 'BUTTON', NULL, NULL, '', '', 'mcp:draft:verify', '/500/503/5033/', NULL, 3, 0, 1, 0, '', 0, 0),
-    (5034, 503, '市场下架', 'BUTTON', NULL, NULL, '', '', 'mcp:market:take-down', '/500/503/5034/', NULL, 4, 0, 1, 0, '', 0, 0);
+    (5034, 503, '市场下架', 'BUTTON', NULL, NULL, '', '', 'mcp:market:take-down', '/500/503/5034/', NULL, 4, 0, 1, 0, '', 0, 0),
+    -- 模型管理
+    (504, 500, 'agent.model.title', 'MENU', '/agent-platform/model', '/system/model/index', 'lucide:cpu', '', 'model:draft:list', '/500/504/', '{"routeName":"SystemModel","order":4}', 4, 0, 1, 0, '', 0, 0),
+    (5041, 504, '新建模型草稿', 'BUTTON', NULL, NULL, '', '', 'model:draft:create', '/500/504/5041/', NULL, 1, 0, 1, 0, '', 0, 0),
+    (5042, 504, '审核/发布模型', 'BUTTON', NULL, NULL, '', '', 'model:draft:approve', '/500/504/5042/', NULL, 2, 0, 1, 0, '', 0, 0),
+    (5043, 504, '模型探测验证', 'BUTTON', NULL, NULL, '', '', 'model:draft:verify', '/500/504/5043/', NULL, 3, 0, 1, 0, '', 0, 0),
+    (5044, 504, '弃用模型', 'BUTTON', NULL, NULL, '', '', 'model:release:deprecate', '/500/504/5044/', NULL, 4, 0, 1, 0, '', 0, 0);
 
 ALTER TABLE sys_menu AUTO_INCREMENT = 2000;
 
@@ -153,7 +183,12 @@ INSERT INTO sys_role_menu (role_id, menu_id) VALUES
     (1, 5031),
     (1, 5032),
     (1, 5033),
-    (1, 5034);
+    (1, 5034),
+    (1, 504),
+    (1, 5041),
+    (1, 5042),
+    (1, 5043),
+    (1, 5044);
 
 -- ============================================================
 -- Section 4: sys_role_api（root 全量;追加 90..161）
@@ -172,7 +207,12 @@ INSERT INTO sys_role_api (role_id, api_id) VALUES
     (1, 143), (1, 144), (1, 145), (1, 146), (1, 147),
     (1, 148), (1, 149), (1, 150), (1, 151), (1, 152),
     (1, 153), (1, 154), (1, 155),
-    (1, 156), (1, 157), (1, 158), (1, 159), (1, 160), (1, 161);
+    (1, 156), (1, 157), (1, 158), (1, 159), (1, 160), (1, 161),
+    (1, 162), (1, 163), (1, 164), (1, 165), (1, 166), (1, 167),
+    (1, 168), (1, 169), (1, 170), (1, 171), (1, 172),
+    (1, 173), (1, 174), (1, 175), (1, 176),
+    (1, 177), (1, 178), (1, 179),
+    (1, 180), (1, 181);
 
 -- ============================================================
 -- Section 5: sys_menu_api（菜单 ↔ 分页接口快捷绑定）
@@ -181,4 +221,5 @@ INSERT INTO sys_role_api (role_id, api_id) VALUES
 INSERT INTO sys_menu_api (menu_id, api_id, created_by) VALUES
     (501, 90, 0),
     (502, 120, 0),
-    (503, 137, 0);
+    (503, 137, 0),
+    (504, 162, 0);

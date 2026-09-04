@@ -540,8 +540,10 @@ public class GitSkillSourceService {
     }
 
     private static String normalizeScope(String raw) {
-        String s = raw == null ? "" : raw.trim().toUpperCase(Locale.ROOT);
-        return s.isEmpty() ? "PRIVATE" : s;
+        if (raw == null) {
+            return "";
+        }
+        return raw.trim().toUpperCase(Locale.ROOT);
     }
 
     private AgentSkillGitSource requireSource(Long id) {

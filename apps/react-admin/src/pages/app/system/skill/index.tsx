@@ -300,63 +300,57 @@ const SkillPage = () => {
       key: 'drafts',
       label: t('tabDrafts'),
       children: (
-        <ContentContainer scrollable>
-          <ProTable<SkillDraft>
-            rowKey="id"
-            headerTitle={t('tabDrafts')}
-            actionRef={actionRef}
-            columns={draftColumns}
-            request={fetchDraftRows}
-            search={{ labelWidth: 'auto' }}
-            pagination={{ defaultPageSize: 20, showSizeChanger: true, showTotal: (v) => t('total', { total: v }) }}
-            scroll={{ x: 1300 }}
-            toolBarRender={() => [
-              <Button
-                key="create"
-                type="primary"
-                icon={<PlusOutlined />}
-                onClick={() => {
-                  setEditing(null);
-                  setDrawerOpen(true);
-                }}
-              >
-                {t('create')}
-              </Button>,
-            ]}
-          />
-        </ContentContainer>
+        <ProTable<SkillDraft>
+          rowKey="id"
+          headerTitle={t('tabDrafts')}
+          actionRef={actionRef}
+          columns={draftColumns}
+          request={fetchDraftRows}
+          search={{ labelWidth: 'auto' }}
+          pagination={{ defaultPageSize: 20, showSizeChanger: true, showTotal: (v) => t('total', { total: v }) }}
+          scroll={{ x: 1300 }}
+          toolBarRender={() => [
+            <Button
+              key="create"
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => {
+                setEditing(null);
+                setDrawerOpen(true);
+              }}
+            >
+              {t('create')}
+            </Button>,
+          ]}
+        />
       ),
     },
     {
       key: 'releases',
       label: t('tabReleases'),
       children: (
-        <ContentContainer scrollable>
-          <ProTable<SkillRelease>
-            rowKey="id"
-            headerTitle={t('tabReleases')}
-            actionRef={marketRef}
-            columns={releaseColumns}
-            request={fetchReleaseRows}
-            search={{ labelWidth: 'auto' }}
-            pagination={{ defaultPageSize: 20, showSizeChanger: true, showTotal: (v) => t('total', { total: v }) }}
-            scroll={{ x: 1000 }}
-          />
-        </ContentContainer>
+        <ProTable<SkillRelease>
+          rowKey="id"
+          headerTitle={t('tabReleases')}
+          actionRef={marketRef}
+          columns={releaseColumns}
+          request={fetchReleaseRows}
+          search={{ labelWidth: 'auto' }}
+          pagination={{ defaultPageSize: 20, showSizeChanger: true, showTotal: (v) => t('total', { total: v }) }}
+          scroll={{ x: 1000 }}
+        />
       ),
     },
     {
       key: 'market',
       label: t('tabMarket'),
       children: (
-        <ContentContainer scrollable>
-          <Space direction="vertical" style={{ width: '100%' }}>
-            <Button onClick={loadMarket} loading={marketLoading} style={{ alignSelf: 'flex-end' }}>
-              刷新
-            </Button>
-            <Table<SkillRelease> rowKey="id" columns={marketColumns as never} dataSource={marketRows} pagination={false} />
-          </Space>
-        </ContentContainer>
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <Button onClick={loadMarket} loading={marketLoading} style={{ alignSelf: 'flex-end' }}>
+            刷新
+          </Button>
+          <Table<SkillRelease> rowKey="id" columns={marketColumns as never} dataSource={marketRows} pagination={false} />
+        </Space>
       ),
     },
     {
@@ -367,7 +361,7 @@ const SkillPage = () => {
   ];
 
   return (
-    <>
+    <ContentContainer>
       <Tabs
         activeKey={tab}
         onChange={(k) => {
@@ -403,7 +397,7 @@ const SkillPage = () => {
           placeholder={t('rejectReasonPlaceholder')}
         />
       </Modal>
-    </>
+    </ContentContainer>
   );
 };
 

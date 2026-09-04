@@ -274,68 +274,62 @@ const McpPage = () => {
       key: 'drafts',
       label: t('tabDrafts'),
       children: (
-        <ContentContainer scrollable>
-          <ProTable<McpDraft>
-            rowKey="id"
-            headerTitle={t('tabDrafts')}
-            actionRef={actionRef}
-            columns={draftColumns}
-            request={fetchDraftRows}
-            search={{ labelWidth: 'auto' }}
-            pagination={{ defaultPageSize: 20, showSizeChanger: true, showTotal: (v) => t('total', { total: v }) }}
-            scroll={{ x: 1400 }}
-            toolBarRender={() => [
-              <Button
-                key="create"
-                type="primary"
-                icon={<PlusOutlined />}
-                onClick={() => {
-                  setEditing(null);
-                  setDrawerOpen(true);
-                }}
-              >
-                {t('create')}
-              </Button>,
-            ]}
-          />
-        </ContentContainer>
+        <ProTable<McpDraft>
+          rowKey="id"
+          headerTitle={t('tabDrafts')}
+          actionRef={actionRef}
+          columns={draftColumns}
+          request={fetchDraftRows}
+          search={{ labelWidth: 'auto' }}
+          pagination={{ defaultPageSize: 20, showSizeChanger: true, showTotal: (v) => t('total', { total: v }) }}
+          scroll={{ x: 1400 }}
+          toolBarRender={() => [
+            <Button
+              key="create"
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => {
+                setEditing(null);
+                setDrawerOpen(true);
+              }}
+            >
+              {t('create')}
+            </Button>,
+          ]}
+        />
       ),
     },
     {
       key: 'releases',
       label: t('tabReleases'),
       children: (
-        <ContentContainer scrollable>
-          <ProTable<McpRelease>
-            rowKey="id"
-            headerTitle={t('tabReleases')}
-            columns={releaseColumns}
-            request={fetchReleaseRows}
-            search={{ labelWidth: 'auto' }}
-            pagination={{ defaultPageSize: 20, showSizeChanger: true, showTotal: (v) => t('total', { total: v }) }}
-            scroll={{ x: 1200 }}
-          />
-        </ContentContainer>
+        <ProTable<McpRelease>
+          rowKey="id"
+          headerTitle={t('tabReleases')}
+          columns={releaseColumns}
+          request={fetchReleaseRows}
+          search={{ labelWidth: 'auto' }}
+          pagination={{ defaultPageSize: 20, showSizeChanger: true, showTotal: (v) => t('total', { total: v }) }}
+          scroll={{ x: 1200 }}
+        />
       ),
     },
     {
       key: 'market',
       label: t('tabMarket'),
       children: (
-        <ContentContainer scrollable>
-          <Space direction="vertical" style={{ width: '100%' }}>
-            <Button onClick={loadMarket} loading={marketLoading} style={{ alignSelf: 'flex-end' }}>
-              刷新
-            </Button>
-            <Table<McpRelease> rowKey="id" columns={marketColumns as never} dataSource={marketRows} pagination={false} />
-          </Space>
-        </ContentContainer>
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <Button onClick={loadMarket} loading={marketLoading} style={{ alignSelf: 'flex-end' }}>
+            刷新
+          </Button>
+          <Table<McpRelease> rowKey="id" columns={marketColumns as never} dataSource={marketRows} pagination={false} />
+        </Space>
       ),
     },
   ];
 
   return (
-    <>
+    <ContentContainer>
       <Tabs
         activeKey={tab}
         onChange={(k) => {
@@ -387,7 +381,7 @@ const McpPage = () => {
       >
         <Input.TextArea rows={3} value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} placeholder={t('rejectReasonPlaceholder')} />
       </Modal>
-    </>
+    </ContentContainer>
   );
 };
 

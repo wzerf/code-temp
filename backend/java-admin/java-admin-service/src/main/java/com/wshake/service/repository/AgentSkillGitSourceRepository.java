@@ -39,7 +39,7 @@ public class AgentSkillGitSourceRepository {
         return easyEntityQuery
                 .queryable(AgentSkillGitSource.class)
                 .where(t -> {
-                    t.scope().eq(scope);
+                    t.scope().eq(scope != null && !scope.isEmpty(), scope);
                     t.ownerUserId().eq(ownerUserId != null, ownerUserId);
                 })
                 .orderBy(t -> t.id().desc())

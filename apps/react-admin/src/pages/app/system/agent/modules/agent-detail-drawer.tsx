@@ -85,6 +85,9 @@ const AgentDetailDrawer = ({ open, agent, onClose, onChanged }: Props) => {
   const [sessionForm] = Form.useForm<{ remark?: string }>();
   const [sessionOpen, setSessionOpen] = useState(false);
   const [sessionLoading, setSessionLoading] = useState(false);
+  const [pendingMcpId, setPendingMcpId] = useState<number | null>(null);
+  const [mcpSecretInput, setMcpSecretInput] = useState('');
+  const [pendingSkillId, setPendingSkillId] = useState<number | null>(null);
 
   const agentId = agent?.id;
 
@@ -95,6 +98,7 @@ const AgentDetailDrawer = ({ open, agent, onClose, onChanged }: Props) => {
     setDraft(null);
     setSkillBindings([]);
     setMcpBindings([]);
+    void ensureOptions();
     try {
       const [revs, activeDraft, sessionRes] = await Promise.all([
         listAgentRevisionsApi(agentId),
@@ -309,15 +313,40 @@ const AgentDetailDrawer = ({ open, agent, onClose, onChanged }: Props) => {
 
   const mcpSelectWithSecret = () => (
     <Space direction="vertical" style={{ width: '100%' }}>
-      <Select
-        style={{ width: 240 }}
-        placeholder="选择 MCP Release"
-        onChange={(v) => handleBindMcp(Number(v))}
-        options={mcpOptions.map((s) => ({
-          value: s.id,
-          label: `${s.name} v${s.version} [${s.visibility}]`,
-        }))}
-      />
+      <Space>
+        <Select
+          style={{ width: 240 }}
+          placeholder="选择 MCP Release"
+          value={pendingMcpId ?? undefined}
+          onChange={(v) => {
+            setPendingMcpId(Number(v));
+            setMcpSecretInput('');
+          }}
+          options={mcpOptions.map((s) => ({
+            value: s.id,
+            label: `${s.name} v${s.version} [${s.visibility}]`,
+          }))}
+        />
+        <Input.Password
+          style={{ width: 240 }}
+          placeholder={t('secretPlaceholder')}
+          value={mcpSecretInput}
+          onChange={(e) => setMcpSecretInput(e.target.value)}
+          autoComplete="new-password"
+        />
+        <Button
+          type="primary"
+          disabled={!pendingMcpId}
+          onClick={async () => {
+            if (!pendingMcpId) return;
+            await handleBindMcp(pendingMcpId, mcpSecretInput || undefined);
+            setPendingMcpId(null);
+            setMcpSecretInput('');
+          }}
+        >
+          {t('bindMcp')}
+        </Button>
+      </Space>
       <Typography.Text type="secondary" style={{ fontSize: 12 }}>
         {t('secretPlaceholder')}
       </Typography.Text>
@@ -406,13 +435,24 @@ const AgentDetailDrawer = ({ open, agent, onClose, onChanged }: Props) => {
             style={{ width: 280 }}
             placeholder="选择 Skill Release"
             optionFilterProp="label"
-            onChange={(v) => handleBindSkill(Number(v))}
+            value={pendingSkillId ?? undefined}
+            onChange={(v) => setPendingSkillId(Number(v))}
             options={skillOptions.map((s) => ({
               value: s.id,
               label: `${s.name} v${s.version}`,
             }))}
           />
-          <Button onClick={ensureOptions}>加载可选 Release</Button>
+          <Button
+            type="primary"
+            disabled={!pendingSkillId}
+            onClick={async () => {
+              if (!pendingSkillId) return;
+              await handleBindSkill(pendingSkillId);
+              setPendingSkillId(null);
+            }}
+          >
+            {t('bindSkill')}
+          </Button>
         </Space>
         <Typography.Title level={5} style={{ marginTop: 8 }}>
           {t('mcpBindings')}

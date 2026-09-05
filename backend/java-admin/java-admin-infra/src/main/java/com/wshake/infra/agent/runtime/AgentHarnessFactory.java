@@ -9,6 +9,7 @@ import io.agentscope.core.permission.PermissionRule;
 import io.agentscope.core.state.AgentStateStore;
 import io.agentscope.core.tool.Toolkit;
 import io.agentscope.extensions.model.openai.OpenAIChatModel;
+import io.agentscope.extensions.model.openai.formatter.OpenAIChatFormatter;
 import io.agentscope.harness.agent.HarnessAgent;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -73,6 +74,7 @@ public class AgentHarnessFactory {
                         .baseUrl(plan.baseUrl())
                         .modelName(plan.modelName())
                         .endpointPath(plan.endpointPath())
+                        .formatter(formatterFor(plan))
                         .stream(true)
                         .build())
                 .toolkit(toolkit)
@@ -97,6 +99,10 @@ public class AgentHarnessFactory {
                 plan.skills(), skillReleaseRepository, skillResourceRepository, "session-" + plan.sessionId());
         builder.skillRepository(skillRepo);
         return builder.build();
+    }
+
+    private OpenAIChatFormatter formatterFor(AgentRunPlan plan) {
+        return plan.baseUrl().contains("api.x.ai") ? new XaiChatFormatter() : new OpenAIChatFormatter();
     }
 
     /** 权限上下文：放行 toolkit 中已装配的全部工具（服务端装配即授权），默认 ASK。 */

@@ -1,12 +1,15 @@
 package com.wshake.infra.web;
 
-import cn.dev33.satoken.interceptor.SaInterceptor;
 import cn.dev33.satoken.stp.StpUtil;
 import com.wshake.infra.casbin.CasbinInterceptor;
 import com.wshake.infra.language.LanguageInterceptor;
 import com.wshake.infra.security.SecurityProperties;
+import jakarta.servlet.DispatcherType;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.casbin.jcasbin.main.Enforcer;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.web.servlet.HandlerInterceptor;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
@@ -49,7 +52,15 @@ public final class WebConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         // 1. Sa-Token 认证拦截器：非排除路径强制登录（全站 /api 认证单一真相源）
-        registry.addInterceptor(new SaInterceptor(handle -> StpUtil.checkLogin()))
+        registry.addInterceptor(new HandlerInterceptor() {
+                    @Override
+                    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
+                        if (request.getDispatcherType() != DispatcherType.ASYNC) {
+                            StpUtil.checkLogin();
+                        }
+                        return true;
+                    }
+                })
                 .addPathPatterns("/api/**")
                 .excludePathPatterns(securityProperties.getAuthExcludePaths());
 

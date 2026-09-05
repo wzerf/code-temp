@@ -12,6 +12,7 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletResponse;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -109,11 +110,14 @@ public class GlobalExceptionHandler {
             responseCode = "401",
             description = "Sa-Token 异常 Result(code=2001)",
             content = @Content(schema = @Schema(implementation = Result.class)))
-    public ResponseEntity<Result<Object>> handleSaToken(SaTokenException ex) {
+    public ResponseEntity<Result<Object>> handleSaToken(SaTokenException ex, HttpServletResponse response) {
         log.atWarn()
                 .addKeyValue("logType", "SA_TOKEN")
                 .addKeyValue("msg", ex.getMessage())
                 .log("");
+        if (response.isCommitted()) {
+            return null;
+        }
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(Result.error(ResultCode.AUTH_NOT_LOGIN, ex.getMessage()));
     }

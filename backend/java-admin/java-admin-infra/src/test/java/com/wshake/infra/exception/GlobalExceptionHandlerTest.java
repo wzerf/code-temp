@@ -1,7 +1,10 @@
 package com.wshake.infra.exception;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
+import cn.dev33.satoken.exception.SaTokenException;
 import com.wshake.common.exception.AuthException;
 import com.wshake.common.exception.BizException;
 import com.wshake.common.result.Result;
@@ -9,6 +12,7 @@ import com.wshake.common.result.ResultCode;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.mock.web.MockHttpServletResponse;
 
 /**
  * {@link GlobalExceptionHandler} 单元测试。
@@ -70,5 +74,15 @@ class GlobalExceptionHandlerTest {
         assertThat(resp.getBody().getMsg()).isEqualTo("内部错误");
         // 真实异常 message 不会泄露
         assertThat(resp.getBody().getMsg()).doesNotContain("SQL");
+    }
+
+    @Test
+    void handleSaToken_doesNotWriteResultAfterResponseCommitted() {
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        response.setCommitted(true);
+        SaTokenException exception = mock(SaTokenException.class);
+        when(exception.getMessage()).thenReturn("上下文尚未初始化");
+
+        assertThat(handler.handleSaToken(exception, response)).isNull();
     }
 }

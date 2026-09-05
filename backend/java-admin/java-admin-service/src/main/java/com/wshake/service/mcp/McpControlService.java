@@ -492,6 +492,7 @@ public class McpControlService {
             String transport,
             String url,
             String headersJson,
+            Integer connectTimeoutMs,
             String remark,
             Integer isEnabled,
             Long deletedAt,
@@ -502,6 +503,7 @@ public class McpControlService {
         public McpDraftView {
             ownerUserId = ownerUserId == null ? 0L : ownerUserId;
             headersJson = headersJson == null ? "" : headersJson;
+            connectTimeoutMs = connectTimeoutMs == null ? 5000 : connectTimeoutMs;
             remark = remark == null ? "" : remark;
             deletedAt = deletedAt == null ? 0L : deletedAt;
             createdBy = createdBy == null ? 0L : createdBy;

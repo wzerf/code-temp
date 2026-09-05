@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Button, Col, Drawer, Form, Input, InputNumber, Row, Select, Space, message, Alert } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { createMcpDraftApi, updateMcpDraftApi } from '@/api/rest/mcp';
@@ -24,6 +24,28 @@ interface FormValues {
 }
 
 const { TextArea } = Input;
+const DEFAULT_CONNECT_TIMEOUT_MS = 5000;
+
+function buildMcpFormValues(row: McpDraft | null): FormValues {
+  if (row) {
+    return {
+      name: row.name,
+      transport: row.transport,
+      url: row.url,
+      headersJson: row.headersJson || undefined,
+      visibility: row.visibility as 'MARKET' | 'PRIVATE',
+      connectTimeoutMs: row.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS,
+      remark: row.remark,
+    };
+  }
+  return {
+    name: '',
+    transport: 'http',
+    url: '',
+    visibility: 'PRIVATE',
+    connectTimeoutMs: DEFAULT_CONNECT_TIMEOUT_MS,
+  };
+}
 
 const McpFormDrawer = ({ open, row, onClose, onSaved }: Props) => {
   const { t } = useTranslation('mcp');
@@ -31,24 +53,10 @@ const McpFormDrawer = ({ open, row, onClose, onSaved }: Props) => {
   const [saving, setSaving] = useState(false);
   const visibility = Form.useWatch('visibility', form) ?? 'PRIVATE';
   const isEdit = !!row;
-
-  useEffect(() => {
-    if (!open) return;
-    if (row) {
-      form.setFieldsValue({
-        name: row.name,
-        transport: row.transport,
-        url: row.url,
-        headersJson: row.headersJson || undefined,
-        visibility: row.visibility as 'MARKET' | 'PRIVATE',
-        connectTimeoutMs: undefined,
-        remark: row.remark,
-      });
-    } else {
-      form.resetFields();
-      form.setFieldsValue({ transport: 'http', visibility: 'PRIVATE', connectTimeoutMs: 5000 });
-    }
-  }, [open, row, form]);
+  // Form 用 key + initialValues 保证 destroyOnClose 挂载即回显，
+  // 避免 useEffect + setFieldsValue 在字段注册前执行导致丢值。
+  const formInitialValues = useMemo(() => buildMcpFormValues(row), [row]);
+  const formKey = row ? `edit-${row.id}` : 'create';
 
   const handleSave = async () => {
     const values = await form.validateFields();
@@ -74,7 +82,7 @@ const McpFormDrawer = ({ open, row, onClose, onSaved }: Props) => {
           headersJson: values.headersJson,
           visibility: values.visibility,
           plainSecret: values.visibility === 'PRIVATE' ? values.plainSecret : undefined,
-          connectTimeoutMs: values.connectTimeoutMs ?? 5000,
+          connectTimeoutMs: values.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS,
           remark: values.remark,
         });
         message.success(t('createSuccess'));
@@ -106,7 +114,7 @@ const McpFormDrawer = ({ open, row, onClose, onSaved }: Props) => {
         </Space>
       }
     >
-      <Form form={form} layout="vertical" preserve={false}>
+      <Form key={formKey} form={form} layout="vertical" preserve={false} initialValues={formInitialValues}>
         <Row gutter={16}>
           <Col span={12}>
             <Form.Item name="name" label={t('name')} rules={[{ required: true, message: t('requiredName') }]}>
@@ -114,16 +122,15 @@ const McpFormDrawer = ({ open, row, onClose, onSaved }: Props) => {
             </Form.Item>
           </Col>
           <Col span={12}>
-            {!isEdit && (
-              <Form.Item name="visibility" label={t('visibility')} rules={[{ required: true }]}>
-                <Select
-                  options={[
-                    { value: 'MARKET', label: t('visibilityMap.MARKET') },
-                    { value: 'PRIVATE', label: t('visibilityMap.PRIVATE') },
-                  ]}
-                />
-              </Form.Item>
-            )}
+            <Form.Item name="visibility" label={t('visibility')} rules={[{ required: true }]}>
+              <Select
+                disabled={isEdit}
+                options={[
+                  { value: 'MARKET', label: t('visibilityMap.MARKET') },
+                  { value: 'PRIVATE', label: t('visibilityMap.PRIVATE') },
+                ]}
+              />
+            </Form.Item>
           </Col>
         </Row>
         <Row gutter={16}>

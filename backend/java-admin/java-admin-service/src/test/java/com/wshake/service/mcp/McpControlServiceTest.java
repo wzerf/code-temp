@@ -62,6 +62,26 @@ class McpControlServiceTest {
     }
 
     @Test
+    void getDraft_echoesEditableFieldsIncludingTimeout() {
+        AgentMcpDraft d = draft(10L, "DRAFT", "PRIVATE", cipher.encrypt("sk"));
+        d.setHeadersJson("{\"Accept\":\"application/json\"}");
+        d.setConnectTimeoutMs(8000);
+        d.setRemark("备注");
+        when(draftRepo.findById(10L)).thenReturn(d);
+
+        var view = service.getDraft(10L);
+
+        assertThat(view.id()).isEqualTo(10L);
+        assertThat(view.name()).isEqualTo("github");
+        assertThat(view.transport()).isEqualTo("http");
+        assertThat(view.url()).isEqualTo("https://mcp.example.com/mcp");
+        assertThat(view.headersJson()).isEqualTo("{\"Accept\":\"application/json\"}");
+        assertThat(view.connectTimeoutMs()).isEqualTo(8000);
+        assertThat(view.remark()).isEqualTo("备注");
+        assertThat(view.visibility()).isEqualTo("PRIVATE");
+    }
+
+    @Test
     void createPrivateDraft_encryptsSecret() {
         when(draftRepo.existsActiveDraft(1L, "github", "PRIVATE", null)).thenReturn(false);
         doAnswer(inv -> {

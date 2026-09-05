@@ -28,6 +28,7 @@ public class McpDraftVO {
     private String transport;
     private String url;
     private String headersJson;
+    private Integer connectTimeoutMs;
     private String remark;
     private Integer isEnabled;
     private Long deletedAt;

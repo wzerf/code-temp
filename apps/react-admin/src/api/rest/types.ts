@@ -1320,6 +1320,8 @@ export interface McpDraft {
   transport: McpTransport;
   url: string;
   headersJson: string;
+  /** 连接超时；旧接口可能缺省，表单回退 5000 */
+  connectTimeoutMs?: number;
   remark: string;
   isEnabled: 0 | 1;
   deletedAt: number;

@@ -14,10 +14,8 @@ import com.wshake.service.agent.AgentSessionService.AgentSessionView;
 import com.wshake.service.entity.AgentModelRelease;
 import com.wshake.service.entity.AgentRevision;
 import com.wshake.service.entity.AgentSession;
-import com.wshake.service.entity.AgentSessionModelBinding;
 import com.wshake.service.model.ModelControlService;
 import com.wshake.service.repository.AgentRevisionRepository;
-import com.wshake.service.repository.AgentSessionModelBindingRepository;
 import com.wshake.service.repository.AgentSessionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -26,7 +24,6 @@ import org.junit.jupiter.api.Test;
 class AgentRunPlannerTest {
 
     private AgentSessionRepository sessionRepository;
-    private AgentSessionModelBindingRepository modelBindingRepository;
     private AgentRevisionRepository revisionRepository;
     private ModelControlService modelControlService;
     private AgentSecretCipher secretCipher;
@@ -37,7 +34,6 @@ class AgentRunPlannerTest {
     @BeforeEach
     void init() {
         sessionRepository = mock(AgentSessionRepository.class);
-        modelBindingRepository = mock(AgentSessionModelBindingRepository.class);
         revisionRepository = mock(AgentRevisionRepository.class);
         modelControlService = mock(ModelControlService.class);
         secretCipher = mock(AgentSecretCipher.class);
@@ -47,7 +43,6 @@ class AgentRunPlannerTest {
         planner = new AgentRunPlanner(
                 sessionService,
                 sessionRepository,
-                modelBindingRepository,
                 revisionRepository,
                 modelControlService,
                 secretCipher,
@@ -94,6 +89,7 @@ class AgentRunPlannerTest {
                 session.getId(),
                 session.getAgentDefinitionId(),
                 boundRevisionId,
+                session.getModelReleaseId(),
                 session.getOwnerUserId(),
                 "ACTIVE",
                 null,
@@ -135,10 +131,8 @@ class AgentRunPlannerTest {
         AgentSession session = session(1L, 10L, 20L, 100L);
         AgentRevision revision = revision(20L, "prompt", "{\"default_model_release_id\": 7001}", null);
         AgentModelRelease release = release(7002L, 100L);
+        session.setModelReleaseId(7002L);
         mockAssembleChain(session, revision, release, 20L);
-        AgentSessionModelBinding binding = new AgentSessionModelBinding();
-        binding.setModelReleaseId(7002L);
-        when(modelBindingRepository.findBySessionId(1L)).thenReturn(binding);
 
         AgentRunPlan plan = planner.plan(1L, 100L);
 
@@ -151,7 +145,6 @@ class AgentRunPlannerTest {
         AgentRevision revision = revision(20L, "prompt", null, null);
         AgentModelRelease release = release(7001L, 0L);
         mockAssembleChain(session, revision, release, 20L);
-        when(modelBindingRepository.findBySessionId(1L)).thenReturn(null);
 
         assertThatThrownBy(() -> planner.plan(1L, 100L))
                 .isInstanceOf(BizException.class)

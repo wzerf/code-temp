@@ -1126,6 +1126,7 @@ CREATE TABLE agent_session (
     id                  BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     agent_definition_id BIGINT UNSIGNED NOT NULL  COMMENT '归属 Definition(FK)',
     agent_revision_id   BIGINT UNSIGNED DEFAULT NULL  COMMENT '固定 Revision(首启前 NULL;bindSessionRevision 写入;软引用不建 FK)',
+    model_release_id    BIGINT UNSIGNED DEFAULT NULL  COMMENT '会话记住的模型 Release 指针(未选则 NULL;回落 Revision 默认)',
     owner_user_id       BIGINT UNSIGNED NOT NULL DEFAULT 0  COMMENT '会话所有者(软引用 sys_user.id)',
     status              VARCHAR(32)     NOT NULL DEFAULT 'ACTIVE'  COMMENT 'ACTIVE=活跃',
     last_active_at      TIMESTAMP       NULL DEFAULT NULL  COMMENT '最近活跃时间(运行面更新;本期控制面记录创建时间)',
@@ -1139,6 +1140,7 @@ CREATE TABLE agent_session (
     PRIMARY KEY (id),
     INDEX idx_agent_session_definition (agent_definition_id),
     INDEX idx_agent_session_revision (agent_revision_id),
+    INDEX idx_agent_session_model_release (model_release_id),
     INDEX idx_agent_session_owner (owner_user_id),
     INDEX idx_agent_session_status (status),
     INDEX idx_agent_session_deleted_at (deleted_at),
@@ -1408,7 +1410,8 @@ CREATE TABLE agent_revision_mcp_binding (
   COMMENT='Agent Revision MCP Binding(发布者预置;mcp_name 唯一;密钥在此补配并冻结)';
 
 -- ============================================================
--- Section A6: Session 级 Binding（用户侧临时追加/覆盖,不改 Agent 定义）
+-- Section A6: Session 级 Binding（用户侧临时追加/覆盖 Skill/MCP,不改 Agent 定义）
+-- 模型选择写在 agent_session.model_release_id，不再使用独立绑定表
 -- ============================================================
 
 CREATE TABLE agent_session_skill_binding (
@@ -1445,20 +1448,10 @@ CREATE TABLE agent_session_mcp_binding (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   COMMENT='Agent Session MCP Binding(用户侧追加/覆盖;Session 内 mcp_name 唯一;密钥补配冻结)';
 
-CREATE TABLE agent_session_model_binding (
-    id                  BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-    session_id          BIGINT UNSIGNED NOT NULL  COMMENT '归属会话(FK)',
-    model_release_id    BIGINT UNSIGNED NOT NULL  COMMENT '用户选择的模型 Release 指针(FK)',
-    model_name          VARCHAR(128)    NOT NULL  COMMENT '从 Release 拷贝的远端模型标识',
-    created_at          TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    created_by          BIGINT UNSIGNED NOT NULL DEFAULT 0  COMMENT '创建人(0=系统操作;非0=软引用 sys_user.id)',
-    PRIMARY KEY (id),
-    UNIQUE KEY uniq_agent_session_model_binding_session (session_id),
-    INDEX idx_agent_session_model_binding_release (model_release_id),
-    CONSTRAINT fk_agent_session_model_binding_session FOREIGN KEY (session_id) REFERENCES agent_session (id),
-    CONSTRAINT fk_agent_session_model_binding_release FOREIGN KEY (model_release_id) REFERENCES agent_model_release (id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  COMMENT='Agent Session 模型选择(每会话记住一个 model_release_id;解绑=物理删)';
+-- agent_session.model_release_id 的 FK 必须在 agent_model_release 建表之后追加
+ALTER TABLE agent_session
+    ADD CONSTRAINT fk_agent_session_model_release
+        FOREIGN KEY (model_release_id) REFERENCES agent_model_release (id);
 
 -- ============================================================
 -- Section A7: Git Skill 来源（受控导入;本期建表,preview/sync 接口后续实现）

@@ -29,6 +29,9 @@ public class AgentSession extends BaseEntity implements ProxyEntityAvailable<Age
     /** 固定 Revision（首启前 NULL）。 */
     private Long agentRevisionId;
 
+    /** 会话记住的模型 Release（未选则 NULL，回落 Revision 默认）。 */
+    private Long modelReleaseId;
+
     /** 会话所有者（软引用 sys_user.id）。 */
     private Long ownerUserId;
 

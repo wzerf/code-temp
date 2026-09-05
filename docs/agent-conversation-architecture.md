@@ -141,8 +141,8 @@ sequenceDiagram
 
 - **AgentPicker**：候选 = 调用者有权限的 Agent（`GET /system/agent/all` 按 RBAC 过滤）。切换 Agent 时重新加载其会话列表，并重置当前会话。
 - **ModelPicker**：候选 = 官方已发布模型（全站可用）∪ 调用者自己的私有模型（仅自己可用）。候选列表通过 `GET /system/agent/models/available` 获取。
-- **选择语义**：模型为单选，选中后**记住**（写入会话 `agent_session_model_binding`），下次运行直接复用；重新选择则覆盖。未选则回落到 Revision 默认模型。
-- **状态与请求契约**：`useAgentSelection` 维护 `activeAgentId` 与 `activeModelReleaseId`。模型选择在 `ModelPicker` 选择时即写入后端会话（`POST sessions/{id}/model-binding`）；发送消息时**不再把 `modelReleaseId` 塞进请求体**——`prepareRun` 按 `threadId`（会话）从 MySQL 解析已记住的选择，前端只构造标准 `RunAgentInput`。
+- **选择语义**：模型为单选，选中后**记住**（写入 `agent_session.model_release_id`），下次运行直接复用；重新选择则覆盖。未选则回落到 Revision 默认模型。
+- **状态与请求契约**：会话列表/详情带出 `modelReleaseId`。模型选择在 `ModelPicker` 选择时即写入后端（`PUT sessions/{id}/model-binding`，传 `null` 清除）；发送消息时**不再把 `modelReleaseId` 塞进请求体**——`prepareRun` 按 `threadId`（会话）从 MySQL 解析已记住的选择，前端只构造标准 `RunAgentInput`。
 
 > 这样做的收益：会话级装配（模型/Skill/MCP）的真相完全收敛到服务端，前端请求契约与 AG-UI 标准完全一致，避免把业务参数散落在 `forwardedProps` 里被当作可信任输入。
 
@@ -416,7 +416,7 @@ sequenceDiagram
     U->>MP: 选择模型
     MP->>API: GET /system/agent/models/available
     API-->>MP: 可用模型（官方全站 + 私有仅自己）
-    MP->>API: POST sessions/{id}/model-binding {modelReleaseId}
+    MP->>API: PUT sessions/{id}/model-binding {modelReleaseId}
     API-->>MP: 记住选择（下次直接复用）
 
     U->>P: 打开「会话装配」

@@ -23,6 +23,7 @@ public class AgentSessionVO {
     private Long id;
     private Long agentDefinitionId;
     private Long agentRevisionId;
+    private Long modelReleaseId;
     private Long ownerUserId;
     private String status;
     private LocalDateTime lastActiveAt;

@@ -1,11 +1,10 @@
 package com.wshake.api.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 /**
- * 会话记住模型选择请求。
+ * 会话记住模型选择请求。{@code modelReleaseId} 为空表示清除，回落 Revision 默认。
  *
  * @author wshake
  */
@@ -13,7 +12,6 @@ import lombok.Data;
 @Schema(description = "绑定会话模型")
 public class BindSessionModelRequest {
 
-    @NotNull
-    @Schema(description = "模型 Release id", requiredMode = Schema.RequiredMode.REQUIRED)
+    @Schema(description = "模型 Release id；传 null 则清除会话选择")
     private Long modelReleaseId;
 }

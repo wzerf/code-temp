@@ -10,10 +10,9 @@
 | ---------- | ------------------------------ | ------------------------------------------------------------- | ------------- |
 | Agent 管理 | `agent_definition`             | 稳定定义 + 当前发布 Revision 指针                             | 否            |
 | Agent 管理 | `agent_revision`               | 草稿/不可变发布快照                                           | 否            |
-| Agent 对话 | `agent_session`                | 会话控制面元数据 + 固定 Revision                              | 否            |
+| Agent 对话 | `agent_session`                | 会话控制面元数据 + 固定 Revision + 记住的 `model_release_id`  | 否            |
 | 模型       | `agent_model_draft`            | 模型连接配置草稿（`scope` = OFFICIAL / PRIVATE）              | 否            |
 | 模型       | `agent_model_release`          | 模型连接配置 Release 副本（发布即进入可用模型池）             | 否            |
-| 模型       | `agent_session_model_binding`  | Session 记住用户选的 `model_release_id`（下次复用）           | 否            |
 | Skill      | `agent_skill_draft`            | 草稿/审核中内容                                               | 否            |
 | Skill      | `agent_skill_draft_resource`   | 草稿附属文件                                                  | 否            |
 | Skill      | `agent_skill_release`          | 不可变 Release 快照，市场列表由此派生                         | 否            |
@@ -43,12 +42,11 @@ erDiagram
     agent_revision ||--o{ agent_revision_skill_binding : "agent_revision_id"
     agent_revision ||--o{ agent_revision_mcp_binding : "agent_revision_id"
 
-    agent_session ||--o{ agent_session_model_binding : "session_id"
+    agent_session }o--o| agent_model_release : "model_release_id"
     agent_session ||--o{ agent_session_skill_binding : "session_id"
     agent_session ||--o{ agent_session_mcp_binding : "session_id"
 
     agent_model_draft }o--o| agent_model_release : "source_draft_id"
-    agent_model_release ||--o{ agent_session_model_binding : "model_release_id"
 
     agent_skill_draft ||--o{ agent_skill_draft_resource : "draft_id"
     agent_skill_release ||--o{ agent_skill_release_resource : "release_id"
@@ -121,6 +119,7 @@ stateDiagram-v2
 | --------------------- | ------------------------------ |
 | `agent_definition_id` | 归属 Definition                |
 | `agent_revision_id`   | 固定 Revision（首启前为 NULL） |
+| `model_release_id`    | 会话记住的模型（未选为 NULL）  |
 | `owner_user_id`       | 会话所有者                     |
 | `status`              | `ACTIVE`                       |
 | `last_active_at`      | 最近活跃时间                   |
@@ -142,7 +141,7 @@ flowchart LR
 
 | 表                            | 作用                      | 唯一键                     | 关键字段                                                       |
 | ----------------------------- | ------------------------- | -------------------------- | -------------------------------------------------------------- |
-| `agent_session_model_binding` | Session 记住的模型选择    | `(session_id)`             | `session_id`、`model_release_id`、`model_name`                 |
+| `agent_session`（列）         | Session 记住的模型选择    | 主键 `id`                  | `model_release_id`（可空）                                     |
 | `agent_session_skill_binding` | Session 追加/覆盖的 Skill | `(session_id, skill_name)` | `session_id`、`skill_release_id`、`skill_name`、`content_hash` |
 | `agent_session_mcp_binding`   | Session 追加/覆盖的 MCP   | `(session_id, mcp_name)`   | `session_id`、`mcp_release_id`、`mcp_name`、`encrypted_secret` |
 
@@ -236,15 +235,13 @@ flowchart TD
 - **下架/弃用** = `deprecate` 对应 Release 退出可用池；已固定会话快照不受影响，新选择不可再选。
 - 用户不能发布官方模型，也不能看到或使用他人的私有模型。
 
-### 5.4 模型选择 `agent_session_model_binding`
+### 5.4 模型选择 `agent_session.model_release_id`
 
-| 字段               | 含义                        |
-| ------------------ | --------------------------- |
-| `session_id`       | 归属会话                    |
-| `model_release_id` | 用户选择的模型 Release 指针 |
-| `model_name`       | 从 Release 拷贝             |
+| 字段               | 含义                                       |
+| ------------------ | ------------------------------------------ |
+| `model_release_id` | 用户选择的模型 Release 指针；未选则为 NULL |
 
-唯一键：`(session_id)`，每个会话记住一个模型选择。无 `encrypted_secret`（密钥已在 Release 冻结，选择不补配）。用户下次运行直接复用，重新选择则覆盖。
+每个会话记住一个模型选择（列可空）。无独立绑定表，也无 `model_name` 冗余拷贝（运行时从 Model Release 解析）。无 `encrypted_secret`（密钥已在 Release 冻结，选择不补配）。用户下次运行直接复用，重新选择则覆盖；清除则置 NULL，回落 Revision 默认。
 
 ## 6. Skill 表流转
 
@@ -472,13 +469,13 @@ flowchart LR
     MD -->|approve 探测冻结| MR[Model Release]
     MR -->|OFFICIAL 全站 / PRIVATE 仅所有者| POOL[可用模型池]
     R[Agent Revision] -->|model_config.default_model_release_id| POOL
-    S[Agent Session] -->|model_binding 记住选择| POOL
+    S[Agent Session] -->|model_release_id 记住选择| POOL
     POOL -->|选定 model_release_id| MC[ModelClientFactory]
     MC -->|解密注入| RUN[HarnessAgent 模型客户端]
 ```
 
 - 官方模型（`OFFICIAL`）由管理员发布，全站可用；用户私有模型（`PRIVATE`）发布后仅所有者可用，二者都**发布即进入可用模型池**，无需绑定到 Agent。
-- 会话记住用户选的 `model_release_id`（`agent_session_model_binding`），未选则回落 `agent_revision.model_config.default_model_release_id`。
+- 会话记住用户选的 `model_release_id`（写在 `agent_session` 上），未选则回落 `agent_revision.model_config.default_model_release_id`。
 - `ModelClientFactory` 按最终选定的 `model_release_id` 解析冻结快照并解密注入密钥，明文不落库、不落日志。
 
 ### 9.3 MCP 从创建到运行

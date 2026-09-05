@@ -10,10 +10,8 @@ import com.wshake.service.agent.AgentSessionService.AgentSessionView;
 import com.wshake.service.entity.AgentModelRelease;
 import com.wshake.service.entity.AgentRevision;
 import com.wshake.service.entity.AgentSession;
-import com.wshake.service.entity.AgentSessionModelBinding;
 import com.wshake.service.model.ModelControlService;
 import com.wshake.service.repository.AgentRevisionRepository;
-import com.wshake.service.repository.AgentSessionModelBindingRepository;
 import com.wshake.service.repository.AgentSessionRepository;
 import java.util.ArrayList;
 import java.util.List;
@@ -25,7 +23,7 @@ import org.springframework.stereotype.Component;
  *
  * <p>对齐 docs/agent-module-architecture.md §5.1/§5.2：首次运行固定当前发布 Revision
  * （复用控制面 {@link AgentSessionService#bindSessionRevision} 的「未绑定才绑定」语义）；
- * 模型选择 = Session 记住的选择（{@code agent_session_model_binding}）优先，
+ * 模型选择 = Session 记住的 {@code agent_session.model_release_id} 优先，
  * 否则回落 Revision {@code model_config.default_model_release_id}；两者皆无则拒绝首启。
  *
  * <p>模型 Release 经 {@link ModelControlService#requireUsableRelease} 校验（PUBLISHED +
@@ -43,7 +41,6 @@ public class AgentRunPlanner {
 
     private final AgentSessionService sessionService;
     private final AgentSessionRepository sessionRepository;
-    private final AgentSessionModelBindingRepository sessionModelBindingRepository;
     private final AgentRevisionRepository revisionRepository;
     private final ModelControlService modelControlService;
     private final AgentSecretCipher secretCipher;
@@ -75,7 +72,7 @@ public class AgentRunPlanner {
         rejectIfNonBlank(revision.getCompressionPolicy(), "Agent Revision 配置了 compression_policy,运行面暂不支持");
 
         // 最终模型 Release：Session 记住的选择 > Revision model_config 默认
-        Long modelReleaseId = resolveSessionModelReleaseId(sessionId);
+        Long modelReleaseId = boundView.modelReleaseId();
         if (modelReleaseId == null) {
             modelReleaseId = parseDefaultModelReleaseId(revision.getModelConfig());
         }
@@ -135,12 +132,6 @@ public class AgentRunPlanner {
     /** 供历史回放等只读场景校验会话归属：会话不存在或无权访问时抛异常。 */
     public void checkSessionAccessible(Long sessionId, Long requestUserId) {
         checkOwner(requireSession(sessionId), requestUserId);
-    }
-
-    /** 读取会话记住的模型选择（agent_session_model_binding，每会话至多一条）。 */
-    private Long resolveSessionModelReleaseId(Long sessionId) {
-        AgentSessionModelBinding binding = sessionModelBindingRepository.findBySessionId(sessionId);
-        return binding == null ? null : binding.getModelReleaseId();
     }
 
     /** 读取 Revision model_config JSON 的 default_model_release_id（兼容空/缺省/坏 JSON）。 */

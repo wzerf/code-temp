@@ -5,7 +5,9 @@ import {
   createDraft,
   isConversationHistoryReady,
   isDraftConversation,
+  mergeSessionAfterModelBind,
   resolveChatConversationKey,
+  shouldFlushPendingSend,
 } from './conversationSession';
 
 function session(id: number): AgentSession {
@@ -37,6 +39,42 @@ describe('isDraftConversation', () => {
     expect(isDraftConversation(createDraft(7))).toBe(true);
     expect(isDraftConversation(session(7))).toBe(false);
     expect(isDraftConversation(null)).toBe(false);
+  });
+});
+
+describe('mergeSessionAfterModelBind', () => {
+  it('绑定返回同 id 会话时合并字段，保留会话 id', () => {
+    const created = { ...session(42), remark: '新对话', modelReleaseId: null };
+    const bound = { ...session(42), remark: '新对话', modelReleaseId: 7 };
+    const merged = mergeSessionAfterModelBind(created, bound, 7);
+    expect(merged.id).toBe(42);
+    expect(merged.modelReleaseId).toBe(7);
+  });
+
+  it('绑定返回其它 id（例如旧绑定表主键）时不得替换会话 id', () => {
+    const created = { ...session(42), remark: '新对话', modelReleaseId: null };
+    const bound = { id: 999, modelReleaseId: 7 } as AgentSession;
+    const merged = mergeSessionAfterModelBind(created, bound, 7);
+    expect(merged.id).toBe(42);
+    expect(merged.remark).toBe('新对话');
+    expect(merged.modelReleaseId).toBe(7);
+  });
+
+  it('绑定返回空对象时仍用创建结果晋升，否则 conversationKey 对不上 queueRequest', () => {
+    const created = session(42);
+    const merged = mergeSessionAfterModelBind(created, {} as AgentSession, 3);
+    expect(merged.id).toBe(42);
+    expect(resolveChatConversationKey(merged)).toBe('42');
+  });
+});
+
+describe('shouldFlushPendingSend', () => {
+  it('仅当待发送会话已晋升且历史不再 loading 时才刷出', () => {
+    const pending = { sessionId: 42, content: 'hi' };
+    expect(shouldFlushPendingSend(pending, 42, true)).toBe(false);
+    expect(shouldFlushPendingSend(pending, 42, false)).toBe(true);
+    expect(shouldFlushPendingSend(pending, 7, false)).toBe(false);
+    expect(shouldFlushPendingSend(null, 42, false)).toBe(false);
   });
 });
 

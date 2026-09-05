@@ -19,7 +19,7 @@ interface Props {
 /**
  * ModelPicker：会话内选模型，展示名称。
  * 候选 = 官方 PUBLISHED ∪ 本人私有。
- * 草稿态也拉取候选并允许预选；真实会话的选择写入 model-binding。
+ * 草稿态也拉取候选并允许预选；真实会话的选择写入会话 modelReleaseId。
  */
 export default function ModelPicker({ sessionId, value, onChange, disabled, loading: externalLoading }: Props) {
   const { t } = useTranslation('agent-conversation');

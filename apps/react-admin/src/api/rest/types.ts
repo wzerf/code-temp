@@ -1184,6 +1184,8 @@ export interface AgentSession {
   id: number;
   agentDefinitionId: number;
   agentRevisionId: number | null;
+  /** 会话记住的模型；null 表示未选，运行时回落 Revision 默认 */
+  modelReleaseId: number | null;
   ownerUserId: number;
   status: 'ACTIVE' | string;
   lastActiveAt: string | null;
@@ -1541,16 +1543,9 @@ export interface ModelVerifyResult {
   remoteModelIds: string[];
 }
 
-export interface SessionModelBinding {
-  id: number;
-  sessionId: number;
-  modelReleaseId: number;
-  modelName: string;
-}
-
-/** 会话记住模型选择请求体（PUT model-binding） */
+/** 会话记住模型选择请求体（PUT model-binding；null 表示清除） */
 export interface BindSessionModelRequest {
-  modelReleaseId: number;
+  modelReleaseId: number | null;
 }
 
 // ============================================================

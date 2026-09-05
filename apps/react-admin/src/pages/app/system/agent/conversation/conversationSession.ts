@@ -46,3 +46,33 @@ export function isConversationHistoryReady(
 ): boolean {
   return sessionId == null || !isDefaultMessagesRequesting;
 }
+
+export type PendingDraftSend = { sessionId: number; content: string };
+
+/** 聊天引擎按 conversationKey 重挂后：历史拉完且 sessionId 已对上，才能把草稿待发送刷进新 store。 */
+export function shouldFlushPendingSend(
+  pending: PendingDraftSend | null,
+  sessionId: number | null,
+  isDefaultMessagesRequesting: boolean,
+): boolean {
+  return (
+    pending != null && sessionId != null && pending.sessionId === sessionId && !isDefaultMessagesRequesting
+  );
+}
+
+/**
+ * 草稿晋升后绑定模型：会话身份必须以 create 返回值为准。
+ * 绑定接口若返回完整会话（id 一致）则合并字段；否则只吸收 modelReleaseId，避免把会话 id 换成绑定行 id / 空对象。
+ */
+export function mergeSessionAfterModelBind(
+  created: AgentSession,
+  bound: AgentSession | null | undefined,
+  fallbackReleaseId?: number | null,
+): AgentSession {
+  if (bound != null && bound.id === created.id) {
+    return { ...created, ...bound };
+  }
+  const fromBound = bound != null && bound.modelReleaseId != null ? bound.modelReleaseId : null;
+  const modelReleaseId = fromBound ?? fallbackReleaseId ?? created.modelReleaseId ?? null;
+  return { ...created, modelReleaseId };
+}

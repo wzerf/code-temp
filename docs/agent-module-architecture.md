@@ -451,24 +451,24 @@ flowchart LR
 
 完整表结构与流转见 [`docs/agent-module-table-flows.md`](agent-module-table-flows.md)。
 
-| 实体                     | 表                                                     | 关键点                                                    |
-| ------------------------ | ------------------------------------------------------ | --------------------------------------------------------- |
-| Agent Definition         | `agent_definition`                                     | 名称唯一（软删感知），当前发布 Revision 指针              |
-| Agent Revision           | `agent_revision`                                       | `DRAFT`/`PUBLISHED`，`source_draft_revision_id` 关联草稿  |
-| Agent Session            | `agent_session`                                        | 固定 `agent_revision_id`，不存运行状态                    |
-| 模型草稿                 | `agent_model_draft`                                    | 连接配置草稿；`scope` = OFFICIAL / PRIVATE                |
-| 模型 Release             | `agent_model_release`                                  | 连接配置副本，能力不入库；发布即进入可用模型池            |
-| 模型默认引用（Revision） | `agent_revision` 内 `model_config`                     | 默认 `model_release_id` 指针，可为空                      |
-| 模型选择（Session）      | `agent_session_model_binding`                          | Session 记住用户选的 `model_release_id`，下次复用         |
-| Skill 草稿               | `agent_skill_draft` / `agent_skill_draft_resource`     | 所有者+name+visibility 唯一                               |
-| Skill Release            | `agent_skill_release` / `agent_skill_release_resource` | 不可变快照，`version` 递增                                |
-| Skill 绑定（Revision）   | `agent_revision_skill_binding`                         | Revision 内 `skill_name` 唯一，`override_winner` 处理同名 |
-| Skill 绑定（Session）    | `agent_session_skill_binding`                          | Session 内 `skill_name` 唯一，同名覆盖 Revision           |
-| Git 来源                 | `agent_skill_git_source` / `agent_skill_git_sync`      | 受控导入，幂等同步                                        |
-| MCP 草稿                 | `agent_mcp_draft`                                      | 连接配置草稿；私有可带密钥，市场应无密钥                  |
-| MCP Release              | `agent_mcp_release`                                    | 连接配置副本，目录不入库；MARKET 无密钥，PRIVATE 带密钥   |
-| MCP 绑定（Revision）     | `agent_revision_mcp_binding`                           | Revision 内 `mcp_name` 唯一；Agent 发布时补配密钥         |
-| MCP 绑定（Session）      | `agent_session_mcp_binding`                            | Session 内 `mcp_name` 唯一，同名覆盖 Revision；补配密钥   |
+| 实体                     | 表                                                     | 关键点                                                        |
+| ------------------------ | ------------------------------------------------------ | ------------------------------------------------------------- |
+| Agent Definition         | `agent_definition`                                     | 名称唯一（软删感知），当前发布 Revision 指针                  |
+| Agent Revision           | `agent_revision`                                       | `DRAFT`/`PUBLISHED`，`source_draft_revision_id` 关联草稿      |
+| Agent Session            | `agent_session`                                        | 固定 `agent_revision_id`；`model_release_id` 记住用户选的模型 |
+| 模型草稿                 | `agent_model_draft`                                    | 连接配置草稿；`scope` = OFFICIAL / PRIVATE                    |
+| 模型 Release             | `agent_model_release`                                  | 连接配置副本，能力不入库；发布即进入可用模型池                |
+| 模型默认引用（Revision） | `agent_revision` 内 `model_config`                     | 默认 `model_release_id` 指针，可为空                          |
+| 模型选择（Session）      | `agent_session.model_release_id`                       | Session 记住用户选的模型，未选则 NULL 回落 Revision 默认      |
+| Skill 草稿               | `agent_skill_draft` / `agent_skill_draft_resource`     | 所有者+name+visibility 唯一                                   |
+| Skill Release            | `agent_skill_release` / `agent_skill_release_resource` | 不可变快照，`version` 递增                                    |
+| Skill 绑定（Revision）   | `agent_revision_skill_binding`                         | Revision 内 `skill_name` 唯一，`override_winner` 处理同名     |
+| Skill 绑定（Session）    | `agent_session_skill_binding`                          | Session 内 `skill_name` 唯一，同名覆盖 Revision               |
+| Git 来源                 | `agent_skill_git_source` / `agent_skill_git_sync`      | 受控导入，幂等同步                                            |
+| MCP 草稿                 | `agent_mcp_draft`                                      | 连接配置草稿；私有可带密钥，市场应无密钥                      |
+| MCP Release              | `agent_mcp_release`                                    | 连接配置副本，目录不入库；MARKET 无密钥，PRIVATE 带密钥       |
+| MCP 绑定（Revision）     | `agent_revision_mcp_binding`                           | Revision 内 `mcp_name` 唯一；Agent 发布时补配密钥             |
+| MCP 绑定（Session）      | `agent_session_mcp_binding`                            | Session 内 `mcp_name` 唯一，同名覆盖 Revision；补配密钥       |
 
 物理设计遵守 `db-conventions.md`：InnoDB、`utf8mb4_unicode_ci`、`BIGINT UNSIGNED` 主键、`snake_case`、枚举 `VARCHAR(32)`、软删 `deleted_at`、审计字段。
 

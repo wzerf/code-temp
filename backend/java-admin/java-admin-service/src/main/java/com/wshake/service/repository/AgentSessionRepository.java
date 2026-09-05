@@ -56,6 +56,21 @@ public class AgentSessionRepository {
                 .executeRows();
     }
 
+    /** 记住或清除会话模型选择；{@code modelReleaseId == null} 写 NULL。 */
+    public long updateModelReleaseId(Long id, Long modelReleaseId) {
+        return easyEntityQuery
+                .updatable(AgentSession.class)
+                .setColumns(t -> {
+                    if (modelReleaseId == null) {
+                        t.modelReleaseId().setNull();
+                    } else {
+                        t.modelReleaseId().set(modelReleaseId);
+                    }
+                })
+                .where(t -> t.id().eq(id))
+                .executeRows();
+    }
+
     public long softDeleteById(Long id) {
         return easyEntityQuery
                 .deletable(AgentSession.class)

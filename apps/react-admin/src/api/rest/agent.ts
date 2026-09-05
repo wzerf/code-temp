@@ -12,7 +12,6 @@ import type {
   RevisionMcpBinding,
   RevisionSkillBinding,
   SaveAgentRevisionRequest,
-  SessionModelBinding,
   UpdateAgentRequest,
 } from './types';
 
@@ -164,16 +163,8 @@ export function listAgentSessionEventsApi(sessionId: number) {
   return get<string[]>(`/system/agent/sessions/${sessionId}/events/history`);
 }
 
-// ---------- Session 模型选择（会话记住，下次运行复用） ----------
-
-export function getSessionModelBindingApi(sessionId: number) {
-  return get<SessionModelBinding | null>(`/system/agent/sessions/${sessionId}/model-binding`);
-}
+// ---------- Session 模型选择（写会话列；读走会话 VO；null=清除） ----------
 
 export function bindSessionModelApi(sessionId: number, body: BindSessionModelRequest) {
-  return put<SessionModelBinding>(`/system/agent/sessions/${sessionId}/model-binding`, body);
-}
-
-export function unbindSessionModelApi(sessionId: number) {
-  return del<never>(`/system/agent/sessions/${sessionId}/model-binding`);
+  return put<AgentSession>(`/system/agent/sessions/${sessionId}/model-binding`, body);
 }

@@ -161,14 +161,18 @@ public class McpControlService {
         draftRepository.updateStatus(id, STATUS_REJECTED, clip(reason, 512), null, null);
     }
 
-    /** 握手验证：连接草稿并返回工具目录,不改变状态。失败即抛错（未知即拒绝）。 */
-    public List<McpProbePort.McpToolEntry> verify(Long id) {
+    /** 握手验证：连接草稿并返回工具目录,不改变状态。失败即抛错（未知即拒绝）。需 OAuth 时返回授权地址。 */
+    public McpVerifyResult verify(Long id) {
         AgentMcpDraft row = requireDraft(id);
-        List<McpProbePort.McpToolEntry> tools = probe(row);
-        if (tools.isEmpty()) {
+        McpProbePort.ProbeResult result = probe(row);
+        if (result.oauthRequired()) {
+            return McpVerifyResult.oauthRequired(result.oauth());
+        }
+        List<McpProbePort.McpToolEntry> tools = result.tools();
+        if (tools == null || tools.isEmpty()) {
             throw BizException.of(ResultCode.PARAM_INVALID, "MCP 工具目录为空,拒绝通过");
         }
-        return tools;
+        return McpVerifyResult.success(tools);
     }
 
     /**
@@ -178,9 +182,15 @@ public class McpControlService {
     public McpReleaseView approve(Long id) {
         AgentMcpDraft row = requireDraft(id);
         requireStatus(row, STATUS_PENDING_REVIEW);
-        // 握手验证连接可用 + 目录非空
-        List<McpProbePort.McpToolEntry> tools = probe(row);
-        if (tools.isEmpty()) {
+        // 握手验证连接可用 + 目录非空；OAuth 未完成不得发布
+        McpProbePort.ProbeResult probed = probe(row);
+        if (probed.oauthRequired()) {
+            throw BizException.of(
+                    ResultCode.PARAM_INVALID,
+                    "需要 OAuth 登录，无法发布: " + probed.oauth().authorizationEndpoint());
+        }
+        List<McpProbePort.McpToolEntry> tools = probed.tools();
+        if (tools == null || tools.isEmpty()) {
             throw BizException.of(ResultCode.PARAM_INVALID, "MCP 工具目录为空,拒绝发布");
         }
 
@@ -282,7 +292,7 @@ public class McpControlService {
 
     // ---------- 内部 ----------
 
-    private List<McpProbePort.McpToolEntry> probe(AgentMcpDraft draft) {
+    private McpProbePort.ProbeResult probe(AgentMcpDraft draft) {
         // 组装头: headers_json(静态) + 解密密钥注入 Authorization(若为 Bearer 类密钥)
         Map<String, String> headers = parseHeaders(draft.getHeadersJson());
         String secret = secretCipher.decrypt(draft.getEncryptedSecret());
@@ -480,7 +490,32 @@ public class McpControlService {
             Integer connectTimeoutMs,
             String remark) {}
 
-    public record McpVerifyResult(boolean success, String message, int toolCount) {}
+    public record McpVerifyResult(
+            boolean success,
+            String message,
+            int toolCount,
+            List<McpProbePort.McpToolEntry> tools,
+            String oauthAuthorizationUrl,
+            String oauthScope,
+            String oauthResource,
+            String oauthResourceMetadataUrl) {
+        static McpVerifyResult success(List<McpProbePort.McpToolEntry> tools) {
+            List<McpProbePort.McpToolEntry> list = tools == null ? List.of() : tools;
+            return new McpVerifyResult(true, "握手成功", list.size(), list, null, null, null, null);
+        }
+
+        static McpVerifyResult oauthRequired(McpProbePort.OAuthChallenge oauth) {
+            return new McpVerifyResult(
+                    false,
+                    "需要 OAuth 登录",
+                    0,
+                    List.of(),
+                    oauth.authorizationEndpoint(),
+                    oauth.scope(),
+                    oauth.resource(),
+                    oauth.resourceMetadataUrl());
+        }
+    }
 
     @io.github.linpeilie.annotations.AutoMapper(target = AgentMcpDraft.class)
     public record McpDraftView(

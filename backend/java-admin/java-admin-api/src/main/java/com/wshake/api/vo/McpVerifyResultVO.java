@@ -29,6 +29,18 @@ public class McpVerifyResultVO {
     @Schema(description = "工具列表")
     private List<McpToolEntryVO> tools;
 
+    @Schema(description = "OAuth 授权端点（需登录时返回）")
+    private String oauthAuthorizationUrl;
+
+    @Schema(description = "OAuth scope")
+    private String oauthScope;
+
+    @Schema(description = "OAuth 受保护资源标识")
+    private String oauthResource;
+
+    @Schema(description = "OAuth Protected Resource Metadata URL")
+    private String oauthResourceMetadataUrl;
+
     /** 工具条目。 */
     @Data
     @NoArgsConstructor

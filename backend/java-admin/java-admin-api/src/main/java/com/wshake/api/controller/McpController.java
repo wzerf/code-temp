@@ -12,6 +12,7 @@ import com.wshake.common.result.Result;
 import com.wshake.service.mcp.McpControlService;
 import com.wshake.service.mcp.McpControlService.CreateMcpCommand;
 import com.wshake.service.mcp.McpControlService.McpReleaseView;
+import com.wshake.service.mcp.McpControlService.McpVerifyResult;
 import com.wshake.service.mcp.McpControlService.UpdateMcpCommand;
 import com.wshake.service.port.McpProbePort.McpToolEntry;
 import io.github.linpeilie.Converter;
@@ -117,15 +118,13 @@ public class McpController {
     }
 
     @PostMapping("/draft/{id}/verify")
-    @Operation(summary = "握手验证(返回工具目录,不改状态)")
+    @Operation(summary = "握手验证(返回工具目录,不改状态;需 OAuth 时 data 带授权地址)")
     public Result<McpVerifyResultVO> verify(@PathVariable Long id) {
-        List<McpToolEntry> tools;
         try {
-            tools = mcpService.verify(id);
+            return Result.ok(toVerifyResult(mcpService.verify(id)));
         } catch (BizException e) {
             return Result.error(e.getCode(), e.getMessage());
         }
-        return Result.ok(toVerifyResult(true, "握手成功", tools));
     }
 
     @PostMapping("/draft/{id}/submit")
@@ -201,11 +200,21 @@ public class McpController {
         return Result.ok(null);
     }
 
-    private static McpVerifyResultVO toVerifyResult(boolean success, String message, List<McpToolEntry> tools) {
+    private static McpVerifyResultVO toVerifyResult(McpVerifyResult result) {
         List<McpVerifyResultVO.McpToolEntryVO> items = new ArrayList<>();
+        List<McpToolEntry> tools = result.tools() == null ? List.of() : result.tools();
         for (McpToolEntry t : tools) {
             items.add(new McpVerifyResultVO.McpToolEntryVO(t.name(), t.description(), t.inputSchema(), t.readOnly()));
         }
-        return new McpVerifyResultVO(success, message, items.size(), items);
+        McpVerifyResultVO vo = new McpVerifyResultVO();
+        vo.setSuccess(result.success());
+        vo.setMessage(result.message());
+        vo.setToolCount(result.toolCount());
+        vo.setTools(items);
+        vo.setOauthAuthorizationUrl(result.oauthAuthorizationUrl());
+        vo.setOauthScope(result.oauthScope());
+        vo.setOauthResource(result.oauthResource());
+        vo.setOauthResourceMetadataUrl(result.oauthResourceMetadataUrl());
+        return vo;
     }
 }

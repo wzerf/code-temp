@@ -1406,6 +1406,11 @@ export interface McpVerifyResult {
     inputSchema: string;
     readOnly: boolean;
   }>;
+  /** OAuth 授权端点（需登录的 MCP 握手失败时返回）。 */
+  oauthAuthorizationUrl?: string | null;
+  oauthScope?: string | null;
+  oauthResource?: string | null;
+  oauthResourceMetadataUrl?: string | null;
 }
 
 // ============================================================

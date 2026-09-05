@@ -4,14 +4,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.wshake.service.port.McpProbePort;
 import com.wshake.service.port.McpProbePort.ProbeCommand;
-import java.util.List;
+import com.wshake.service.port.McpProbePort.ProbeResult;
 import java.util.Map;
 import mockwebserver3.Dispatcher;
 import mockwebserver3.MockResponse;
 import mockwebserver3.MockWebServer;
 import mockwebserver3.RecordedRequest;
+import okhttp3.OkHttpClient;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -25,7 +25,7 @@ class McpProbeGatewayTest {
 
     @BeforeEach
     void init() {
-        gateway = new McpProbeGateway(new ObjectMapper());
+        gateway = new McpProbeGateway(new OkHttpClient(), new ObjectMapper());
     }
 
     /** 构造 JSON-RPC 成功响应;id 回显请求 id(SDK 使用 "uuid-seq" 字符串 id)。 */
@@ -92,13 +92,70 @@ class McpProbeGatewayTest {
                 }
             });
 
-            List<McpProbePort.McpToolEntry> tools = gateway.probe(new ProbeCommand(
+            ProbeResult result = gateway.probe(new ProbeCommand(
                     "http", server.url("/mcp").toString(), Map.of("Authorization", "Bearer test"), 5000));
 
-            assertThat(tools).hasSize(1);
-            assertThat(tools.get(0).name()).isEqualTo("firecrawl_search");
-            assertThat(tools.get(0).readOnly()).isTrue();
-            assertThat(tools.get(0).inputSchema()).contains("object");
+            assertThat(result.oauthRequired()).isFalse();
+            assertThat(result.tools()).hasSize(1);
+            assertThat(result.tools().get(0).name()).isEqualTo("firecrawl_search");
+            assertThat(result.tools().get(0).readOnly()).isTrue();
+            assertThat(result.tools().get(0).inputSchema()).contains("object");
+        }
+    }
+
+    @Test
+    void probe_oauth401_returnsAuthorizationEndpoint() throws Exception {
+        try (MockWebServer server = new MockWebServer()) {
+            server.start();
+            String origin = trimSlash(server.url("/").toString());
+            String metadataUrl = origin + "/.well-known/oauth-protected-resource/devtools";
+            server.setDispatcher(new Dispatcher() {
+                @NotNull
+                @Override
+                public MockResponse dispatch(@NotNull RecordedRequest request) {
+                    String path = request.getUrl().encodedPath();
+                    if ("/.well-known/oauth-protected-resource/devtools".equals(path)) {
+                        return new MockResponse.Builder()
+                                .code(200)
+                                .addHeader("Content-Type", "application/json")
+                                .body("{\"resource\":\""
+                                        + origin
+                                        + "/devtools\",\"authorization_servers\":[\""
+                                        + origin
+                                        + "/devtools\"],\"scopes_supported\":[\"developer_tools_mcp_app_read\"]}")
+                                .build();
+                    }
+                    if ("/.well-known/oauth-authorization-server/devtools".equals(path)) {
+                        return new MockResponse.Builder()
+                                .code(200)
+                                .addHeader("Content-Type", "application/json")
+                                .body(
+                                        "{\"issuer\":\""
+                                                + origin
+                                                + "/devtools\",\"authorization_endpoint\":\"https://www.facebook.com/v26.0/dialog/oauth\"}")
+                                .build();
+                    }
+                    return new MockResponse.Builder()
+                            .code(401)
+                            .addHeader(
+                                    "WWW-Authenticate",
+                                    "Bearer resource_metadata=\""
+                                            + metadataUrl
+                                            + "\", scope=\"developer_tools_mcp_app_read developer_tools_mcp_app_management\"")
+                            .addHeader("Content-Type", "application/json")
+                            .body("{\"title\":\"Authentication Required\",\"status\":401}")
+                            .build();
+                }
+            });
+
+            ProbeResult result = gateway.probe(new ProbeCommand("http", origin + "/devtools", Map.of(), 5000));
+
+            assertThat(result.oauthRequired()).isTrue();
+            assertThat(result.oauth().authorizationEndpoint()).isEqualTo("https://www.facebook.com/v26.0/dialog/oauth");
+            assertThat(result.oauth().scope())
+                    .isEqualTo("developer_tools_mcp_app_read developer_tools_mcp_app_management");
+            assertThat(result.oauth().resourceMetadataUrl()).isEqualTo(metadataUrl);
+            assertThat(result.tools()).isEmpty();
         }
     }
 
@@ -118,5 +175,27 @@ class McpProbeGatewayTest {
                             new ProbeCommand("http", server.url("/mcp").toString(), Map.of(), 5000)))
                     .isInstanceOf(RuntimeException.class);
         }
+    }
+
+    @Test
+    void authorizationServerMetadataUrl_insertsPathAfterWellKnown() {
+        assertThat(McpProbeGateway.authorizationServerMetadataUrl("https://mcp.facebook.com/devtools"))
+                .isEqualTo("https://mcp.facebook.com/.well-known/oauth-authorization-server/devtools");
+        assertThat(McpProbeGateway.authorizationServerMetadataUrl("https://mcp.example.com"))
+                .isEqualTo("https://mcp.example.com/.well-known/oauth-authorization-server");
+    }
+
+    @Test
+    void authParam_parsesBearerResourceMetadata() {
+        String header =
+                "Bearer resource_metadata=\"https://mcp.facebook.com/.well-known/oauth-protected-resource/devtools\", scope=\"developer_tools_mcp_app_read developer_tools_mcp_app_management\"";
+        assertThat(McpProbeGateway.authParam(header, "resource_metadata"))
+                .isEqualTo("https://mcp.facebook.com/.well-known/oauth-protected-resource/devtools");
+        assertThat(McpProbeGateway.authParam(header, "scope"))
+                .isEqualTo("developer_tools_mcp_app_read developer_tools_mcp_app_management");
+    }
+
+    private static String trimSlash(String url) {
+        return url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
     }
 }

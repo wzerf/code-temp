@@ -18,7 +18,9 @@ import com.wshake.service.entity.AgentMcpRelease;
 import com.wshake.service.mcp.McpControlService.CreateMcpCommand;
 import com.wshake.service.port.McpProbePort;
 import com.wshake.service.port.McpProbePort.McpToolEntry;
+import com.wshake.service.port.McpProbePort.OAuthChallenge;
 import com.wshake.service.port.McpProbePort.ProbeCommand;
+import com.wshake.service.port.McpProbePort.ProbeResult;
 import com.wshake.service.repository.AgentMcpDraftRepository;
 import com.wshake.service.repository.AgentMcpReleaseRepository;
 import java.util.List;
@@ -158,7 +160,8 @@ class McpControlServiceTest {
         AgentMcpDraft d = draft(1L, "PENDING_REVIEW", "MARKET", null);
         d.setHeadersJson(""); // 存量脏数据:空串
         when(draftRepo.findById(1L)).thenReturn(d);
-        when(probePort.probe(any(ProbeCommand.class))).thenReturn(List.of(new McpToolEntry("tool_a", "", "", false)));
+        when(probePort.probe(any(ProbeCommand.class)))
+                .thenReturn(ProbeResult.tools(List.of(new McpToolEntry("tool_a", "", "", false))));
         when(releaseRepo.listByNameAllVersions(1L, "MARKET", "github")).thenReturn(List.of());
         doAnswer(inv -> {
                     inv.getArgument(0, AgentMcpRelease.class).setId(51L);
@@ -186,18 +189,38 @@ class McpControlServiceTest {
         AgentMcpDraft d = draft(1L, "DRAFT", "PRIVATE", cipher.encrypt("token-abc"));
         when(draftRepo.findById(1L)).thenReturn(d);
         when(probePort.probe(any(ProbeCommand.class)))
-                .thenReturn(List.of(new McpToolEntry("get_platform_time", "now", "", false)));
+                .thenReturn(ProbeResult.tools(List.of(new McpToolEntry("get_platform_time", "now", "", false))));
 
-        List<McpToolEntry> tools = service.verify(1L);
-        assertThat(tools).hasSize(1);
-        assertThat(tools.get(0).name()).isEqualTo("get_platform_time");
+        var result = service.verify(1L);
+        assertThat(result.success()).isTrue();
+        assertThat(result.tools()).hasSize(1);
+        assertThat(result.tools().get(0).name()).isEqualTo("get_platform_time");
+        assertThat(result.oauthAuthorizationUrl()).isNull();
+    }
+
+    @Test
+    void verify_oauthRequired_returnsAuthorizationUrl() {
+        AgentMcpDraft d = draft(1L, "DRAFT", "PRIVATE", "");
+        when(draftRepo.findById(1L)).thenReturn(d);
+        when(probePort.probe(any(ProbeCommand.class)))
+                .thenReturn(ProbeResult.oauth(new OAuthChallenge(
+                        "https://www.facebook.com/v26.0/dialog/oauth",
+                        "developer_tools_mcp_app_read",
+                        "https://mcp.facebook.com/devtools",
+                        "https://mcp.facebook.com/.well-known/oauth-protected-resource/devtools")));
+
+        var result = service.verify(1L);
+        assertThat(result.success()).isFalse();
+        assertThat(result.message()).contains("OAuth");
+        assertThat(result.oauthAuthorizationUrl()).isEqualTo("https://www.facebook.com/v26.0/dialog/oauth");
+        assertThat(result.tools()).isEmpty();
     }
 
     @Test
     void verify_rejectsEmptyCatalog() {
         AgentMcpDraft d = draft(1L, "DRAFT", "PRIVATE", cipher.encrypt("token"));
         when(draftRepo.findById(1L)).thenReturn(d);
-        when(probePort.probe(any(ProbeCommand.class))).thenReturn(List.of());
+        when(probePort.probe(any(ProbeCommand.class))).thenReturn(ProbeResult.tools(List.of()));
         assertThatThrownBy(() -> service.verify(1L))
                 .isInstanceOf(BizException.class)
                 .hasMessageContaining("工具目录为空");
@@ -207,7 +230,8 @@ class McpControlServiceTest {
     void approve_onlyFromPendingReviewAndInsertsRelease() {
         AgentMcpDraft d = draft(1L, "PENDING_REVIEW", "MARKET", "");
         when(draftRepo.findById(1L)).thenReturn(d);
-        when(probePort.probe(any(ProbeCommand.class))).thenReturn(List.of(new McpToolEntry("tool_a", "", "", false)));
+        when(probePort.probe(any(ProbeCommand.class)))
+                .thenReturn(ProbeResult.tools(List.of(new McpToolEntry("tool_a", "", "", false))));
         when(releaseRepo.listByNameAllVersions(1L, "MARKET", "github")).thenReturn(List.of());
         doAnswer(inv -> {
                     inv.getArgument(0, AgentMcpRelease.class).setId(50L);
@@ -239,6 +263,20 @@ class McpControlServiceTest {
         assertThatThrownBy(() -> service.approve(1L))
                 .isInstanceOf(BizException.class)
                 .hasMessageContaining("握手失败");
+        verify(releaseRepo, never()).insert(any());
+    }
+
+    @Test
+    void approve_oauthRequired_rejectsWithoutInsert() {
+        AgentMcpDraft d = draft(1L, "PENDING_REVIEW", "PRIVATE", "");
+        when(draftRepo.findById(1L)).thenReturn(d);
+        when(probePort.probe(any(ProbeCommand.class)))
+                .thenReturn(ProbeResult.oauth(
+                        new OAuthChallenge("https://www.facebook.com/v26.0/dialog/oauth", "", "", "")));
+        assertThatThrownBy(() -> service.approve(1L))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("OAuth")
+                .hasMessageContaining("https://www.facebook.com/v26.0/dialog/oauth");
         verify(releaseRepo, never()).insert(any());
     }
 }

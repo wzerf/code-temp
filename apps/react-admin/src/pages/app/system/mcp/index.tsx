@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Button, Input, message, Modal, Space, Table, Tabs, Tag, Typography } from 'antd';
+import { Alert, Button, Input, message, Modal, Space, Table, Tabs, Tag, Typography } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { ProTable } from '@ant-design/pro-components';
@@ -98,6 +98,7 @@ const McpPage = () => {
       const res = await verifyMcpDraftApi(id);
       setVerifyResult(res);
       if (res.success) message.success(t('verifySuccess', { count: res.toolCount }));
+      else if (res.oauthAuthorizationUrl) message.warning(t('oauthRequired'));
       else message.error(res.message || t('verifyFailed'));
     } catch (err) {
       setVerifyResult(null);
@@ -346,20 +347,39 @@ const McpPage = () => {
         footer={<Button onClick={() => setVerifyOpen(false)}>{t('confirm')}</Button>}
         width={680}
       >
-        <Typography.Paragraph>
-          {verifyResult ? t('verifySuccess', { count: verifyResult.toolCount }) : '...'}
-        </Typography.Paragraph>
-        <Table
-          rowKey="name"
-          size="small"
-          loading={verifyLoading}
-          dataSource={verifyResult?.tools ?? []}
-          pagination={false}
-          columns={[
-            { title: t('toolName'), dataIndex: 'name' },
-            { title: t('toolDescription'), dataIndex: 'description' },
-          ]}
-        />
+        {verifyResult?.oauthAuthorizationUrl ? (
+          <>
+            <Alert type="warning" showIcon message={t('oauthRequired')} description={t('oauthHint')} />
+            <Typography.Paragraph copyable style={{ marginTop: 12 }}>{verifyResult.oauthAuthorizationUrl}</Typography.Paragraph>
+            <Typography.Paragraph>
+              <Typography.Link href={verifyResult.oauthAuthorizationUrl} target="_blank" rel="noreferrer">
+                {t('oauthOpen')}
+              </Typography.Link>
+            </Typography.Paragraph>
+            {verifyResult.oauthScope ? (
+              <Typography.Text type="secondary">
+                {t('oauthScope')}：{verifyResult.oauthScope}
+              </Typography.Text>
+            ) : null}
+          </>
+        ) : (
+          <>
+            <Typography.Paragraph>
+              {verifyResult ? t('verifySuccess', { count: verifyResult.toolCount }) : '...'}
+            </Typography.Paragraph>
+            <Table
+              rowKey="name"
+              size="small"
+              loading={verifyLoading}
+              dataSource={verifyResult?.tools ?? []}
+              pagination={false}
+              columns={[
+                { title: t('toolName'), dataIndex: 'name' },
+                { title: t('toolDescription'), dataIndex: 'description' },
+              ]}
+            />
+          </>
+        )}
       </Modal>
       <Modal
         title={t('reject')}

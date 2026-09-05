@@ -1,8 +1,8 @@
 import { Sender } from '@ant-design/x';
-import { Space } from 'antd';
 import { useTranslation } from 'react-i18next';
 import ModelPicker from './ModelPicker';
 import { useState } from 'react';
+import './ChatSender.css';
 
 interface Props {
   sessionId: number | null;
@@ -13,9 +13,11 @@ interface Props {
   onSend: (content: string) => void;
   onCancel: () => void;
   disabled?: boolean;
+  /** 有消息时贴底；空态居中时不加底栏 padding */
+  docked?: boolean;
 }
 
-/** ChatSender：输入区（Sender + loading 取消） + 模型选择 */
+/** ChatSender：圆角输入条，底栏仅模型名下拉 + 发送/取消 */
 export default function ChatSender({
   sessionId,
   requesting,
@@ -25,12 +27,13 @@ export default function ChatSender({
   onSend,
   onCancel,
   disabled,
+  docked = true,
 }: Props) {
   const { t } = useTranslation('agent-conversation');
   const [value, setValue] = useState('');
 
   return (
-    <div style={{ padding: '12px 24px 16px' }}>
+    <div className={docked ? 'agent-chat-sender agent-chat-sender-docked' : 'agent-chat-sender'}>
       <Sender
         value={value}
         onChange={(v) => setValue(v)}
@@ -42,8 +45,10 @@ export default function ChatSender({
         loading={requesting}
         disabled={disabled || !sessionId}
         placeholder={t('senderPlaceholder')}
-        header={
-          <Space size={8} wrap>
+        autoSize={{ minRows: 1, maxRows: 8 }}
+        suffix={false}
+        footer={(oriNode) => (
+          <div className="agent-chat-sender-footer">
             <ModelPicker
               sessionId={sessionId}
               value={modelValue}
@@ -51,8 +56,9 @@ export default function ChatSender({
               disabled={disabled}
               loading={modelLoading}
             />
-          </Space>
-        }
+            {oriNode}
+          </div>
+        )}
       />
     </div>
   );

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Bubble, Prompts, Welcome } from '@ant-design/x';
+import { Bubble } from '@ant-design/x';
 import type { MessageInfo } from '@ant-design/x-sdk/es/x-chat';
 import { MdPreview } from 'md-editor-rt';
 import 'md-editor-rt/lib/style.css';
@@ -17,7 +17,6 @@ interface Props {
   empty: boolean;
   /** 正在请求（Sender loading / HITL 等待共用） */
   requesting: boolean;
-  onSendPrompt: (text: string) => void;
   onRetry?: (info: MessageInfo<AgentChatMessage>) => void;
   onResume: (resume: {
     interruptId: string;
@@ -81,16 +80,11 @@ function AssistantBubbleContent({ content, requesting }: { content: AssistantCon
   );
 }
 
-const WELCOME_PROMPTS = [
-  { key: 'greet', label: '你好，介绍一下你自己' },
-  { key: 'help', label: '你能帮我做什么？' },
-];
-
 /**
- * ChatList：消息列表 + 空态。
+ * ChatList：消息列表。
  * assistant 渲染 Markdown（MdPreview 自带 XSS 过滤）；流式时 Bubble loading/typing。
  */
-export default function ChatList({ messages, empty, requesting, onSendPrompt, onResume }: Props) {
+export default function ChatList({ messages, empty, requesting, onResume }: Props) {
   const { t } = useTranslation('agent-conversation');
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -137,8 +131,6 @@ export default function ChatList({ messages, empty, requesting, onSendPrompt, on
     [messages, onResume],
   );
 
-  const showWelcome = empty && !requesting && messages.length === 0;
-
   const roleConfig = {
     user: {
       placement: 'end',
@@ -158,46 +150,42 @@ export default function ChatList({ messages, empty, requesting, onSendPrompt, on
       style={{
         flex: 1,
         overflowY: 'auto',
-        padding: '16px 24px',
+        padding: '16px 24px 8px',
         display: 'flex',
         flexDirection: 'column',
         gap: 12,
       }}
     >
-      {showWelcome ? (
-        <div style={{ margin: 'auto', textAlign: 'center' }}>
-          <Welcome
-            variant="borderless"
-            icon={<RobotOutlined />}
-            title={t('welcomeTitle')}
-            description={t('welcomeDesc')}
-          />
-          <Prompts
-            title={t('promptsTitle')}
-            items={WELCOME_PROMPTS.map((p) => ({ ...p, label: t(`prompts.${p.key}`) }))}
-            onItemClick={(info) => onSendPrompt(String(info.data.label))}
-            wrap
-            style={{ justifyContent: 'center' }}
-          />
-        </div>
-      ) : messages.length === 0 ? (
+      {messages.length === 0 || empty ? (
         <Empty style={{ margin: 'auto' }} description={t('emptySession')} />
       ) : (
         <>
-          <Bubble.List
-            items={items as never}
-            role={roleConfig as never}
-            autoScroll
-            style={{ flex: 1, minHeight: 0 }}
-          />
-          {requesting && (
-            <Space style={{ alignSelf: 'flex-start', paddingInline: 12 }}>
-              <Spin size="small" />
-              <Text type="secondary" style={{ fontSize: 12 }}>
-                {t('agentThinking')}
-              </Text>
-            </Space>
-          )}
+          <div
+            style={{
+              flex: 1,
+              minHeight: 0,
+              width: '100%',
+              maxWidth: 720,
+              marginInline: 'auto',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            <Bubble.List
+              items={items as never}
+              role={roleConfig as never}
+              autoScroll
+              style={{ flex: 1, minHeight: 0 }}
+            />
+            {requesting && (
+              <Space style={{ alignSelf: 'flex-start', paddingInline: 12 }}>
+                <Spin size="small" />
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  {t('agentThinking')}
+                </Text>
+              </Space>
+            )}
+          </div>
         </>
       )}
     </div>

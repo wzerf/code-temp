@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Button, Empty, Space, Typography, message } from 'antd';
-import { ReloadOutlined } from '@ant-design/icons';
+import { Empty, Spin, Typography, message } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { bindSessionModelApi, getSessionModelBindingApi, unbindSessionModelApi } from '@/api/rest/agent';
 import ContentContainer from '@/layouts/components/PageContainer/ContentContainer';
@@ -9,13 +8,14 @@ import ChatSender from './components/ChatSender';
 import ChatSide from './components/ChatSide';
 import ChatList from './components/ChatList';
 import { useAgentConversation } from './useAgentConversation';
+import './components/ChatSender.css';
 
 /**
  * Agent 对话页（运行面）：独立式布局。
  *
- * 顶部：AgentPicker（跨 Agent）+ ModelPicker（会话内选模型，header 内）
+ * 顶部：AgentPicker（跨 Agent）
  * 左侧：会话栏（新建/切换/删除）
- * 右侧：ChatList（Bubble 流式消息）+ Sender（发送/取消）
+ * 右侧：空会话居中标题+输入条；有消息后列表 + 底栏输入
  * HITL：RUN_FINISHED.outcome.interrupts → 审批条 → resume 续接
  */
 export default function AgentConversationPage() {
@@ -34,6 +34,7 @@ export default function AgentConversationPage() {
     removeConversation,
     selectConversation,
     messages,
+    historyReady,
     sendMessage,
     resumeRun,
     cancel,
@@ -132,6 +133,22 @@ export default function AgentConversationPage() {
     return null;
   }, [activeAgent, activeSession]);
 
+  const showEmptyComposer =
+    !emptyState && historyReady && messages.length === 0 && !isRequesting;
+
+  const sender = (
+    <ChatSender
+      sessionId={sessionId}
+      requesting={isRequesting}
+      modelValue={modelReleaseId}
+      modelLoading={modelLoading}
+      onModelChange={handleChangeModel}
+      onSend={sendMessage}
+      onCancel={cancel}
+      docked={!showEmptyComposer}
+    />
+  );
+
   return (
     <ContentContainer
       heightMode="fixed"
@@ -149,19 +166,12 @@ export default function AgentConversationPage() {
           flexWrap: 'wrap',
         }}
       >
-        <Space size={8}>
-          <AgentPicker
-            agents={agents}
-            loading={agentsLoading}
-            value={activeAgent}
-            onChange={(a) => void setActiveAgent(a)}
-          />
-          {activeAgent && (
-            <Button icon={<ReloadOutlined />} size="small" onClick={() => void conv.loadAgents()}>
-              {t('refresh')}
-            </Button>
-          )}
-        </Space>
+        <AgentPicker
+          agents={agents}
+          loading={agentsLoading}
+          value={activeAgent}
+          onChange={(a) => void setActiveAgent(a)}
+        />
         <div style={{ flex: 1 }} />
         {activeAgent && (
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
@@ -191,7 +201,10 @@ export default function AgentConversationPage() {
           />
         </aside>
 
-        <main style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        <main
+          className="agent-chat-pane"
+          style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}
+        >
           {emptyState ? (
             <div style={{ margin: 'auto', textAlign: 'center' }}>
               <Empty
@@ -199,30 +212,27 @@ export default function AgentConversationPage() {
                   emptyState === 'noAgent' ? t('noAgent') : t('selectOrNewSession')
                 }
               />
-              {emptyState === 'noAgent' && (
-                <Button type="primary" onClick={() => void conv.loadAgents()}>
-                  {t('refresh')}
-                </Button>
-              )}
+            </div>
+          ) : showEmptyComposer ? (
+            <div className="agent-chat-empty">
+              <h1 className="agent-chat-empty-title">{t('emptyHeadline')}</h1>
+              {sender}
             </div>
           ) : (
             <>
-              <ChatList
-                messages={messages}
-                empty={messages.length === 0}
-                requesting={isRequesting}
-                onSendPrompt={sendMessage}
-                onResume={handleResume}
-              />
-              <ChatSender
-                sessionId={sessionId}
-                requesting={isRequesting}
-                modelValue={modelReleaseId}
-                modelLoading={modelLoading}
-                onModelChange={handleChangeModel}
-                onSend={sendMessage}
-                onCancel={cancel}
-              />
+              {!historyReady ? (
+                <div className="agent-chat-history-loading">
+                  <Spin />
+                </div>
+              ) : (
+                <ChatList
+                  messages={messages}
+                  empty={messages.length === 0}
+                  requesting={isRequesting}
+                  onResume={handleResume}
+                />
+              )}
+              {historyReady ? sender : null}
             </>
           )}
         </main>

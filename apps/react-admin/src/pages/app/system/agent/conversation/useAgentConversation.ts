@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useXChat } from '@ant-design/x-sdk';
 import type { DefaultMessageInfo } from '@ant-design/x-sdk/es/x-chat';
 
@@ -51,6 +51,12 @@ export function useAgentConversation() {
   const [activeSession, setActiveSessionState] = useState<AgentSession | null>(null);
   // 每会话「历史已初始化」标记：避免从空 store 切回时重复拉历史
   const historyLoadedRef = useRef<Set<number>>(new Set());
+  const [historyLoadedIds, setHistoryLoadedIds] = useState<number[]>([]);
+
+  const markHistoryLoaded = useCallback((sid: number) => {
+    historyLoadedRef.current.add(sid);
+    setHistoryLoadedIds((prev) => (prev.includes(sid) ? prev : [...prev, sid]));
+  }, []);
 
   // ---------- Agent / 会话数据 ----------
 
@@ -77,6 +83,7 @@ export function useAgentConversation() {
 
   // ---------- useXChat ----------
   const sessionId = activeSession?.id;
+  const historyReady = sessionId === undefined || historyLoadedIds.includes(sessionId);
   // provider 绑定当前会话；无会话时不发消息
   const provider = useMemo(() => {
     if (sessionId === undefined) return undefined;
@@ -90,7 +97,10 @@ export function useAgentConversation() {
       const sid = key ? Number(key) : sessionId;
       if (sid === undefined || Number.isNaN(sid)) return [];
       const loaded = historyLoadedRef.current.has(sid);
-      if (loaded) return [];
+      if (loaded) {
+        markHistoryLoaded(sid);
+        return [];
+      }
       historyLoadedRef.current.add(sid);
       try {
         const rawList = await listAgentSessionEventsApi(sid);
@@ -106,9 +116,11 @@ export function useAgentConversation() {
         return msgs;
       } catch {
         return [];
+      } finally {
+        markHistoryLoaded(sid);
       }
     },
-    [sessionId],
+    [sessionId, markHistoryLoaded],
   );
 
   const requestPlaceholder = useCallback((params: Partial<AguiRunRequestBody>) => {
@@ -206,9 +218,10 @@ export function useAgentConversation() {
       minute: '2-digit',
     })}`;
     const session = await createAgentSessionApi(activeAgent.id, { remark: label });
+    markHistoryLoaded(session.id);
     setConversations((prev) => [session, ...prev]);
     return session;
-  }, [activeAgent]);
+  }, [activeAgent, markHistoryLoaded]);
 
   const removeConversation = useCallback(
     async (sessionIdToDelete: number) => {
@@ -218,6 +231,7 @@ export function useAgentConversation() {
       await deleteAgentSessionApi(sessionIdToDelete);
       setConversations((prev) => prev.filter((s) => s.id !== sessionIdToDelete));
       historyLoadedRef.current.delete(sessionIdToDelete);
+      setHistoryLoadedIds((prev) => prev.filter((id) => id !== sessionIdToDelete));
       setActiveSessionState((cur) => (cur?.id === sessionIdToDelete ? null : cur));
     },
     [activeSession?.id, stopCurrentStream],
@@ -251,6 +265,7 @@ export function useAgentConversation() {
 
   const resetMessages = useCallback(() => {
     historyLoadedRef.current.clear();
+    setHistoryLoadedIds([]);
     setMessages([]);
   }, [setMessages]);
 
@@ -270,6 +285,7 @@ export function useAgentConversation() {
     selectConversation,
     // 消息
     messages,
+    historyReady,
     parsedMessages,
     sendMessage,
     resumeRun,

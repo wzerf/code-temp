@@ -1196,34 +1196,6 @@ export interface AgentSession {
   updatedBy: number;
 }
 
-export interface SessionSkillBinding {
-  id: number;
-  sessionId: number;
-  skillReleaseId: number;
-  skillName: string;
-  contentHash: string;
-}
-
-export interface BindSessionSkillRequest {
-  skillReleaseId: number;
-  skillName: string;
-  contentHash?: string;
-}
-
-export interface SessionMcpBinding {
-  id: number;
-  sessionId: number;
-  mcpReleaseId: number;
-  mcpName: string;
-  hasSecret: boolean;
-}
-
-export interface BindSessionMcpRequest {
-  mcpReleaseId: number;
-  mcpName: string;
-  plainSecret?: string;
-}
-
 // ============================================================
 // Agent 平台 — Skill（agent_skill_draft / agent_skill_release）
 // ============================================================

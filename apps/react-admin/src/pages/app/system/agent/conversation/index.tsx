@@ -8,7 +8,6 @@ import AgentPicker from './components/AgentPicker';
 import ChatSender from './components/ChatSender';
 import ChatSide from './components/ChatSide';
 import ChatList from './components/ChatList';
-import SessionBindingPanel from './components/SessionBindingPanel';
 import { useAgentConversation } from './useAgentConversation';
 
 /**
@@ -18,7 +17,6 @@ import { useAgentConversation } from './useAgentConversation';
  * 左侧：会话栏（新建/切换/删除）
  * 右侧：ChatList（Bubble 流式消息）+ Sender（发送/取消）
  * HITL：RUN_FINISHED.outcome.interrupts → 审批条 → resume 续接
- * 装配：SessionBindingPanel Drawer（Skill/MCP 会话绑定）
  */
 export default function AgentConversationPage() {
   const { t } = useTranslation('agent-conversation');
@@ -43,7 +41,6 @@ export default function AgentConversationPage() {
     resetMessages,
   } = conv;
 
-  const [bindingOpen, setBindingOpen] = useState(false);
   const [modelReleaseId, setModelReleaseId] = useState<number | null>(null);
   const [modelLoading, setModelLoading] = useState(false);
 
@@ -225,19 +222,11 @@ export default function AgentConversationPage() {
                 onModelChange={handleChangeModel}
                 onSend={sendMessage}
                 onCancel={cancel}
-                onOpenBinding={() => setBindingOpen(true)}
               />
             </>
           )}
         </main>
       </div>
-
-      <SessionBindingPanel
-        sessionId={sessionId}
-        open={bindingOpen}
-        onClose={() => setBindingOpen(false)}
-        onChanged={() => undefined}
-      />
     </ContentContainer>
   );
 }

@@ -5,18 +5,14 @@ import type {
   AgentRevision,
   AgentSession,
   BindMcpRequest,
-  BindSessionMcpRequest,
   BindSessionModelRequest,
-  BindSessionSkillRequest,
   BindSkillRequest,
   CreateAgentRequest,
   PageResult,
   RevisionMcpBinding,
   RevisionSkillBinding,
   SaveAgentRevisionRequest,
-  SessionMcpBinding,
   SessionModelBinding,
-  SessionSkillBinding,
   UpdateAgentRequest,
 } from './types';
 
@@ -161,30 +157,6 @@ export function deleteAgentSessionApi(sessionId: number) {
 
 export function bindRevisionToSessionApi(sessionId: number) {
   return post<AgentSession>(`/system/agent/sessions/${sessionId}/bind-revision`);
-}
-
-export function listSessionSkillBindingsApi(sessionId: number) {
-  return get<SessionSkillBinding[]>(`/system/agent/sessions/${sessionId}/skill-bindings`);
-}
-
-export function bindSkillToSessionApi(sessionId: number, body: BindSessionSkillRequest) {
-  return post<SessionSkillBinding>(`/system/agent/sessions/${sessionId}/skill-bindings`, body);
-}
-
-export function unbindSkillFromSessionApi(sessionId: number, bindingId: number) {
-  return del<never>(`/system/agent/sessions/${sessionId}/skill-bindings/${bindingId}`);
-}
-
-export function listSessionMcpBindingsApi(sessionId: number) {
-  return get<SessionMcpBinding[]>(`/system/agent/sessions/${sessionId}/mcp-bindings`);
-}
-
-export function bindMcpToSessionApi(sessionId: number, body: BindSessionMcpRequest) {
-  return post<SessionMcpBinding>(`/system/agent/sessions/${sessionId}/mcp-bindings`, body);
-}
-
-export function unbindMcpFromSessionApi(sessionId: number, bindingId: number) {
-  return del<never>(`/system/agent/sessions/${sessionId}/mcp-bindings/${bindingId}`);
 }
 
 /** 会话 AG-UI 事件历史回放（按序返回持久化事件 JSON 字符串列表） */

@@ -2,10 +2,8 @@ import { useMutation, type UseMutationOptions, useQuery, type UseQueryOptions } 
 import { queryClient } from '@/core';
 import {
   bindMcpToRevisionApi,
-  bindMcpToSessionApi,
   bindRevisionToSessionApi,
   bindSkillToRevisionApi,
-  bindSkillToSessionApi,
   createAgentApi,
   createAgentRevisionApi,
   createAgentSessionApi,
@@ -21,14 +19,10 @@ import {
   listAgentSessionsApi,
   listRevisionMcpBindingsApi,
   listRevisionSkillBindingsApi,
-  listSessionMcpBindingsApi,
-  listSessionSkillBindingsApi,
   publishAgentRevisionApi,
   rollbackAgentApi,
   unbindMcpFromRevisionApi,
-  unbindMcpFromSessionApi,
   unbindSkillFromRevisionApi,
-  unbindSkillFromSessionApi,
   updateAgentApi,
   updateAgentRevisionApi,
 } from '@/api/rest/agent';
@@ -38,16 +32,12 @@ import type {
   AgentRevision,
   AgentSession,
   BindMcpRequest,
-  BindSessionMcpRequest,
-  BindSessionSkillRequest,
   BindSkillRequest,
   CreateAgentRequest,
   PageResult,
   RevisionMcpBinding,
   RevisionSkillBinding,
   SaveAgentRevisionRequest,
-  SessionMcpBinding,
-  SessionSkillBinding,
   UpdateAgentRequest,
 } from '@/api/rest/types';
 
@@ -218,58 +208,6 @@ export function useDeleteAgentSession(options?: UseMutationOptions<unknown, Erro
 
 export function useBindRevisionToSession(options?: UseMutationOptions<AgentSession, Error, number>) {
   return useMutation({ mutationFn: (sessionId) => bindRevisionToSessionApi(sessionId), ...options });
-}
-
-export function useListSessionSkillBindings(sessionId: number | null | undefined) {
-  return useQuery({
-    queryKey: ['listSessionSkillBindings', sessionId],
-    queryFn: () => listSessionSkillBindingsApi(sessionId as number),
-    enabled: typeof sessionId === 'number',
-  });
-}
-
-export function useBindSkillToSession(
-  options?: UseMutationOptions<SessionSkillBinding, Error, { sessionId: number; body: BindSessionSkillRequest }>,
-) {
-  return useMutation({
-    mutationFn: ({ sessionId, body }) => bindSkillToSessionApi(sessionId, body),
-    ...options,
-  });
-}
-
-export function useUnbindSkillFromSession(
-  options?: UseMutationOptions<unknown, Error, { sessionId: number; bindingId: number }>,
-) {
-  return useMutation({
-    mutationFn: ({ sessionId, bindingId }) => unbindSkillFromSessionApi(sessionId, bindingId),
-    ...options,
-  });
-}
-
-export function useListSessionMcpBindings(sessionId: number | null | undefined) {
-  return useQuery({
-    queryKey: ['listSessionMcpBindings', sessionId],
-    queryFn: () => listSessionMcpBindingsApi(sessionId as number),
-    enabled: typeof sessionId === 'number',
-  });
-}
-
-export function useBindMcpToSession(
-  options?: UseMutationOptions<SessionMcpBinding, Error, { sessionId: number; body: BindSessionMcpRequest }>,
-) {
-  return useMutation({
-    mutationFn: ({ sessionId, body }) => bindMcpToSessionApi(sessionId, body),
-    ...options,
-  });
-}
-
-export function useUnbindMcpFromSession(
-  options?: UseMutationOptions<unknown, Error, { sessionId: number; bindingId: number }>,
-) {
-  return useMutation({
-    mutationFn: ({ sessionId, bindingId }) => unbindMcpFromSessionApi(sessionId, bindingId),
-    ...options,
-  });
 }
 
 export async function fetchListAgent(query: AgentQuery = {}) {

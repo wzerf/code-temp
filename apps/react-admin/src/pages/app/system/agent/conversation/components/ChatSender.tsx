@@ -42,7 +42,7 @@ export default function ChatSender({
         }}
         onCancel={onCancel}
         loading={requesting}
-        disabled={disabled || !sessionId}
+        disabled={disabled}
         placeholder={t('senderPlaceholder')}
         autoSize={{ minRows: 1, maxRows: 8 }}
         suffix={false}

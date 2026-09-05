@@ -1,0 +1,48 @@
+import type { AgentSession } from '@/api/rest/types';
+import type { DraftConversation } from './types';
+
+export type ConversationSelection = AgentSession | DraftConversation | null;
+
+/** 无会话时的占位 key；显式草稿使用 createDraft() 生成的唯一 draftKey */
+export const FALLBACK_CONVERSATION_KEY = 'draft';
+
+let draftSeq = 0;
+
+/** 构造草稿会话：每次新建使用唯一 conversationKey，避免复用旧草稿 store，也不误清真实会话消息 */
+export function createDraft(agentDefinitionId: number): DraftConversation {
+  draftSeq += 1;
+  return {
+    id: null,
+    draft: true,
+    agentDefinitionId,
+    draftKey: `draft-${draftSeq}`,
+  };
+}
+
+export function isDraftConversation(
+  session: ConversationSelection,
+): session is DraftConversation {
+  return session != null && 'draft' in session && session.draft === true;
+}
+
+/**
+ * useXChat 的 conversationKey 必须始终是 truthy 字符串。
+ * 传入 undefined 时 SDK 会生成 Symbol，且切回草稿时不会覆盖内部 key，
+ * 导致后续历史会话无法重新触发 defaultMessages、页面一直转圈。
+ */
+export function resolveChatConversationKey(session: ConversationSelection): string {
+  if (isDraftConversation(session)) return session.draftKey;
+  if (session?.id != null) return String(session.id);
+  return FALLBACK_CONVERSATION_KEY;
+}
+
+/**
+ * 真实会话：等 useXChat 拉完 defaultMessages。
+ * 草稿/无会话：没有后端历史，视为已就绪（展示空态输入框）。
+ */
+export function isConversationHistoryReady(
+  sessionId: number | null | undefined,
+  isDefaultMessagesRequesting: boolean,
+): boolean {
+  return sessionId == null || !isDefaultMessagesRequesting;
+}

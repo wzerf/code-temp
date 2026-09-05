@@ -32,7 +32,6 @@
   "unpublished": "未发布",
   "disabled": "已禁用",
   "modelPlaceholder": "默认模型",
-  "modelBound": "模型选择已保存，下次运行自动复用",
   "modelBindFailed": "保存模型选择失败",
   "modelLoadFailed": "加载可用模型失败",
   "hitl": {

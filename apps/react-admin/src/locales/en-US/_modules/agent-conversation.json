@@ -32,7 +32,6 @@
   "unpublished": "Unpublished",
   "disabled": "Disabled",
   "modelPlaceholder": "Default model",
-  "modelBound": "Model saved for this session, reused on next run",
   "modelBindFailed": "Failed to save model selection",
   "modelLoadFailed": "Failed to load available models",
   "hitl": {

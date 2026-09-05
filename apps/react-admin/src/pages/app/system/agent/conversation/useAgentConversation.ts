@@ -3,6 +3,7 @@ import { useXChat } from '@ant-design/x-sdk';
 import type { DefaultMessageInfo } from '@ant-design/x-sdk/es/x-chat';
 
 import {
+  bindSessionModelApi,
   createAgentSessionApi,
   deleteAgentSessionApi,
   listAgentSessionEventsApi,
@@ -12,7 +13,14 @@ import {
 import type { Agent, AgentSession } from '@/api/rest/types';
 import { createAguiProvider } from './AguiChatProvider';
 import { emptyAssistant, replayEvents } from './AguiEventMapper';
-import type { AgentChatMessage, AguiEvent, AguiRunRequestBody } from './types';
+import { listModelAvailableApi } from '@/api/rest/model';
+import type { AgentChatMessage, AguiEvent, AguiRunRequestBody, DraftConversation } from './types';
+import {
+  createDraft,
+  isConversationHistoryReady,
+  isDraftConversation,
+  resolveChatConversationKey,
+} from './conversationSession';
 
 /**
  * Agent 对话状态装配：
@@ -48,45 +56,56 @@ export function useAgentConversation() {
   const [activeAgent, setActiveAgentState] = useState<Agent | null>(null);
   const [conversations, setConversations] = useState<AgentSession[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
-  const [activeSession, setActiveSessionState] = useState<AgentSession | null>(null);
-  // 每会话「历史已初始化」标记：避免从空 store 切回时重复拉历史
+  const [activeSession, setActiveSessionState] = useState<AgentSession | DraftConversation | null>(null);
+  // 每会话「历史已初始化」标记：避免 store 重建时重复拉历史
   const historyLoadedRef = useRef<Set<number>>(new Set());
-  const [historyLoadedIds, setHistoryLoadedIds] = useState<number[]>([]);
 
   const markHistoryLoaded = useCallback((sid: number) => {
     historyLoadedRef.current.add(sid);
-    setHistoryLoadedIds((prev) => (prev.includes(sid) ? prev : [...prev, sid]));
   }, []);
 
   // ---------- Agent / 会话数据 ----------
 
-  const loadAgents = useCallback(async () => {
-    setAgentsLoading(true);
-    try {
-      const rows = await listAllAgentApi({ isEnabled: 1 });
-      setAgents(Array.isArray(rows) ? rows : []);
-    } finally {
-      setAgentsLoading(false);
-    }
-  }, []);
-
-  const loadSessions = useCallback(async (definitionId: number) => {
+  const loadSessions = useCallback(async (definitionId: number): Promise<AgentSession[]> => {
     setSessionsLoading(true);
     try {
       const res = await listAgentSessionsApi(definitionId, { page: 1, pageSize: 100 });
       const items = res && Array.isArray(res.items) ? res.items : [];
       setConversations(items);
+      return items;
     } finally {
       setSessionsLoading(false);
     }
   }, []);
 
+  const loadAgents = useCallback(async () => {
+    setAgentsLoading(true);
+    let first: Agent | undefined;
+    try {
+      const rows = await listAllAgentApi({ isEnabled: 1 });
+      const list = Array.isArray(rows) ? rows : [];
+      setAgents(list);
+      first = list[0];
+      if (first) {
+        setActiveAgentState(first);
+      }
+    } finally {
+      setAgentsLoading(false);
+    }
+    if (first) {
+      const items = await loadSessions(first.id);
+      // 有存量会话则选中最新一个，否则进入草稿会话（可直接开聊）
+      setActiveSessionState(items[0] ?? createDraft(first.id));
+    }
+  }, [loadSessions]);
+
   // ---------- useXChat ----------
-  const sessionId = activeSession?.id;
-  const historyReady = sessionId === undefined || historyLoadedIds.includes(sessionId);
-  // provider 绑定当前会话；无会话时不发消息
+  // 草稿会话（id=null）或无会话时都没有可用的 provider/后端会话
+  const sessionId = activeSession?.id ?? null;
+  const conversationKey = resolveChatConversationKey(activeSession);
+  // provider 绑定当前会话；无会话/草稿态不发消息
   const provider = useMemo(() => {
-    if (sessionId === undefined) return undefined;
+    if (sessionId === null || sessionId === undefined) return undefined;
     return createAguiProvider(sessionId);
   }, [sessionId]);
 
@@ -95,10 +114,10 @@ export function useAgentConversation() {
     async (info: { conversationKey?: string }): Promise<DefaultMessageInfo<AgentChatMessage>[]> => {
       const key = info.conversationKey;
       const sid = key ? Number(key) : sessionId;
-      if (sid === undefined || Number.isNaN(sid)) return [];
+      // 草稿态（sid 为 null/0/NaN）没有后端会话，不应拉取历史
+      if (!sid || Number.isNaN(sid) || sid <= 0) return [];
       const loaded = historyLoadedRef.current.has(sid);
       if (loaded) {
-        markHistoryLoaded(sid);
         return [];
       }
       historyLoadedRef.current.add(sid);
@@ -159,18 +178,24 @@ export function useAgentConversation() {
     [],
   );
 
-  const { onRequest, messages, isRequesting, abort, setMessages, parsedMessages } = useXChat<
-    AgentChatMessage,
-    AgentChatMessage,
-    AguiRunRequestBody,
-    AguiEvent
-  >({
+  const {
+    onRequest,
+    queueRequest,
+    messages,
+    isRequesting,
+    abort,
+    setMessages,
+    parsedMessages,
+    isDefaultMessagesRequesting,
+  } = useXChat<AgentChatMessage, AgentChatMessage, AguiRunRequestBody, AguiEvent>({
     provider,
-    conversationKey: sessionId !== undefined ? String(sessionId) : undefined,
+    conversationKey,
     defaultMessages,
     requestPlaceholder,
     requestFallback,
   });
+
+  const historyReady = isConversationHistoryReady(sessionId, isDefaultMessagesRequesting);
 
   // 始终拿到「当前 provider」的中止函数（切换会话前先中止旧流）；
   // ref 写入放在 effect 里（事件处理器触发时 effect 已运行，读到的即最新）
@@ -186,6 +211,69 @@ export function useAgentConversation() {
     }
   }, []);
 
+  // 发送同样要拿到最新的 onRequest（草稿懒建会话后 provider 变化，
+  // 闭包里的旧 onRequest 仍绑定旧 provider，必须走 ref 读取最新值）
+  const onRequestRef = useRef(onRequest);
+  useEffect(() => {
+    onRequestRef.current = onRequest;
+  }, [onRequest]);
+
+  // 草稿态标识：进入页面或点「新建会话」时处于草稿（无后端会话）
+  const isDraft = isDraftConversation(activeSession);
+  // 草稿→真实会话 的落点引用：防重复创建
+  const draftSessionRef = useRef<AgentSession | null>(null);
+  const creatingSessionRef = useRef(false);
+
+  /** 确保存在真实后端会话：处于草稿态时懒创建（含模型绑定），并发调用防重入 */
+  const ensureSession = useCallback(
+    async (preferredModelReleaseId?: number | null): Promise<AgentSession | null> => {
+      if (activeSession && !activeSession.draft) return activeSession;
+      if (!activeAgent) return null;
+      if (creatingSessionRef.current) return draftSessionRef.current;
+      creatingSessionRef.current = true;
+      try {
+        const now = new Date();
+        const label = `新对话 ${now.toLocaleDateString()} ${now.toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+        })}`;
+        const session = await createAgentSessionApi(activeAgent.id, { remark: label });
+        draftSessionRef.current = session;
+        markHistoryLoaded(session.id);
+        setConversations((prev) => [session, ...prev]);
+        // 优先绑定草稿预选模型；未选则回落可用列表第一项
+        try {
+          let releaseId = preferredModelReleaseId ?? null;
+          if (releaseId === null) {
+            const rows = await listModelAvailableApi();
+            releaseId = rows?.[0]?.id ?? null;
+          }
+          if (releaseId !== null) {
+            await bindSessionModelApi(session.id, { modelReleaseId: releaseId });
+          }
+        } catch {
+          // 默认模型绑定失败不阻断发送；仍可手动选择
+        }
+        // 创建成功后把草稿替换为真实会话，触发 provider 重建
+        setActiveSessionState(session);
+        return session;
+      } finally {
+        creatingSessionRef.current = false;
+      }
+    },
+    [activeAgent, activeSession, markHistoryLoaded],
+  );
+
+  /** 新建草稿会话：仅进入空白草稿态（不创建后端会话），供「新建会话」按钮使用 */
+  const createDraftConversation = useCallback(() => {
+    if (!activeAgent) return null;
+    stopCurrentStream();
+    draftSessionRef.current = null;
+    const draft = createDraft(activeAgent.id);
+    setActiveSessionState(draft);
+    return draft;
+  }, [activeAgent, stopCurrentStream]);
+
   // ---------- 会话操作（切换前中止旧会话的流） ----------
 
   const switchAgent = useCallback(
@@ -193,9 +281,14 @@ export function useAgentConversation() {
       stopCurrentStream();
       setActiveAgentState(agent);
       setActiveSessionState(null);
+      draftSessionRef.current = null;
       setConversations([]);
       if (agent) {
-        await loadSessions(agent.id);
+        const items = await loadSessions(agent.id);
+        // 有存量会话则选中最新一个，否则进入草稿会话（可直接开聊）
+        setActiveSessionState(items[0] ?? createDraft(agent.id));
+      } else {
+        setActiveSessionState(null);
       }
     },
     [loadSessions, stopCurrentStream],
@@ -205,23 +298,11 @@ export function useAgentConversation() {
     (session: AgentSession | null) => {
       if (session && activeSession && session.id === activeSession.id) return;
       stopCurrentStream();
+      draftSessionRef.current = session;
       setActiveSessionState(session);
     },
     [activeSession, stopCurrentStream],
   );
-
-  const createConversation = useCallback(async (): Promise<AgentSession | null> => {
-    if (!activeAgent) return null;
-    const now = new Date();
-    const label = `新对话 ${now.toLocaleDateString()} ${now.toLocaleTimeString([], {
-      hour: '2-digit',
-      minute: '2-digit',
-    })}`;
-    const session = await createAgentSessionApi(activeAgent.id, { remark: label });
-    markHistoryLoaded(session.id);
-    setConversations((prev) => [session, ...prev]);
-    return session;
-  }, [activeAgent, markHistoryLoaded]);
 
   const removeConversation = useCallback(
     async (sessionIdToDelete: number) => {
@@ -229,22 +310,39 @@ export function useAgentConversation() {
         stopCurrentStream();
       }
       await deleteAgentSessionApi(sessionIdToDelete);
-      setConversations((prev) => prev.filter((s) => s.id !== sessionIdToDelete));
+      setConversations((prev) => {
+        const next = prev.filter((s) => s.id !== sessionIdToDelete);
+        // 删除的是当前会话：若该 Agent 还有其它会话则选中第一个，否则进入草稿
+        setActiveSessionState((cur) => {
+          if (cur?.id !== sessionIdToDelete) return cur;
+          draftSessionRef.current = null;
+          return next[0] ?? createDraft(activeAgent?.id ?? cur.agentDefinitionId);
+        });
+        return next;
+      });
       historyLoadedRef.current.delete(sessionIdToDelete);
-      setHistoryLoadedIds((prev) => prev.filter((id) => id !== sessionIdToDelete));
-      setActiveSessionState((cur) => (cur?.id === sessionIdToDelete ? null : cur));
     },
-    [activeSession?.id, stopCurrentStream],
+    [activeAgent?.id, activeSession?.id, stopCurrentStream],
   );
 
   // ---------- 发送 / 续接 / 取消 ----------
 
   const sendMessage = useCallback(
-    (content: string) => {
-      if (!content.trim() || isRequesting || sessionId === undefined) return;
-      onRequest({ content: content.trim() });
+    async (content: string, modelReleaseId?: number | null) => {
+      const text = content.trim();
+      if (!text || isRequesting) return;
+      // 草稿态：先懒创建真实会话（含所选/默认模型绑定）。
+      // 不能立刻 onRequest：此时 provider/conversationKey 仍是草稿，
+      // SDK 要等 conversationKey 切到新会话且 defaultMessages 结束后才发送。
+      if (isDraft) {
+        const session = await ensureSession(modelReleaseId);
+        if (!session) return;
+        queueRequest(String(session.id), { content: text });
+        return;
+      }
+      onRequestRef.current({ content: text });
     },
-    [onRequest, isRequesting, sessionId],
+    [isDraft, ensureSession, isRequesting, queueRequest],
   );
 
   const resumeRun = useCallback(
@@ -255,19 +353,13 @@ export function useAgentConversation() {
         payload?: Record<string, unknown>;
       }[],
     ) => {
-      if (sessionId === undefined || resume.length === 0) return;
-      onRequest({ content: '', resume });
+      if (sessionId === null || sessionId === undefined || resume.length === 0) return;
+      onRequestRef.current({ content: '', resume });
     },
-    [onRequest, sessionId],
+    [sessionId],
   );
 
   const cancel = useCallback(() => stopCurrentStream(), [stopCurrentStream]);
-
-  const resetMessages = useCallback(() => {
-    historyLoadedRef.current.clear();
-    setHistoryLoadedIds([]);
-    setMessages([]);
-  }, [setMessages]);
 
   return {
     // Agent
@@ -280,7 +372,8 @@ export function useAgentConversation() {
     conversations,
     sessionsLoading,
     activeSession,
-    createConversation,
+    isDraft,
+    createConversation: createDraftConversation,
     removeConversation,
     selectConversation,
     // 消息
@@ -292,7 +385,6 @@ export function useAgentConversation() {
     cancel,
     isRequesting,
     setMessages,
-    resetMessages,
   };
 }
 

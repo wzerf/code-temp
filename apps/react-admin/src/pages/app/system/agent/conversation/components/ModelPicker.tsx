@@ -10,7 +10,7 @@ interface Props {
   /** 会话当前已记住的模型 releaseId（无则 null → 回落 Revision 默认） */
   value: number | null;
   onChange: (releaseId: number | null) => Promise<void>;
-  /** 当前是否可用（无会话/正在请求时禁用） */
+  /** 当前是否可用（无 Agent / 正在请求时禁用） */
   disabled?: boolean;
   /** 外部加载态（如切换会话读取绑定中） */
   loading?: boolean;
@@ -18,43 +18,41 @@ interface Props {
 
 /**
  * ModelPicker：会话内选模型，展示名称。
- * 候选 = 官方 PUBLISHED ∪ 本人私有；选择写入会话（model-binding），后端记住下次复用。
+ * 候选 = 官方 PUBLISHED ∪ 本人私有。
+ * 草稿态也拉取候选并允许预选；真实会话的选择写入 model-binding。
  */
 export default function ModelPicker({ sessionId, value, onChange, disabled, loading: externalLoading }: Props) {
   const { t } = useTranslation('agent-conversation');
   const [options, setOptions] = useState<ModelRelease[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [prevSession, setPrevSession] = useState(sessionId);
-  if (prevSession !== sessionId) {
-    setPrevSession(sessionId);
-    setOptions([]);
-  }
 
   useEffect(() => {
     let alive = true;
-    if (!sessionId) return;
-    let cancelled = false;
     const run = async () => {
       setLoading(true);
       try {
         const rows = await listModelAvailableApi();
-        if (alive && !cancelled) setOptions(rows ?? []);
+        if (alive) setOptions(rows ?? []);
       } catch (err) {
         console.warn(getApiErrorMessage(err, t('modelLoadFailed')));
       } finally {
-        if (alive && !cancelled) setLoading(false);
+        if (alive) setLoading(false);
       }
     };
-    const timer = window.setTimeout(() => {
-      void run();
-    }, 0);
+    void run();
     return () => {
       alive = false;
-      cancelled = true;
-      window.clearTimeout(timer);
     };
-  }, [sessionId, t]);
+  }, [t]);
+
+  // 草稿且尚未选模型：自动预选第一个可用模型，避免一直停在「默认模型」占位
+  useEffect(() => {
+    if (sessionId !== null || value !== null || options.length === 0) return;
+    const firstId = options[0]?.id;
+    if (firstId === null || firstId === undefined) return;
+    void onChange(firstId);
+  }, [sessionId, value, options, onChange]);
 
   const current = useMemo(
     () => options.find((o) => o.id === value) ?? null,
@@ -62,7 +60,6 @@ export default function ModelPicker({ sessionId, value, onChange, disabled, load
   );
 
   const handleChange = async (releaseId: number) => {
-    if (!sessionId) return;
     setSaving(true);
     try {
       await onChange(releaseId);
@@ -72,7 +69,6 @@ export default function ModelPicker({ sessionId, value, onChange, disabled, load
   };
 
   const handleClear = async () => {
-    if (!sessionId) return;
     setSaving(true);
     try {
       await onChange(null);
@@ -83,7 +79,7 @@ export default function ModelPicker({ sessionId, value, onChange, disabled, load
 
   return (
     <Select<number>
-      allowClear
+      allowClear={sessionId !== null}
       showSearch
       variant="borderless"
       size="small"
@@ -93,8 +89,8 @@ export default function ModelPicker({ sessionId, value, onChange, disabled, load
       aria-label={t('modelPlaceholder')}
       placeholder={t('modelPlaceholder')}
       loading={loading || saving || externalLoading}
-      disabled={disabled || !sessionId}
-      value={current?.id ?? undefined}
+      disabled={disabled}
+      value={current?.id ?? (sessionId === null ? options[0]?.id : undefined)}
       onClear={handleClear}
       onChange={(v) => void handleChange(v)}
       options={options.map((o) => ({

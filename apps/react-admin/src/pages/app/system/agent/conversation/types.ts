@@ -226,6 +226,18 @@ export interface AgentConversationItem {
   cached?: boolean;
 }
 
+/**
+ * 草稿会话：进入页面或点击「新建会话」时只进入草稿态而不创建后端会话，
+ * 发送第一条消息时才真实创建。此时尚无后端 id，provider 尚不可用。
+ */
+export interface DraftConversation {
+  id: null;
+  draft: true;
+  agentDefinitionId: number;
+  /** 给 useXChat 用的唯一 conversationKey，避免草稿共用 undefined/Symbol */
+  draftKey: string;
+}
+
 // ---------- 前端消息模型（useXChat 的 ChatMessage） ----------
 
 export interface ToolCallView {

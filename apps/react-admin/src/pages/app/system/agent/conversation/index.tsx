@@ -37,7 +37,6 @@ export default function AgentConversationPage() {
     resumeRun,
     cancel,
     isRequesting,
-    resetMessages,
   } = conv;
 
   const [modelReleaseId, setModelReleaseId] = useState<number | null>(null);
@@ -50,10 +49,14 @@ export default function AgentConversationPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 切换真实会话时清空已选模型，由下方 effect 拉取绑定；草稿晋升真实会话则保留预选
   const [prevModelSession, setPrevModelSession] = useState<number | null>(sessionId);
   if (prevModelSession !== sessionId) {
+    const promotedFromDraft = prevModelSession === null && sessionId !== null;
     setPrevModelSession(sessionId);
-    setModelReleaseId(null);
+    if (!promotedFromDraft) {
+      setModelReleaseId(null);
+    }
   }
 
   useEffect(() => {
@@ -80,7 +83,10 @@ export default function AgentConversationPage() {
 
   const handleChangeModel = useCallback(
     async (releaseId: number | null) => {
-      if (sessionId === null) return;
+      if (sessionId === null) {
+        setModelReleaseId(releaseId);
+        return;
+      }
       try {
         if (releaseId === null) {
           await unbindSessionModelApi(sessionId);
@@ -88,7 +94,6 @@ export default function AgentConversationPage() {
           await bindSessionModelApi(sessionId, { modelReleaseId: releaseId });
         }
         setModelReleaseId(releaseId);
-        message.success(t('modelBound'));
       } catch {
         message.error(t('modelBindFailed'));
       }
@@ -96,19 +101,17 @@ export default function AgentConversationPage() {
     [sessionId, t],
   );
 
-  const handleNewChat = useCallback(async () => {
-    const session = await createConversation();
-    if (session) {
-      selectConversation(session);
-    }
-  }, [createConversation, selectConversation]);
+  const handleNewChat = useCallback(() => {
+    // 仅切换到空白草稿会话，不创建后端会话；发送首条消息时才真正创建。
+    // 不要在这里 resetMessages：当前 conversationKey 还是上一真实会话，会把历史消息清掉。
+    createConversation();
+  }, [createConversation]);
 
   const handleDeleteSession = useCallback(
     async (id: number) => {
       await removeConversation(id);
-      resetMessages();
     },
-    [removeConversation, resetMessages],
+    [removeConversation],
   );
 
   const handleResume = useCallback(
@@ -128,7 +131,7 @@ export default function AgentConversationPage() {
       modelValue={modelReleaseId}
       modelLoading={modelLoading}
       onModelChange={handleChangeModel}
-      onSend={sendMessage}
+      onSend={(content) => sendMessage(content, modelReleaseId)}
       onCancel={cancel}
       docked={!showEmptyComposer}
     />

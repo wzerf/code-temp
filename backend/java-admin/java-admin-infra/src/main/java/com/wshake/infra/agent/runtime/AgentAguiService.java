@@ -8,6 +8,7 @@ import io.agentscope.core.agui.event.AguiEvent.RunError;
 import io.agentscope.core.agui.model.RunAgentInput;
 import io.agentscope.harness.agent.HarnessAgent;
 import java.io.IOException;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -41,6 +42,7 @@ public class AgentAguiService {
     private final AgentRunPlanner runPlanner;
     private final AgentHarnessFactory harnessFactory;
     private final AgentRunStateStore runStateStore;
+    private final AgentEventHistoryStore eventHistoryStore;
     private final AgentRuntimeProperties properties;
     private final Executor agentRunExecutor;
 
@@ -62,6 +64,17 @@ public class AgentAguiService {
                 : requestRunId;
         agentRunExecutor.execute(() -> runOnWorker(sessionId, requestUserId, runId, input, emitter));
         return emitter;
+    }
+
+    /**
+     * 历史回放：按时间顺序返回会话已持久化的 AG-UI 事件 JSON 列表。
+     *
+     * @param sessionId     平台会话 id
+     * @param requestUserId 当前登录用户（归属校验；null 不校验）
+     */
+    public List<String> history(Long sessionId, Long requestUserId) {
+        runPlanner.checkSessionAccessible(sessionId, requestUserId);
+        return eventHistoryStore.list(sessionId);
     }
 
     private void runOnWorker(
@@ -101,7 +114,7 @@ public class AgentAguiService {
                         }
                     })
                     .subscribe(
-                            event -> sendEvent(emitter, event),
+                            event -> sendEvent(sessionId, emitter, event),
                             error -> {
                                 log.warn(
                                         "agui stream error session={} run={} cause={}",
@@ -155,9 +168,11 @@ public class AgentAguiService {
         }
     }
 
-    private void sendEvent(SseEmitter emitter, AguiEvent event) {
+    private void sendEvent(Long sessionId, SseEmitter emitter, AguiEvent event) {
         try {
             String json = encoder.encodeToJson(event);
+            // 历史回放：持久化去掉 SSE 前导空格后的完整事件 JSON（含 RUN_STARTED/RUN_ERROR 等终态）
+            eventHistoryStore.append(sessionId, json.trim());
             emitter.send(SseEmitter.event().data(json, MediaType.APPLICATION_JSON));
         } catch (IOException e) {
             throw new IllegalStateException("SSE 发送失败", e);
@@ -166,11 +181,11 @@ public class AgentAguiService {
 
     private void sendError(SseEmitter emitter, Long sessionId, String runId, String message) {
         try {
-            emitter.send(SseEmitter.event()
-                    .data(
-                            encoder.encodeToJson(
-                                    new RunError(String.valueOf(sessionId), runId, message, null, null, null)),
-                            MediaType.APPLICATION_JSON));
+            String json =
+                    encoder.encodeToJson(new RunError(String.valueOf(sessionId), runId, message, null, null, null));
+            // 运行错误同样入历史，回放时向用户呈现失败终态
+            eventHistoryStore.append(sessionId, json.trim());
+            emitter.send(SseEmitter.event().data(json, MediaType.APPLICATION_JSON));
         } catch (IOException ignore) {
             // 客户端已断,忽略
         }

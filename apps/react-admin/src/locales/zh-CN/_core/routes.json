@@ -66,5 +66,6 @@
   "agent.agent.title": "Agent 管理",
   "agent.skill.title": "Skill 管理",
   "agent.mcp.title": "MCP 管理",
-  "agent.model.title": "模型管理"
+  "agent.model.title": "模型管理",
+  "agent.conversation.title": "Agent 对话"
 }

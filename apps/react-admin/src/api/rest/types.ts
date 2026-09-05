@@ -1576,6 +1576,11 @@ export interface SessionModelBinding {
   modelName: string;
 }
 
+/** 会话记住模型选择请求体（PUT model-binding） */
+export interface BindSessionModelRequest {
+  modelReleaseId: number;
+}
+
 // ============================================================
 // Agent 平台 — Skill Git 受控导入（agent_skill_git_source / git_sync）
 // ============================================================

@@ -6,6 +6,7 @@ import type {
   AgentSession,
   BindMcpRequest,
   BindSessionMcpRequest,
+  BindSessionModelRequest,
   BindSessionSkillRequest,
   BindSkillRequest,
   CreateAgentRequest,
@@ -14,6 +15,7 @@ import type {
   RevisionSkillBinding,
   SaveAgentRevisionRequest,
   SessionMcpBinding,
+  SessionModelBinding,
   SessionSkillBinding,
   UpdateAgentRequest,
 } from './types';
@@ -183,4 +185,23 @@ export function bindMcpToSessionApi(sessionId: number, body: BindSessionMcpReque
 
 export function unbindMcpFromSessionApi(sessionId: number, bindingId: number) {
   return del<never>(`/system/agent/sessions/${sessionId}/mcp-bindings/${bindingId}`);
+}
+
+/** 会话 AG-UI 事件历史回放（按序返回持久化事件 JSON 字符串列表） */
+export function listAgentSessionEventsApi(sessionId: number) {
+  return get<string[]>(`/system/agent/sessions/${sessionId}/events/history`);
+}
+
+// ---------- Session 模型选择（会话记住，下次运行复用） ----------
+
+export function getSessionModelBindingApi(sessionId: number) {
+  return get<SessionModelBinding | null>(`/system/agent/sessions/${sessionId}/model-binding`);
+}
+
+export function bindSessionModelApi(sessionId: number, body: BindSessionModelRequest) {
+  return put<SessionModelBinding>(`/system/agent/sessions/${sessionId}/model-binding`, body);
+}
+
+export function unbindSessionModelApi(sessionId: number) {
+  return del<never>(`/system/agent/sessions/${sessionId}/model-binding`);
 }

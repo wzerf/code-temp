@@ -3,6 +3,7 @@ package com.wshake.api.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wshake.common.exception.BizException;
 import com.wshake.common.request.RequestContext;
+import com.wshake.common.result.Result;
 import com.wshake.common.result.ResultCode;
 import com.wshake.infra.agent.runtime.AgentAguiService;
 import io.agentscope.core.agui.model.RunAgentInput;
@@ -11,8 +12,10 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -67,6 +70,12 @@ public class AgentAguiController {
                                 .resume(input.getResume())
                                 .build();
         return aguiService.run(sessionId, RequestContext.userIdOrNull(), input.getRunId(), effective);
+    }
+
+    @GetMapping("/sessions/{sessionId}/events/history")
+    @Operation(summary = "会话 AG-UI 事件历史回放(按序返回持久化事件 JSON 列表)")
+    public Result<List<String>> history(@PathVariable Long sessionId) {
+        return Result.ok(aguiService.history(sessionId, RequestContext.userIdOrNull()));
     }
 
     private RunAgentInput parseBody(HttpServletRequest request) {

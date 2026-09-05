@@ -66,5 +66,6 @@
   "agent.agent.title": "Agent Management",
   "agent.skill.title": "Skill Management",
   "agent.mcp.title": "MCP Management",
-  "agent.model.title": "Model Management"
+  "agent.model.title": "Model Management",
+  "agent.conversation.title": "Agent Chat"
 }

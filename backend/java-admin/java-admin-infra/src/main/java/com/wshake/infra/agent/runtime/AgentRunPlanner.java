@@ -128,8 +128,13 @@ public class AgentRunPlanner {
         }
         Long owner = session.getOwnerUserId();
         if (owner != null && owner > 0 && !owner.equals(requestUserId)) {
-            throw BizException.of(ResultCode.PARAM_INVALID, "无权运行该会话");
+            throw BizException.of(ResultCode.PARAM_INVALID, "无权访问该会话");
         }
+    }
+
+    /** 供历史回放等只读场景校验会话归属：会话不存在或无权访问时抛异常。 */
+    public void checkSessionAccessible(Long sessionId, Long requestUserId) {
+        checkOwner(requireSession(sessionId), requestUserId);
     }
 
     /** 读取会话记住的模型选择（agent_session_model_binding，每会话至多一条）。 */

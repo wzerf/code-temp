@@ -20,7 +20,20 @@ const { Text, Paragraph } = Typography;
 /** 思考链 + 工具调用渲染：折叠面板，随流式更新保持展开当前节点 */
 export default function ThoughtChainBubble({ thinking, toolCalls, streaming }: Props) {
   const tools = useMemo(() => toolCalls ?? [], [toolCalls]);
-  const [activeKeys, setActiveKeys] = useState<string[]>([]);
+  const itemKeys = useMemo(() => {
+    const next: string[] = [];
+    if (thinking?.trim()) next.push('thinking');
+    for (const tool of tools) next.push(`tool-${tool.id}`);
+    return next;
+  }, [thinking, tools]);
+  const runningKeys = useMemo(
+    () => tools.filter((tool) => tool.status === 'running').map((tool) => `tool-${tool.id}`),
+    [tools],
+  );
+  const [manualKeys, setManualKeys] = useState<string[] | undefined>(undefined);
+  const activeKeys = [
+    ...new Set([...(manualKeys ?? itemKeys), ...runningKeys, ...(streaming && thinking?.trim() ? ['thinking'] : [])]),
+  ];
 
   const items = useMemo(() => {
     const result: NonNullable<Parameters<typeof Collapse>[0]['items']> = [];
@@ -28,15 +41,11 @@ export default function ThoughtChainBubble({ thinking, toolCalls, streaming }: P
       result.push({
         key: 'thinking',
         label: (
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            <SyncOutlined spin={streaming} /> 思考过程
+          <Text type="secondary" style={{ fontSize: 13 }}>
+            <SyncOutlined spin={streaming} /> {streaming ? '思考中…' : '思考过程'}
           </Text>
         ),
-        children: (
-          <Paragraph style={{ whiteSpace: 'pre-wrap', marginBottom: 0, fontSize: 13, opacity: 0.85 }}>
-            {thinking}
-          </Paragraph>
-        ),
+        children: <pre className="agent-chat-thinking-body">{thinking}</pre>,
       });
     }
     tools.forEach((tool, index) => {
@@ -60,21 +69,7 @@ export default function ThoughtChainBubble({ thinking, toolCalls, streaming }: P
         ),
         children: (
           <div>
-            {tool.argsText && (
-              <pre
-                style={{
-                  margin: 0,
-                  whiteSpace: 'pre-wrap',
-                  wordBreak: 'break-all',
-                  fontSize: 12,
-                  background: 'rgba(0,0,0,0.03)',
-                  padding: 8,
-                  borderRadius: 6,
-                }}
-              >
-                {tool.argsText}
-              </pre>
-            )}
+            {tool.argsText && <pre className="agent-chat-tool-body">{tool.argsText}</pre>}
             {tool.resultText !== undefined && tool.resultText !== null && (
               <Paragraph
                 type="secondary"
@@ -91,16 +86,15 @@ export default function ThoughtChainBubble({ thinking, toolCalls, streaming }: P
     return result;
   }, [thinking, tools, streaming]);
 
-  // 新工具/思考节点出现时自动展开；折叠面板 items 更新后保持用户手动展开状态
   if (items.length === 0) return null;
   return (
     <Collapse
       ghost
       size="small"
+      className="agent-chat-thought-chain"
       items={items}
-      style={{ marginBottom: 4, maxWidth: '100%' }}
       activeKey={activeKeys}
-      onChange={(keys) => setActiveKeys(Array.isArray(keys) ? (keys as string[]) : [])}
+      onChange={(keys) => setManualKeys(Array.isArray(keys) ? (keys as string[]) : [])}
     />
   );
 }

@@ -16,9 +16,10 @@ import org.springframework.stereotype.Component;
 /**
  * MCP 握手探测实现（service {@link McpProbePort} 的官方 Java SDK 适配）。
  *
- * <p>基于 {@code io.modelcontextprotocol.sdk} 2.x 的 Streamable HTTP 客户端:
+ * <p>基于 {@code io.modelcontextprotocol.sdk} 1.1.x 的 Streamable HTTP 客户端
+ * （与 agentscope-core 2.0.1 的 {@code JsonSchema inputSchema()} 二进制兼容，不能用 2.x）:
  * SDK 负责 JSON-RPC {@code initialize} + {@code tools/list}、text/event-stream 帧解析,
- * 并兼容 202+text/plain 空响应(streamable HTTP 服务如 Firecrawl 的行为)。
+ * 并兼容 202+text/plain 空响应与 GET 405（Firecrawl 等不提供 SSE 通知流）。
  * 握手失败/目录为空由调用方按「未知即拒绝」处理。
  *
  * @author wshake

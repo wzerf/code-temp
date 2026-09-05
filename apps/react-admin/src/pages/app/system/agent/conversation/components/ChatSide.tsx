@@ -1,31 +1,60 @@
-import { useState } from 'react';
-import { Button, List, Popconfirm, Space, Spin, Tooltip, Typography, Empty } from 'antd';
-import {
-  DeleteOutlined,
-  MessageOutlined,
-  PlusOutlined,
-} from '@ant-design/icons';
+import { useMemo, useState } from 'react';
+import { Button, Popconfirm, Spin, Typography } from 'antd';
+import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
-import type { AgentSession } from '@/api/rest/types';
+import type { Agent, AgentSession } from '@/api/rest/types';
+import AgentPicker from './AgentPicker';
+import { parsePlatformMillis } from '@/utils/date';
 import { getApiErrorMessage } from '../../../blacklist/modules/error-message';
 import { message } from 'antd';
 
 interface Props {
-  agentName: string;
+  agents: Agent[];
+  agentsLoading?: boolean;
+  activeAgent: Agent | null;
+  onAgentChange: (agent: Agent | null) => void;
   conversations: AgentSession[];
   loading: boolean;
   activeId: number | null;
+  creatingDisabled?: boolean;
   onSelect: (session: AgentSession | null) => void;
   onCreate: () => Promise<void>;
   onDelete: (sessionId: number) => Promise<void>;
 }
 
-/** 会话栏：列出某 Agent 的会话（标题=remark），支持新建/删除。 */
+function sessionStamp(session: AgentSession): string {
+  return session.lastActiveAt || session.createdAt;
+}
+
+function sessionDayLabel(timestamp: string, t: (key: string) => string): string {
+  const millis = parsePlatformMillis(timestamp);
+  if (Number.isNaN(millis)) return t('sessionDayEarlier');
+  const date = new Date(millis);
+  const today = new Date();
+  if (date.toDateString() === today.toDateString()) return t('sessionDayToday');
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  if (date.toDateString() === yesterday.toDateString()) return t('sessionDayYesterday');
+  return date.toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'short' });
+}
+
+function sessionTimeLabel(timestamp: string): string {
+  const millis = parsePlatformMillis(timestamp);
+  return Number.isNaN(millis)
+    ? ''
+    : new Date(millis).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+}
+
+/** 会话栏：按最近活跃日分组，支持新建/删除。 */
 export default function ChatSide({
-  agentName,
+  agents,
+  agentsLoading,
+  activeAgent,
+  onAgentChange,
   conversations,
   loading,
   activeId,
+  creatingDisabled,
   onSelect,
   onCreate,
   onDelete,
@@ -33,6 +62,17 @@ export default function ChatSide({
   const { t } = useTranslation('agent-conversation');
   const [creating, setCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  const sessionGroups = useMemo(() => {
+    const groups = new Map<string, AgentSession[]>();
+    [...conversations]
+      .sort((left, right) => parsePlatformMillis(sessionStamp(right)) - parsePlatformMillis(sessionStamp(left)))
+      .forEach((item) => {
+        const label = sessionDayLabel(sessionStamp(item), t);
+        groups.set(label, [...(groups.get(label) ?? []), item]);
+      });
+    return [...groups];
+  }, [conversations, t]);
 
   const handleCreate = async () => {
     setCreating(true);
@@ -58,79 +98,73 @@ export default function ChatSide({
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div style={{ padding: '12px 12px 8px', display: 'flex', alignItems: 'center', gap: 8 }}>
-        <Typography.Text strong ellipsis style={{ flex: 1 }}>
-          {agentName || t('chatSideTitle')}
-        </Typography.Text>
-        <Tooltip title={t('newChat')}>
-          <Button
-            size="small"
-            type="primary"
-            ghost
-            icon={<PlusOutlined />}
-            loading={creating}
-            onClick={() => void handleCreate()}
-          />
-        </Tooltip>
-      </div>
-
-      <Spin spinning={loading}>
-        <div style={{ flex: 1, overflowY: 'auto', paddingInline: 8 }}>
-          {conversations.length === 0 && !loading ? (
-            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('noSessions')} />
-          ) : (
-            <List
-              size="small"
-              dataSource={conversations}
-              renderItem={(s) => {
-                const active = s.id === activeId;
+    <>
+      <AgentPicker
+        agents={agents}
+        loading={agentsLoading}
+        value={activeAgent}
+        onChange={onAgentChange}
+      />
+      <Button
+        className="agent-chat-new"
+        icon={<PlusOutlined />}
+        loading={creating}
+        disabled={creatingDisabled}
+        onClick={() => void handleCreate()}
+      >
+        {t('newChat')}
+      </Button>
+      <div className="agent-chat-session-list">
+        <Typography.Text className="agent-chat-list-title">{t('chatSideTitle')}</Typography.Text>
+        {loading ? (
+          <Spin size="small" />
+        ) : conversations.length === 0 ? (
+          <Typography.Text className="agent-chat-session-empty" type="secondary">
+            {t('noSessions')}
+          </Typography.Text>
+        ) : (
+          sessionGroups.map(([label, items]) => (
+            <div className="agent-chat-session-group" key={label}>
+              <Typography.Text className="agent-chat-session-group-title">{label}</Typography.Text>
+              {items.map((item) => {
+                const active = item.id === activeId;
                 return (
-                  <List.Item
-                    onClick={() => onSelect(active ? null : s)}
-                    style={{
-                      cursor: 'pointer',
-                      borderRadius: 8,
-                      padding: '6px 10px',
-                      background: active ? 'rgba(22,119,255,0.1)' : undefined,
-                      border: active ? '1px solid rgba(22,119,255,0.4)' : '1px solid transparent',
-                    }}
-                    actions={[
-                      <Popconfirm
-                        key="del"
-                        title={t('deleteConfirm')}
-                        okText={t('delete')}
-                        cancelText={t('cancel')}
-                        okButtonProps={{ danger: true }}
-                        onConfirm={() => handleDelete(s.id)}
-                      >
-                        <Button
-                          type="text"
-                          size="small"
-                          danger
-                          icon={<DeleteOutlined />}
-                          loading={deletingId === s.id}
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                      </Popconfirm>,
-                    ]}
+                  <div
+                    className={`agent-chat-session${active ? ' agent-chat-session--active' : ''}`}
+                    key={item.id}
                   >
-                    <Space size={6} style={{ minWidth: 0, flex: 1 }}>
-                      <MessageOutlined style={{ color: 'rgba(128,128,128,0.7)' }} />
-                      <Typography.Text
-                        ellipsis={{ tooltip: s.remark || `#${s.id}` }}
-                        style={{ flex: 1, fontSize: 13 }}
-                      >
-                        {s.remark || `#${s.id}`}
-                      </Typography.Text>
-                    </Space>
-                  </List.Item>
+                    <button
+                      type="button"
+                      className="agent-chat-session-main"
+                      onClick={() => onSelect(item)}
+                    >
+                      <span className="agent-chat-session-title">{item.remark || `#${item.id}`}</span>
+                      <span className="agent-chat-session-time">{sessionTimeLabel(sessionStamp(item))}</span>
+                    </button>
+                    <Popconfirm
+                      title={t('deleteConfirm')}
+                      okText={t('delete')}
+                      cancelText={t('cancel')}
+                      okButtonProps={{ danger: true }}
+                      onConfirm={() => void handleDelete(item.id)}
+                    >
+                      <Button
+                        className="agent-chat-session-delete"
+                        type="text"
+                        size="small"
+                        danger
+                        aria-label={t('delete')}
+                        icon={<DeleteOutlined />}
+                        loading={deletingId === item.id}
+                      />
+                    </Popconfirm>
+                  </div>
                 );
-              }}
-            />
-          )}
-        </div>
-      </Spin>
-    </div>
+              })}
+            </div>
+          ))
+        )}
+      </div>
+    </>
   );
 }

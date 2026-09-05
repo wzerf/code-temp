@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Bubble } from '@ant-design/x';
 import type { MessageInfo } from '@ant-design/x-sdk/es/x-chat';
 import { MdPreview } from 'md-editor-rt';
-import 'md-editor-rt/lib/style.css';
+import 'md-editor-rt/lib/preview.css';
 import { RobotOutlined, UserOutlined } from '@ant-design/icons';
-import { Alert, Empty, Space, Spin, Typography } from 'antd';
+import { Alert, Space, Spin, Typography } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { isDarkMode } from '@/components/common/Editor/src/utils';
 import ThoughtChainBubble from './ThoughtChainBubble';
@@ -34,47 +34,69 @@ function useDark(): boolean {
     const update = () => setDark(isDarkMode());
     update();
     const observer = new MutationObserver(update);
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class', 'data-theme'],
+    });
     return () => observer.disconnect();
   }, []);
   return dark;
 }
 
-function MdContent({ text }: { text: string }) {
+function assistantHasVisibleBody(content: AssistantContent): boolean {
+  return Boolean(
+    content.error ||
+      content.content?.trim() ||
+      content.thinking?.trim() ||
+      (content.toolCalls?.length ?? 0) > 0 ||
+      (content.waitingForApproval && content.interrupts?.length),
+  );
+}
+
+function MdContent({
+  text,
+  messageKey,
+  streaming,
+}: {
+  text: string;
+  messageKey: string;
+  streaming: boolean;
+}) {
   const dark = useDark();
-  if (!text.trim()) return <span style={{ opacity: 0.4 }}>…</span>;
+  if (!text.trim()) return null;
   return (
     <MdPreview
+      editorId={`agent-md-${messageKey}`}
       modelValue={text}
       theme={dark ? 'dark' : 'light'}
-      previewTheme="default"
-      style={{ background: 'transparent' }}
-      className="agent-chat-md"
+      previewTheme="vuepress"
+      className={streaming ? 'agent-chat-markdown agent-chat-markdown--streaming' : 'agent-chat-markdown'}
     />
   );
 }
 
-/** 用户气泡文本（纯文本，保留换行） */
 function UserText({ text }: { text: string }) {
-  return (
-    <span style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{text}</span>
-  );
+  return <span className="agent-chat-user-text">{text}</span>;
 }
 
-function AssistantBubbleContent({ content, requesting }: { content: AssistantContent; requesting: boolean }) {
+function AssistantBubbleContent({
+  content,
+  streaming,
+  messageKey,
+}: {
+  content: AssistantContent;
+  streaming: boolean;
+  messageKey: string;
+}) {
   return (
-    <div>
+    <div className="agent-chat-assistant-content">
       {(content.thinking || (content.toolCalls?.length ?? 0) > 0) && (
-        <ThoughtChainBubble
-          thinking={content.thinking}
-          toolCalls={content.toolCalls}
-          streaming={requesting}
-        />
+        <ThoughtChainBubble thinking={content.thinking} toolCalls={content.toolCalls} streaming={streaming} />
       )}
       {content.error ? (
         <Alert type="error" showIcon message={content.error} style={{ marginBottom: 4 }} />
       ) : (
-        <MdContent text={content.content} />
+        <MdContent text={content.content} messageKey={messageKey} streaming={streaming} />
       )}
     </div>
   );
@@ -82,17 +104,11 @@ function AssistantBubbleContent({ content, requesting }: { content: AssistantCon
 
 /**
  * ChatList：消息列表。
- * assistant 渲染 Markdown（MdPreview 自带 XSS 过滤）；流式时 Bubble loading/typing。
+ * assistant 渲染 Markdown（MdPreview 自带 XSS 过滤）。
+ * Bubble.loading 会整块替换正文，因此仅在首个 token 到达前使用；流式中靠增量 content + streaming。
  */
 export default function ChatList({ messages, empty, requesting, onResume }: Props) {
   const { t } = useTranslation('agent-conversation');
-  const scrollRef = useRef<HTMLDivElement>(null);
-
-  // 自动滚动到底部
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [messages]);
 
   const items = useMemo(
     () =>
@@ -108,7 +124,10 @@ export default function ChatList({ messages, empty, requesting, onResume }: Prop
           };
         }
         const content = msg as AssistantContent;
-        const loading = info.status === 'loading' || info.status === 'updating';
+        const isUpdating = info.status === 'loading' || info.status === 'updating';
+        const hasVisibleBody = assistantHasVisibleBody(content);
+        // loading=true 时 Bubble 只渲染转圈、隐藏正文；对齐 ai-1：仅等首 token
+        const waitingFirstToken = isUpdating && !hasVisibleBody;
         const waitingHitl = Boolean(content.waitingForApproval && content.interrupts?.length);
         const hitlChildren = waitingHitl ? (
           <HitlApproveBar interrupts={content.interrupts ?? []} onResume={onResume} />
@@ -118,11 +137,16 @@ export default function ChatList({ messages, empty, requesting, onResume }: Prop
           role: 'ai',
           placement: 'start',
           avatar: <RobotOutlined />,
-          loading,
-          typing: loading ? { step: 4, interval: 20 } : false,
-          content: (
+          loading: waitingFirstToken,
+          streaming: isUpdating,
+          content: content.content || (hasVisibleBody ? '\u200b' : ''),
+          contentRender: () => (
             <>
-              <AssistantBubbleContent content={content} requesting={loading} />
+              <AssistantBubbleContent
+                content={content}
+                streaming={isUpdating}
+                messageKey={String(info.id)}
+              />
               {hitlChildren}
             </>
           ),
@@ -130,6 +154,11 @@ export default function ChatList({ messages, empty, requesting, onResume }: Prop
       }),
     [messages, onResume],
   );
+
+  const waitingFirstToken = requesting && !messages.some((info) => {
+    if (info.message.role !== 'assistant') return false;
+    return assistantHasVisibleBody(info.message as AssistantContent);
+  });
 
   const roleConfig = {
     user: {
@@ -144,50 +173,26 @@ export default function ChatList({ messages, empty, requesting, onResume }: Prop
     },
   };
 
+  if (empty || messages.length === 0) {
+    return null;
+  }
+
   return (
-    <div
-      ref={scrollRef}
-      style={{
-        flex: 1,
-        overflowY: 'auto',
-        padding: '16px 24px 8px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 12,
-      }}
-    >
-      {messages.length === 0 || empty ? (
-        <Empty style={{ margin: 'auto' }} description={t('emptySession')} />
-      ) : (
-        <>
-          <div
-            style={{
-              flex: 1,
-              minHeight: 0,
-              width: '100%',
-              maxWidth: 720,
-              marginInline: 'auto',
-              display: 'flex',
-              flexDirection: 'column',
-            }}
-          >
-            <Bubble.List
-              items={items as never}
-              role={roleConfig as never}
-              autoScroll
-              style={{ flex: 1, minHeight: 0 }}
-            />
-            {requesting && (
-              <Space style={{ alignSelf: 'flex-start', paddingInline: 12 }}>
-                <Spin size="small" />
-                <Text type="secondary" style={{ fontSize: 12 }}>
-                  {t('agentThinking')}
-                </Text>
-              </Space>
-            )}
-          </div>
-        </>
+    <section className="agent-chat-messages" aria-live="polite">
+      <Bubble.List
+        className="agent-chat-bubbles"
+        items={items as never}
+        role={roleConfig as never}
+        autoScroll
+      />
+      {waitingFirstToken && (
+        <Space className="agent-chat-typing">
+          <Spin size="small" />
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            {t('agentThinking')}
+          </Text>
+        </Space>
       )}
-    </div>
+    </section>
   );
 }

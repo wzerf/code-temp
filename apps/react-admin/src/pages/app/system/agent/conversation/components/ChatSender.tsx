@@ -2,7 +2,6 @@ import { Sender } from '@ant-design/x';
 import { useTranslation } from 'react-i18next';
 import ModelPicker from './ModelPicker';
 import { useState } from 'react';
-import './ChatSender.css';
 
 interface Props {
   sessionId: number | null;
@@ -33,7 +32,7 @@ export default function ChatSender({
   const [value, setValue] = useState('');
 
   return (
-    <div className={docked ? 'agent-chat-sender agent-chat-sender-docked' : 'agent-chat-sender'}>
+    <div className={docked ? 'agent-chat-composer agent-chat-composer-docked' : 'agent-chat-composer'}>
       <Sender
         value={value}
         onChange={(v) => setValue(v)}
@@ -53,7 +52,7 @@ export default function ChatSender({
               sessionId={sessionId}
               value={modelValue}
               onChange={onModelChange}
-              disabled={disabled}
+              disabled={disabled || requesting}
               loading={modelLoading}
             />
             {oriNode}

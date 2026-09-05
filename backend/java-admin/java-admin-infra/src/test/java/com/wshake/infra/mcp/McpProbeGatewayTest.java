@@ -68,7 +68,12 @@ class McpProbeGatewayTest {
                 public MockResponse dispatch(@NotNull RecordedRequest request) {
                     String method = request.getMethod();
                     if (method == null || !"POST".equals(method)) {
-                        return new MockResponse.Builder().code(405).build();
+                        // Firecrawl 等 Streamable HTTP：GET SSE 通知流返回 405 + text/plain
+                        return new MockResponse.Builder()
+                                .code(405)
+                                .addHeader("Content-Type", "text/plain")
+                                .body("Method Not Allowed")
+                                .build();
                     }
                     String body = request.getBody().utf8();
                     String rpcId = rpcIdOf(body);

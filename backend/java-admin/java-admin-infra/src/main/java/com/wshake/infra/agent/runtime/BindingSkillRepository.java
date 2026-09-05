@@ -37,7 +37,9 @@ public class BindingSkillRepository implements AgentSkillRepository {
      * @param entries               合并后的 Skill 装配（skillName → releaseId）
      * @param skillReleaseRepository release 读取
      * @param resourceRepository    冻结资源读取
-     * @param sessionLabel          会话标识（仅日志/来源展示）
+     * @param sessionLabel          会话标识；会编进仓库 source。Harness MarketplaceStager
+     *                              把 source 当作 {@code .skills-cache/<source-ns>/} 路径段，
+     *                              因此必须是当前 OS 合法文件名（不能含 {@code :}）
      */
     public static BindingSkillRepository assemble(
             List<AgentBindingSnapshot.SkillEntry> entries,
@@ -45,6 +47,7 @@ public class BindingSkillRepository implements AgentSkillRepository {
             AgentSkillReleaseResourceRepository resourceRepository,
             String sessionLabel) {
         List<AgentSkill> loaded = new ArrayList<>();
+        String source = sourceNamespace(sessionLabel);
         if (entries != null) {
             for (AgentBindingSnapshot.SkillEntry entry : entries) {
                 AgentSkillRelease release = skillReleaseRepository.findById(entry.skillReleaseId());
@@ -63,7 +66,7 @@ public class BindingSkillRepository implements AgentSkillRepository {
                         nz(release.getDescription()),
                         nz(release.getSkillContent()),
                         resources,
-                        "platform:" + sessionLabel));
+                        source));
             }
         }
         return new BindingSkillRepository(loaded, sessionLabel);
@@ -106,7 +109,29 @@ public class BindingSkillRepository implements AgentSkillRepository {
 
     @Override
     public String getSource() {
-        return "platform:" + sessionLabel;
+        return sourceNamespace(sessionLabel);
+    }
+
+    /**
+     * 生成仓库 source 命名空间。
+     *
+     * <p>agentscope-harness 2.0.1 {@code MarketplaceStager} 会执行
+     * {@code workspace.resolve(".skills-cache").resolve(getSource())}。Windows 路径段禁止
+     * {@code :}，{@code platform:session-22} 会在 PRE_CALL 直接 {@code InvalidPathException}。
+     */
+    static String sourceNamespace(String sessionLabel) {
+        String label = sessionLabel == null ? "" : sessionLabel;
+        String raw = "platform-" + label;
+        StringBuilder sb = new StringBuilder(raw.length());
+        for (int i = 0; i < raw.length(); i++) {
+            char c = raw.charAt(i);
+            if (c < 32 || "<>:\"/\\|?*".indexOf(c) >= 0) {
+                sb.append('-');
+            } else {
+                sb.append(c);
+            }
+        }
+        return sb.toString();
     }
 
     @Override

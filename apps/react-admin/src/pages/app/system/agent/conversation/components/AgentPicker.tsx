@@ -1,4 +1,4 @@
-import { Select, Space, Tag, Tooltip } from 'antd';
+import { Select, Tag } from 'antd';
 import { RobotOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import type { Agent } from '@/api/rest/types';
@@ -10,24 +10,36 @@ interface Props {
   onChange: (agent: Agent | null) => void;
 }
 
-/** AgentPicker：跨 Agent 切换（顶部）。切换会重置该 Agent 的会话集合。 */
+function AgentMark({ name }: { name?: string }) {
+  const letter = name?.trim().slice(0, 1);
+  return (
+    <span className="agent-chat-agent-avatar" aria-hidden>
+      {letter || <RobotOutlined />}
+    </span>
+  );
+}
+
+/** AgentPicker：侧栏内切换 Agent，视觉对齐新建会话按钮。 */
 export default function AgentPicker({ agents, loading, value, onChange }: Props) {
   const { t } = useTranslation('agent-conversation');
-  // 防御：列表可能因接口异常/热更新暂态而非数组
   const list = Array.isArray(agents) ? agents : [];
 
   return (
-    <Space size={8}>
-      <RobotOutlined style={{ fontSize: 16, color: 'rgba(128,128,128,0.9)' }} />
+    <div className="agent-chat-agent-picker">
+      <AgentMark name={value?.name} />
       <Select<number>
         allowClear
         showSearch
+        variant="borderless"
         optionFilterProp="label"
-        style={{ minWidth: 200, maxWidth: 320 }}
+        className="agent-chat-agent-select"
+        classNames={{ popup: { root: 'agent-chat-agent-dropdown' } }}
+        popupMatchSelectWidth
         placeholder={t('agentPlaceholder')}
         loading={loading}
         disabled={list.length === 0}
         value={value?.id}
+        aria-label={t('agentPlaceholder')}
         onChange={(v) => {
           const agent = list.find((a) => a.id === v) ?? null;
           onChange(agent);
@@ -37,18 +49,21 @@ export default function AgentPicker({ agents, loading, value, onChange }: Props)
           const rel = list.find((a) => a.id === option.value);
           if (!rel) return option.label;
           return (
-            <Tooltip title={rel.description}>
-              <Space size={6}>
-                <span>{rel.name}</span>
-                {rel.isEnabled !== 1 && <Tag color="error">{t('disabled')}</Tag>}
-                {rel.currentPublishedRevisionId === null && (
-                  <Tag>{t('unpublished')}</Tag>
-                )}
-              </Space>
-            </Tooltip>
+            <span className="agent-chat-agent-option" title={rel.description || rel.name}>
+              <AgentMark name={rel.name} />
+              <span className="agent-chat-agent-option-name">{rel.name}</span>
+              {rel.isEnabled !== 1 && (
+                <Tag color="error" bordered={false}>
+                  {t('disabled')}
+                </Tag>
+              )}
+              {rel.currentPublishedRevisionId === null && (
+                <Tag bordered={false}>{t('unpublished')}</Tag>
+              )}
+            </span>
           );
         }}
       />
-    </Space>
+    </div>
   );
 }

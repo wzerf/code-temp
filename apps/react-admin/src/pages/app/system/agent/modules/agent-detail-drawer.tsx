@@ -311,7 +311,9 @@ const AgentDetailDrawer = ({ open, agent, onClose, onChanged }: Props) => {
     },
   ];
 
-  const mcpSelectWithSecret = () => (
+  const mcpSelectWithSecret = () => {
+    const selected = mcpOptions.find((s) => s.id === pendingMcpId) ?? null;
+    return (
     <Space direction="vertical" style={{ width: '100%' }}>
       <Space>
         <Select
@@ -348,10 +350,15 @@ const AgentDetailDrawer = ({ open, agent, onClose, onChanged }: Props) => {
         </Button>
       </Space>
       <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-        {t('secretPlaceholder')}
+        {selected == null
+          ? t('marketSecretHint')
+          : selected.visibility === 'MARKET'
+            ? t('marketSecretHint')
+            : t('privateSecretHint')}
       </Typography.Text>
     </Space>
-  );
+    );
+  };
 
   const renderDraftEditor = () => {
     if (!draft) {

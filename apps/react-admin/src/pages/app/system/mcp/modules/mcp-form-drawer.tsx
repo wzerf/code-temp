@@ -60,6 +60,7 @@ const McpFormDrawer = ({ open, row, onClose, onSaved }: Props) => {
 
   const handleSave = async () => {
     const values = await form.validateFields();
+    const vis = values.visibility ?? visibility;
     setSaving(true);
     try {
       if (isEdit && row) {
@@ -69,7 +70,7 @@ const McpFormDrawer = ({ open, row, onClose, onSaved }: Props) => {
           transport: values.transport,
           url: values.url,
           headersJson: values.headersJson,
-          plainSecret: values.plainSecret || undefined,
+          plainSecret: vis === 'PRIVATE' ? values.plainSecret || undefined : undefined,
           connectTimeoutMs: values.connectTimeoutMs,
           remark: values.remark,
         });
@@ -81,7 +82,7 @@ const McpFormDrawer = ({ open, row, onClose, onSaved }: Props) => {
           url: values.url,
           headersJson: values.headersJson,
           visibility: values.visibility,
-          plainSecret: values.visibility === 'PRIVATE' ? values.plainSecret : undefined,
+          plainSecret: vis === 'PRIVATE' ? values.plainSecret || undefined : undefined,
           connectTimeoutMs: values.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS,
           remark: values.remark,
         });
@@ -125,6 +126,7 @@ const McpFormDrawer = ({ open, row, onClose, onSaved }: Props) => {
             <Form.Item name="visibility" label={t('visibility')} rules={[{ required: true }]}>
               <Select
                 disabled={isEdit}
+                onChange={() => form.setFieldsValue({ plainSecret: undefined })}
                 options={[
                   { value: 'MARKET', label: t('visibilityMap.MARKET') },
                   { value: 'PRIVATE', label: t('visibilityMap.PRIVATE') },
@@ -156,15 +158,12 @@ const McpFormDrawer = ({ open, row, onClose, onSaved }: Props) => {
         <Form.Item name="headersJson" label={t('headersJson')} extra={t('headersPlaceholder')}>
           <TextArea rows={3} style={{ fontFamily: 'monospace' }} placeholder='{"Accept":"application/json"}' />
         </Form.Item>
-        {(!isEdit || visibility === 'PRIVATE') && (
-          <>
-            {visibility === 'MARKET' && (
-              <Alert type="info" showIcon message={t('secretPlaceholder')} style={{ marginBottom: 8 }} />
-            )}
-            <Form.Item name="plainSecret" label={t('plainSecret')} extra={t('secretHint')}>
-              <Input.Password placeholder={t('secretPlaceholder')} autoComplete="new-password" />
-            </Form.Item>
-          </>
+        {visibility === 'PRIVATE' ? (
+          <Form.Item name="plainSecret" label={t('plainSecret')} extra={t('secretHint')}>
+            <Input.Password placeholder={t('secretPlaceholder')} autoComplete="new-password" />
+          </Form.Item>
+        ) : (
+          <Alert type="info" showIcon message={t('marketNoSecretHint')} style={{ marginBottom: 16 }} />
         )}
         <Form.Item name="remark" label="备注">
           <TextArea rows={2} maxLength={512} />

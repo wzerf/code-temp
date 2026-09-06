@@ -162,7 +162,7 @@ const TaskConfigDrawer = ({ open, row, onClose, onSaved }: Props) => {
   const isEdit = !!row;
   const submitting = createMut.isPending || updateMut.isPending;
 
-  // Form 用 key + initialValues 保证 destroyOnClose 挂载即回显，
+  // Form 用 key + initialValues 保证 destroyOnHidden 挂载即回显，
   // 避免 useEffect + setFieldsValue 在字段注册前执行导致丢值。
   const formInitialValues = useMemo(() => buildFormValues(row), [row]);
   const formKey = row ? `edit-${row.id}` : 'create';
@@ -222,7 +222,7 @@ const TaskConfigDrawer = ({ open, row, onClose, onSaved }: Props) => {
       open={open}
       onClose={onClose}
       size={640}
-      destroyOnClose
+      destroyOnHidden
       footer={
         <Space style={{ float: 'right' }}>
           <Button onClick={onClose} disabled={submitting}>

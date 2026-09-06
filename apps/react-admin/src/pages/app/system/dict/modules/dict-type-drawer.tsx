@@ -97,7 +97,7 @@ const DictTypeDrawer = ({ open, row, onClose, onSaved }: Props) => {
       open={open}
       onClose={onClose}
       size={560}
-      destroyOnClose
+      destroyOnHidden
       footer={
         <Space style={{ float: 'right' }}>
           <Button onClick={onClose} disabled={submitting}>

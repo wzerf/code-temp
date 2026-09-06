@@ -56,7 +56,7 @@ function convertRoutes(
     return mapTree(routes, (node) => {
         const {component: componentPath, name, ...rest} = node;
 
-        if (!name) {
+        if (!name && !(node as { index?: boolean }).index) {
             console.error('Route name is required', node);
         }
 

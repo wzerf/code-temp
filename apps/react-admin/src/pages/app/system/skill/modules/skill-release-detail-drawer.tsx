@@ -85,8 +85,8 @@ const SkillReleaseDetailDrawer = ({ open, release, onClose }: Props) => {
       title={release ? `${release.name} v${release.version}` : ''}
       open={open}
       onClose={onClose}
-      width={860}
-      destroyOnClose
+      size={860}
+      destroyOnHidden
       extra={
         release?.status === 'PUBLISHED' ? (
           <Tag color={STATUS_COLOR[release.status]}>{statusLabel(release.status)}</Tag>

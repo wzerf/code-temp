@@ -92,7 +92,7 @@ const ApiFormDrawer = ({ open, row, onClose, onSaved }: Props) => {
     [groups],
   );
 
-  // Form 用 key + initialValues 保证 destroyOnClose 挂载即回显，
+  // Form 用 key + initialValues 保证 destroyOnHidden 挂载即回显，
   // 避免 useEffect + setFieldsValue 在字段注册前执行导致丢值。
   const formInitialValues = useMemo(() => buildApiFormValues(row), [row]);
   const formKey = row ? `edit-${row.id}` : 'create';
@@ -120,8 +120,8 @@ const ApiFormDrawer = ({ open, row, onClose, onSaved }: Props) => {
       title={isEdit ? '编辑接口' : '新增接口'}
       open={open}
       onClose={onClose}
-      width={560}
-      destroyOnClose
+      size={560}
+      destroyOnHidden
       footer={
         <Space style={{ float: 'right' }}>
           <Button onClick={onClose} disabled={submitting}>

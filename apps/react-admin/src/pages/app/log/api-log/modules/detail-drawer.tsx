@@ -36,10 +36,10 @@ const ApiLogDetailDrawer = ({ open, row, onClose }: Props) => {
   return (
     <Drawer
       title="API 日志详情"
-      width={720}
+      size={720}
       open={open}
       onClose={onClose}
-      destroyOnClose
+      destroyOnHidden
     >
       {row ? (
         <Descriptions column={1} size="small" bordered>

@@ -234,8 +234,8 @@ const ModelFormDrawer = ({ open, row, onClose, onSaved }: Props) => {
       title={isEdit ? t('editTitle') : t('createTitle')}
       open={open}
       onClose={onClose}
-      width={isEdit ? 680 : 960}
-      destroyOnClose
+      size={isEdit ? 680 : 960}
+      destroyOnHidden
       footer={
         <Space style={{ float: 'right' }}>
           <Button onClick={onClose} disabled={saving}>

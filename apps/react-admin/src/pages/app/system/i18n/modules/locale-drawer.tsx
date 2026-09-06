@@ -89,7 +89,7 @@ const I18nLocaleDrawer = ({ open, row, onClose, onSaved }: Props) => {
       };
 
   // Form 用 key 强制在 row 变化时 remount,确保 initialValues 生效;
-  // destroyOnClose 已卸载,新 mount 的 Form 会读取 initialValues,避免
+  // destroyOnHidden 已卸载,新 mount 的 Form 会读取 initialValues,避免
   // useEffect + setFieldsValue 在 field 注册前执行导致回显丢失。
   const formKey = row ? `edit-${row.id}` : 'create';
 
@@ -126,7 +126,7 @@ const I18nLocaleDrawer = ({ open, row, onClose, onSaved }: Props) => {
       open={open}
       onClose={onClose}
       size={560}
-      destroyOnClose
+      destroyOnHidden
       footer={
         <Space style={{ float: 'right' }}>
           <Button onClick={onClose} disabled={submitting}>

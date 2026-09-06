@@ -150,7 +150,7 @@ const DictDataDrawer = ({
     };
   };
 
-  // 抽屉初次挂载时通过 initialValues 注入；destroyOnClose 会让 Form 在每次
+  // 抽屉初次挂载时通过 initialValues 注入；destroyOnHidden 会让 Form 在每次
   // 打开时重新创建，因此用 useMemo 把"当前应当填进表单的值"算成对象，
   // 配合 key 让 Form 在 row/open 真正变化时整体重建，避免出现「Select 已经
   // mount 但 setFieldsValue 还没跑」导致的下拉框不回显。
@@ -231,7 +231,7 @@ const DictDataDrawer = ({
       open={open}
       onClose={onClose}
       size={640}
-      destroyOnClose
+      destroyOnHidden
       footer={
         <Space style={{ float: 'right' }}>
           <Button onClick={onClose} disabled={submitting}>

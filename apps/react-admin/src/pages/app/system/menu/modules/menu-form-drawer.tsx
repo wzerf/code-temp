@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/set-state-in-effect --
  * useEffect 同步服务端数据(boundApis)与受控 open prop 到本地 state 是合法用例;
- * Drawer destroyOnClose 已在父层设,关闭/重开会重新挂载本组件,useState 不会残留 */
+ * Drawer destroyOnHidden 已在父层设,关闭/重开会重新挂载本组件,useState 不会残留 */
 import { useEffect, useMemo, useState } from 'react';
 import {
   Button,
@@ -175,7 +175,7 @@ const MenuFormDrawer = ({
   // 绑定选中态：api_id 集合
   const [boundIds, setBoundIds] = useState<Set<number>>(new Set());
 
-  // Form 用 key + initialValues 保证 destroyOnClose 挂载即回显，
+  // Form 用 key + initialValues 保证 destroyOnHidden 挂载即回显，
   // 避免 useEffect + setFieldsValue 在字段注册前执行导致丢值。
   const formInitialValues = useMemo(
     () => buildMenuFormValues(kind, row, presetParentId),
@@ -464,8 +464,8 @@ const MenuFormDrawer = ({
       title={isEdit ? '编辑菜单' : '新增菜单'}
       open={open}
       onClose={onClose}
-      width={640}
-      destroyOnClose
+      size={640}
+      destroyOnHidden
       footer={
         <Space style={{ float: 'right' }}>
           <Button onClick={onClose} disabled={submitting}>

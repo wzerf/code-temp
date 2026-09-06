@@ -114,7 +114,7 @@ const UserFormDrawer = ({ open, kind, row, onClose, onSaved }: Props) => {
   // 语言下拉：全量语言
   const { data: localeOptions } = useListAllI18nLocale(undefined, { enabled: open });
 
-  // Form 用 key + initialValues 保证 destroyOnClose 挂载即回显，
+  // Form 用 key + initialValues 保证 destroyOnHidden 挂载即回显，
   // 避免 useEffect + setFieldsValue 在字段注册前执行导致丢值。
   const formInitialValues = useMemo(() => buildUserFormValues(row), [row]);
   const formKey = row ? `edit-${row.id}` : 'create';
@@ -174,8 +174,8 @@ const UserFormDrawer = ({ open, kind, row, onClose, onSaved }: Props) => {
       title={isEdit ? '编辑用户' : '新建用户'}
       open={open}
       onClose={onClose}
-      width={640}
-      destroyOnClose
+      size={640}
+      destroyOnHidden
       footer={
         <Space style={{ float: 'right' }}>
           <Button onClick={onClose} disabled={submitting}>

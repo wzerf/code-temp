@@ -36,10 +36,10 @@ const TaskExecutionDetailDrawer = ({ open, row, onClose }: Props) => {
   return (
     <Drawer
       title={t('executionDetail')}
-      width={640}
+      size={640}
       open={open}
       onClose={onClose}
-      destroyOnClose
+      destroyOnHidden
     >
       {row ? (
         <Descriptions column={1} size="small" bordered>

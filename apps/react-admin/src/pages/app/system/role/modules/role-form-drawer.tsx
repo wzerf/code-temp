@@ -132,8 +132,8 @@ const RoleFormDrawer = ({ open, kind, row, onClose, onSaved }: Props) => {
       title={isEdit ? '编辑角色' : '新增角色'}
       open={open}
       onClose={onClose}
-      width={560}
-      destroyOnClose
+      size={560}
+      destroyOnHidden
       footer={
         <Space style={{ float: 'right' }}>
           <Button onClick={onClose} disabled={submitting}>

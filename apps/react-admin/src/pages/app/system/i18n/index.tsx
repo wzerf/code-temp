@@ -1054,7 +1054,7 @@ const I18nPage = () => {
         okText="导出"
         cancelText="取消"
         width={400}
-        destroyOnClose
+        destroyOnHidden
       >
         <Space size="middle" align="center">
           <Typography.Text type="secondary">导出格式</Typography.Text>

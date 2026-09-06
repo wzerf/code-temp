@@ -17,10 +17,10 @@ const LoginLogDetailDrawer = ({ open, row, onClose }: Props) => {
   return (
     <Drawer
       title="登录日志详情"
-      width={560}
+      size={560}
       open={open}
       onClose={onClose}
-      destroyOnClose
+      destroyOnHidden
     >
       {row ? (
         <Descriptions column={1} size="small" bordered>

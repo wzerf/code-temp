@@ -240,8 +240,8 @@ const GitSourcePanel = () => {
         title={editing ? t('gitEditTitle') : t('gitCreate')}
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        width={600}
-        destroyOnClose
+        size={600}
+        destroyOnHidden
         footer={
           <Space style={{ float: 'right' }}>
             <Button onClick={() => setDrawerOpen(false)}>{t('cancel')}</Button>

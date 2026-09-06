@@ -59,8 +59,8 @@ const AgentFormDrawer = ({ open, row, onClose, onSaved }: Props) => {
       title={isEdit ? t('editTitle') : t('createTitle')}
       open={open}
       onClose={onClose}
-      width={560}
-      destroyOnClose
+      size={560}
+      destroyOnHidden
       footer={
         <Space style={{ float: 'right' }}>
           <Button onClick={onClose}>{t('cancel')}</Button>

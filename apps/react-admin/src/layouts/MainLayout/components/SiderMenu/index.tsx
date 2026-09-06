@@ -175,7 +175,7 @@ export const Index = ({
         }}
         onClick={() => navigate('/')}
       >
-        {preferences.logo.enable && (
+        {preferences.logo.enable && preferences.logo.source && (
           <img
             src={preferences.logo.source}
             alt="logo"

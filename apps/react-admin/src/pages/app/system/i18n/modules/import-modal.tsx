@@ -608,7 +608,7 @@ const I18nImportModal: React.FC<I18nImportModalProps> = ({
       onCancel={onClose}
       footer={null}
       width={1200}
-      destroyOnClose
+      destroyOnHidden
       maskClosable={false}
     >
       <Steps

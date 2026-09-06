@@ -384,7 +384,7 @@ export function GlobalSearch({ menus, isDark = false }: GlobalSearchProps) {
           </div>
         }
         width={560}
-        destroyOnClose
+        destroyOnHidden
         styles={{
           body: { paddingTop: 8, maxHeight: 420, overflow: 'auto' },
         }}

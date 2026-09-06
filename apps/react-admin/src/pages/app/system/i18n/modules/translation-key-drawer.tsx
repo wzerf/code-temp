@@ -130,7 +130,7 @@ const I18nTranslationKeyDrawer = ({
   const [translationKeyInput, setTranslationKeyInput] = useState(initKey);
 
   // 渲染期同步初始化 form：每次 baseRows 变化即重置
-  // 用 form 的 initialValues + destroyOnClose 保证打开即挂载时拿到最新值
+  // 用 form 的 initialValues + destroyOnHidden 保证打开即挂载时拿到最新值
   const initialFormValues: FormValues = useMemo(() => {
     const formValues: FormValues = {
       translationKey: initKey,
@@ -327,7 +327,7 @@ const I18nTranslationKeyDrawer = ({
       open={open}
       onClose={onClose}
       size={800}
-      destroyOnClose
+      destroyOnHidden
       footer={
         <Space style={{ float: 'right' }}>
           <Button onClick={onClose} disabled={submitting}>

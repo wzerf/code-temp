@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/set-state-in-effect --
  * useEffect 同步服务端数据(boundMenus/boundApis)与受控 open prop 到本地 state 是合法用例;
- * Drawer destroyOnClose 已在父层设,关闭/重开会重新挂载本组件,useState 不会残留 */
+ * Drawer destroyOnHidden 已在父层设,关闭/重开会重新挂载本组件,useState 不会残留 */
 import { useEffect, useMemo, useState } from 'react';
 import {
   Button,
@@ -205,8 +205,8 @@ const RolePermissionDrawer = ({ open, roleId, onClose }: Props) => {
       title="分配权限"
       open={open}
       onClose={onClose}
-      width={720}
-      destroyOnClose
+      size={720}
+      destroyOnHidden
       footer={
         <Space style={{ float: 'right' }}>
           <Button onClick={onClose} disabled={submitting}>

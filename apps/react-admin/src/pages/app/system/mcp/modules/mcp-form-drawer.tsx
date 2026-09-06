@@ -65,7 +65,7 @@ const McpFormDrawer = ({ open, row, onClose, onSaved }: Props) => {
   const visibility = Form.useWatch('visibility', form) ?? 'PRIVATE';
   const authType = Form.useWatch('authType', form) ?? 'NONE';
   const isEdit = !!row;
-  // Form 用 key + initialValues 保证 destroyOnClose 挂载即回显，
+  // Form 用 key + initialValues 保证 destroyOnHidden 挂载即回显，
   // 避免 useEffect + setFieldsValue 在字段注册前执行导致丢值。
   const formInitialValues = useMemo(() => buildMcpFormValues(row), [row]);
   const formKey = row ? `edit-${row.id}` : 'create';
@@ -128,8 +128,8 @@ const McpFormDrawer = ({ open, row, onClose, onSaved }: Props) => {
       title={isEdit ? t('editTitle') : t('createTitle')}
       open={open}
       onClose={onClose}
-      width={640}
-      destroyOnClose
+      size={640}
+      destroyOnHidden
       footer={
         <Space style={{ float: 'right' }}>
           <Button onClick={onClose} disabled={saving}>

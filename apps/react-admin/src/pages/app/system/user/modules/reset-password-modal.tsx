@@ -45,7 +45,7 @@ const ResetPasswordModal = ({ open, userId, onClose, onSaved }: Props) => {
       onCancel={onClose}
       onOk={handleOk}
       confirmLoading={resetMut.isPending}
-      destroyOnClose
+      destroyOnHidden
     >
       <Form form={form} layout="vertical" preserve={false}>
         <Form.Item

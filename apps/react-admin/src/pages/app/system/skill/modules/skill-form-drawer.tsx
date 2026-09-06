@@ -141,8 +141,8 @@ const SkillFormDrawer = ({ open, row, onClose, onSaved }: Props) => {
       title={!isEdit ? t('createTitle') : editable ? t('editTitle') : t('viewTitle', { defaultValue: '查看 Skill 草稿' })}
       open={open}
       onClose={onClose}
-      width={820}
-      destroyOnClose
+      size={820}
+      destroyOnHidden
       footer={
         <Space style={{ float: 'right' }}>
           <Button onClick={onClose} disabled={saving}>

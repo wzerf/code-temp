@@ -567,9 +567,9 @@ const AgentDetailDrawer = ({ open, agent, onClose, onChanged }: Props) => {
         <Drawer
           title={t('createSession')}
           open={sessionOpen}
-          width={400}
+          size={400}
           onClose={() => setSessionOpen(false)}
-          destroyOnClose
+          destroyOnHidden
           footer={
             <Space style={{ float: 'right' }}>
               <Button onClick={() => setSessionOpen(false)}>{t('cancel')}</Button>
@@ -658,8 +658,8 @@ const AgentDetailDrawer = ({ open, agent, onClose, onChanged }: Props) => {
       title={agent ? `${agent.name}（#${agent.id}）` : ''}
       open={open}
       onClose={onClose}
-      width={920}
-      destroyOnClose
+      size={920}
+      destroyOnHidden
       extra={<ReloadOutlined onClick={load} />}
     >
       {agent && (

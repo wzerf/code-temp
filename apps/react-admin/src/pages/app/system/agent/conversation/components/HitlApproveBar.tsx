@@ -101,7 +101,7 @@ export default function HitlApproveBar({ interrupts, onResume }: Props) {
         type="warning"
         showIcon
         icon={<ToolOutlined />}
-        message={
+        title={
         <Space direction="vertical" size={4} style={{ width: '100%' }}>
           <Space wrap>
             <Text strong>{t('hitl.title')}</Text>

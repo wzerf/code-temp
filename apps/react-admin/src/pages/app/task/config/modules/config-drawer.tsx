@@ -1,24 +1,12 @@
 import { useMemo } from 'react';
-import {
-  Button,
-  Col,
-  Drawer,
-  Form,
-  Input,
-  InputNumber,
-  Row,
-  Select,
-  Space,
-  Switch,
-  message,
-} from 'antd';
+import { Button, Col, Drawer, Form, Input, InputNumber, Row, Select, Space, Switch } from 'antd';
+import { message } from '@/core/feedback/message';
 import { useTranslation } from 'react-i18next';
 import {
   useCreateTaskConfig,
   useListTaskQueues,
   useListTaskWorkflowTypes,
-  useUpdateTaskConfig,
-} from '@/api/hooks/task-config';
+  useUpdateTaskConfig } from '@/api/hooks/task-config';
 import type { CreateTaskConfigRequest, TaskConfig, TaskSelectOption } from '@/api/rest/types';
 import { getApiErrorMessage } from '../../modules/error-message';
 

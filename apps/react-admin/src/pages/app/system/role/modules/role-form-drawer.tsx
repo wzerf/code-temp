@@ -1,28 +1,15 @@
  
 import { useEffect, useMemo } from 'react';
-import {
-  Button,
-  Col,
-  Drawer,
-  Form,
-  Input,
-  InputNumber,
-  Row,
-  Select,
-  Space,
-  Switch,
-  message,
-} from 'antd';
+import { Button, Col, Drawer, Form, Input, InputNumber, Row, Select, Space, Switch } from 'antd';
+import { message } from '@/core/feedback/message';
 import {
   useAllRoles,
   useCreateRole,
-  useUpdateRole,
-} from '@/api/hooks/role';
+  useUpdateRole } from '@/api/hooks/role';
 import type {
   CreateRoleRequest,
   RoleOption,
-  SysRole,
-} from '@/api/rest/types';
+  SysRole } from '@/api/rest/types';
 
 export type RoleFormKind = 'create' | 'edit';
 

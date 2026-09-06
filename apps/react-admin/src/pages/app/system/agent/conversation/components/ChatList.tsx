@@ -94,7 +94,7 @@ function AssistantBubbleContent({
         <ThoughtChainBubble thinking={content.thinking} toolCalls={content.toolCalls} streaming={streaming} />
       )}
       {content.error ? (
-        <Alert type="error" showIcon message={content.error} style={{ marginBottom: 4 }} />
+        <Alert type="error" showIcon title={content.error} style={{ marginBottom: 4 }} />
       ) : (
         <MdContent text={content.content} messageKey={messageKey} streaming={streaming} />
       )}

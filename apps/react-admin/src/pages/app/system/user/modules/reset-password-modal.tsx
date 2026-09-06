@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { Form, Input, Modal, message } from 'antd';
+import {Form, Input, Modal} from 'antd';
+import { message } from '@/core/feedback/message';
 import { useResetUserPassword } from '@/api/hooks/user';
 
 interface Props {

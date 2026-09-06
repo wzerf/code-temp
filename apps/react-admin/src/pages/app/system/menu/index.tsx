@@ -1,12 +1,12 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { Button, Popconfirm, Tag, message } from 'antd';
+import { Button, Popconfirm, Tag} from 'antd';
+import { message } from '@/core/feedback/message';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { ProTable } from '@ant-design/pro-components';
 import {
   DownOutlined,
   PlusOutlined,
-  UpOutlined,
-} from '@ant-design/icons';
+  UpOutlined } from '@ant-design/icons';
 import { useDeleteMenu, useUpdateMenu } from '@/api/hooks/menu';
 import { listMenusApi } from '@/api/rest/menu';
 import type { MenuType, SysMenu } from '@/api/rest/types';

@@ -1,16 +1,5 @@
-import {
-  Button,
-  Drawer,
-  Form,
-  Input,
-  InputNumber,
-  Space,
-  Switch,
-  Tooltip,
-  Typography,
-  message,
-  theme as antdTheme,
-} from 'antd';
+import { Button, Drawer, Form, Input, InputNumber, Space, Switch, Tooltip, Typography, theme as antdTheme } from 'antd';
+import { message } from '@/core/feedback/message';
 import {
   CodeOutlined,
   CheckCircleOutlined,
@@ -18,12 +7,10 @@ import {
   FieldNumberOutlined,
   StarOutlined,
   InfoCircleOutlined,
-  LockOutlined,
-} from '@ant-design/icons';
+  LockOutlined } from '@ant-design/icons';
 import {
   useCreateI18nLocale,
-  useUpdateI18nLocale,
-} from '@/api/hooks/i18n';
+  useUpdateI18nLocale } from '@/api/hooks/i18n';
 import type { CreateI18nLocaleRequest, I18nLocale } from '@/api/rest/types';
 
 interface Props {

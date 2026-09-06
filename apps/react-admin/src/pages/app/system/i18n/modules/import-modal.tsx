@@ -1,33 +1,16 @@
 import { useMemo, useState } from 'react';
-import {
-  Alert,
-  Button,
-  Input,
-  message,
-  Modal,
-  Popconfirm,
-  Progress,
-  Select,
-  Space,
-  Steps,
-  Table,
-  Tag,
-  Tooltip,
-  Typography,
-  Upload,
-} from 'antd';
+import {Alert, Button, Input, Modal, Popconfirm, Progress, Select, Space, Steps, Table, Tag, Tooltip, Typography, Upload } from 'antd';
+import { message } from '@/core/feedback/message';
 import {
   CheckCircleOutlined,
   DownloadOutlined,
   InboxOutlined,
-  MinusCircleOutlined,
-} from '@ant-design/icons';
+  MinusCircleOutlined } from '@ant-design/icons';
 import type { UploadProps } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import {
   useImportI18nBatch,
-  useListAllI18nLocale,
-} from '@/api/hooks/i18n';
+  useListAllI18nLocale } from '@/api/hooks/i18n';
 import { previewI18nImportApi } from '@/api/rest/i18n';
 import type { I18nLocale } from '@/api/rest/types';
 import {
@@ -38,8 +21,7 @@ import {
   previewStats,
   type ImportFormat,
   type PreviewRow,
-  type StagedFile,
-} from './import-utils';
+  type StagedFile } from './import-utils';
 
 const { Text } = Typography;
 const { Dragger } = Upload;
@@ -706,7 +688,7 @@ const I18nImportModal: React.FC<I18nImportModalProps> = ({
           <Alert
             type="info"
             showIcon
-            message="为 simple 文件配置语言代码与前缀；raw 文件自动从文件内读取，不可修改。"
+            title="为 simple 文件配置语言代码与前缀；raw 文件自动从文件内读取，不可修改。"
           />
           <Table
             rowKey="key"

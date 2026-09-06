@@ -1,18 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import {
-  Button,
-  Drawer,
-  Form,
-  Input,
-  Modal,
-  Popconfirm,
-  Select,
-  Space,
-  Table,
-  Tag,
-  Typography,
-  message,
-} from 'antd';
+import { Button, Drawer, Form, Input, Modal, Popconfirm, Select, Space, Table, Tag, Typography } from 'antd';
+import { message } from '@/core/feedback/message';
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import {
@@ -21,8 +9,7 @@ import {
   listGitSourceApi,
   previewGitSourceApi,
   syncGitSourceApi,
-  updateGitSourceApi,
-} from '@/api/rest/skill-git';
+  updateGitSourceApi } from '@/api/rest/skill-git';
 import type { GitPreviewResult, GitSkillPackage, GitSource, GitSyncItemResult, GitSyncResult } from '@/api/rest/types';
 import ContentContainer from '@/layouts/components/PageContainer/ContentContainer';
 import { getApiErrorMessage } from '../../blacklist/modules/error-message';

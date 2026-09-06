@@ -1,32 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Button,
-  Checkbox,
-  Col,
-  Form,
-  message,
-  Modal,
-  Popconfirm,
-  Row,
-  Select,
-  Space,
-  Tag,
-  Typography,
-} from 'antd';
+import { Button, Checkbox, Col, Form, Modal, Popconfirm, Row, Select, Space, Tag, Typography } from 'antd';
+import { message } from '@/core/feedback/message';
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import {
   batchDictDataApi,
   deleteDictDataApi,
-  listDictDataApi,
-} from '@/api/rest/dict-data';
+  listDictDataApi } from '@/api/rest/dict-data';
 import {
   batchDictTypeApi,
   deleteDictTypeApi,
   listAllDictTypeApi,
-  listDictTypeApi,
-} from '@/api/rest/dict-type';
+  listDictTypeApi } from '@/api/rest/dict-type';
 import type { DictData, DictType } from '@/api/rest/types';
 import { useDictLookups } from '@/api/hooks/dict';
 import ContentContainer from '@/layouts/components/PageContainer/ContentContainer';

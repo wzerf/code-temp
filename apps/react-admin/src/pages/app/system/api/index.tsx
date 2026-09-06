@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { Button, Popconfirm, Space, Tag, message } from 'antd';
+import { Button, Popconfirm, Space, Tag} from 'antd';
+import { message } from '@/core/feedback/message';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { ProTable } from '@ant-design/pro-components';
 import {
@@ -8,13 +9,11 @@ import {
   EditOutlined,
   PlusOutlined,
   SyncOutlined,
-  UpOutlined,
-} from '@ant-design/icons';
+  UpOutlined } from '@ant-design/icons';
 import {
   useApiGroups,
   useDeleteApi,
-  useSyncApisApi,
-} from '@/api/hooks/api';
+  useSyncApisApi } from '@/api/hooks/api';
 import { listApisApi } from '@/api/rest/api';
 import type { HttpMethod, SysApi } from '@/api/rest/types';
 import { formatDateTime } from '@/utils/date';

@@ -1,29 +1,16 @@
 import { useEffect } from 'react';
-import {
-  Button,
-  Col,
-  DatePicker,
-  Drawer,
-  Form,
-  Input,
-  Row,
-  Select,
-  Space,
-  Switch,
-  message,
-} from 'antd';
+import { Button, Col, DatePicker, Drawer, Form, Input, Row, Select, Space, Switch } from 'antd';
+import { message } from '@/core/feedback/message';
 import dayjs, { type Dayjs } from 'dayjs';
 import { useTranslation } from 'react-i18next';
 import {
   useCreateBlacklist,
-  useUpdateBlacklist,
-} from '@/api/hooks/blacklist';
+  useUpdateBlacklist } from '@/api/hooks/blacklist';
 import type {
   Blacklist,
   BlacklistScope,
   BlacklistTargetType,
-  CreateBlacklistRequest,
-} from '@/api/rest/types';
+  CreateBlacklistRequest } from '@/api/rest/types';
 import { getApiErrorMessage } from './error-message';
 
 const TARGET_TYPES: BlacklistTargetType[] = ['IP', 'SYS_USER', 'DEVICE'];

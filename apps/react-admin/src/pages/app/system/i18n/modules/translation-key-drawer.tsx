@@ -1,30 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
-import {
-  Alert,
-  Button,
-  Drawer,
-  Form,
-  Input,
-  Space,
-  Switch,
-  Table,
-  Tag,
-  Tooltip,
-  Typography,
-  message,
-  theme as antdTheme,
-} from 'antd';
+import {Alert, Button, Drawer, Form, Input, Space, Switch, Table, Tag, Tooltip, Typography, theme as antdTheme } from 'antd';
+import { message } from '@/core/feedback/message';
 import {
   useBatchUpsertI18nTranslationByKey,
   useGetI18nTranslationByKey,
   useListAllI18nLocale,
-  useListI18nTranslationByLocaleCode,
-} from '@/api/hooks/i18n';
+  useListI18nTranslationByLocaleCode } from '@/api/hooks/i18n';
 import type {
   I18nLocale,
   I18nTranslation,
-  I18nTranslationBatchUpsertByKeyItem,
-} from '@/api/rest/types';
+  I18nTranslationBatchUpsertByKeyItem } from '@/api/rest/types';
 
 interface Props {
   open: boolean;
@@ -344,7 +329,7 @@ const I18nTranslationKeyDrawer = ({
           type="error"
           showIcon
           style={{ marginBottom: 16 }}
-          message={errors.join('；')}
+          title={errors.join('；')}
         />
       )}
 

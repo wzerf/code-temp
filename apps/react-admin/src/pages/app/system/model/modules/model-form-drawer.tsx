@@ -1,20 +1,6 @@
 import { useMemo, useState } from 'react';
-import {
-  Alert,
-  Button,
-  Checkbox,
-  Col,
-  Drawer,
-  Form,
-  Input,
-  InputNumber,
-  Row,
-  Select,
-  Space,
-  Table,
-  Tag,
-  message,
-} from 'antd';
+import {Alert, Button, Checkbox, Col, Drawer, Form, Input, InputNumber, Row, Select, Space, Table, Tag } from 'antd';
+import { message } from '@/core/feedback/message';
 import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { createModelDraftApi, createModelDraftBatchApi, probeModelCatalogApi, updateModelDraftApi } from '@/api/rest/model';
@@ -303,7 +289,7 @@ const ModelFormDrawer = ({ open, row, onClose, onSaved }: Props) => {
           </Form.Item>
         ) : (
           <>
-            <Alert type="info" showIcon message={t('probeHint')} style={{ marginBottom: 12 }} />
+            <Alert type="info" showIcon title={t('probeHint')} style={{ marginBottom: 12 }} />
             <Space wrap style={{ marginBottom: 12 }}>
               <Button type="primary" onClick={handleProbe} loading={probing}>
                 {t('probeCatalog')}

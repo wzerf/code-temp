@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Button, Col, Drawer, Form, Input, InputNumber, Row, Select, Space, message, Alert } from 'antd';
+import { Button, Col, Drawer, Form, Input, InputNumber, Row, Select, Space, Alert} from 'antd';
+import { message } from '@/core/feedback/message';
 import { useTranslation } from 'react-i18next';
 import { createMcpDraftApi, updateMcpDraftApi } from '@/api/rest/mcp';
 import type { McpDraft } from '@/api/rest/types';
@@ -207,7 +208,7 @@ const McpFormDrawer = ({ open, row, onClose, onSaved }: Props) => {
                     <Input.Password placeholder="client_secret" autoComplete="new-password" />
                   </Form.Item>
                 ) : (
-                  <Alert type="info" showIcon message={t('oauthMarketNoSecretHint')} style={{ marginBottom: 24 }} />
+                  <Alert type="info" showIcon title={t('oauthMarketNoSecretHint')} style={{ marginBottom: 24 }} />
                 )}
               </Col>
             </Row>
@@ -234,9 +235,9 @@ const McpFormDrawer = ({ open, row, onClose, onSaved }: Props) => {
             <Input.Password placeholder={t('secretPlaceholder')} autoComplete="new-password" />
           </Form.Item>
         ) : visibility === 'PRIVATE' && authType === 'OAUTH' ? (
-          <Alert type="info" showIcon message={t('oauthNoStaticSecretHint')} style={{ marginBottom: 16 }} />
+          <Alert type="info" showIcon title={t('oauthNoStaticSecretHint')} style={{ marginBottom: 16 }} />
         ) : (
-          <Alert type="info" showIcon message={t('marketNoSecretHint')} style={{ marginBottom: 16 }} />
+          <Alert type="info" showIcon title={t('marketNoSecretHint')} style={{ marginBottom: 16 }} />
         )}
         <Form.Item name="remark" label="备注">
           <TextArea rows={2} maxLength={512} />

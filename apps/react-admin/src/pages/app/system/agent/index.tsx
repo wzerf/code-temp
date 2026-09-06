@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
-import { Button, message, Modal, Space, Tag, Typography } from 'antd';
+import { Button, Modal, Space, Tag, Typography} from 'antd';
+import { message } from '@/core/feedback/message';
 import { PlusOutlined, RobotOutlined } from '@ant-design/icons';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { ProTable } from '@ant-design/pro-components';

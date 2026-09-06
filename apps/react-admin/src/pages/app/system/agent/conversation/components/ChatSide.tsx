@@ -6,7 +6,7 @@ import type { Agent, AgentSession } from '@/api/rest/types';
 import AgentPicker from './AgentPicker';
 import { parsePlatformMillis } from '@/utils/date';
 import { getApiErrorMessage } from '../../../blacklist/modules/error-message';
-import { message } from 'antd';
+import { message } from '@/core/feedback/message';
 
 interface Props {
   agents: Agent[];

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Descriptions, Drawer, Empty, Spin, Tabs, Tag, Typography, message } from 'antd';
+import {Descriptions, Drawer, Empty, Spin, Tabs, Tag, Typography} from 'antd';
+import { message } from '@/core/feedback/message';
 import { useTranslation } from 'react-i18next';
 import { getSkillReleaseBundleApi } from '@/api/rest/skill';
 import type { SkillDraftBundle, SkillRelease } from '@/api/rest/types';

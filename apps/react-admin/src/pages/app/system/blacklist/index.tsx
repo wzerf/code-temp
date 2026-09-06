@@ -1,16 +1,9 @@
 import { useRef, useState } from 'react';
-import {
-  Button,
-  Modal,
-  Space,
-  Tag,
-  Typography,
-  message,
-} from 'antd';
+import { Button, Modal, Space, Tag, Typography } from 'antd';
+import { message } from '@/core/feedback/message';
 import {
   DeleteOutlined,
-  PlusOutlined,
-} from '@ant-design/icons';
+  PlusOutlined } from '@ant-design/icons';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { ProTable } from '@ant-design/pro-components';
 import { useTranslation } from 'react-i18next';
@@ -18,14 +11,12 @@ import {
   batchBlacklistApi,
   deleteBlacklistApi,
   listBlacklistApi,
-  updateBlacklistApi,
-} from '@/api/rest/blacklist';
+  updateBlacklistApi } from '@/api/rest/blacklist';
 import type {
   Blacklist,
   BlacklistBatchAction,
   BlacklistScope,
-  BlacklistTargetType,
-} from '@/api/rest/types';
+  BlacklistTargetType } from '@/api/rest/types';
 import { useDictLookups } from '@/api/hooks/dict';
 import ContentContainer from '@/layouts/components/PageContainer/ContentContainer';
 import BlacklistFormDrawer from './modules/blacklist-form-drawer';

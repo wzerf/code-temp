@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { Button, Drawer, Form, Input, Space, message } from 'antd';
+import { Button, Drawer, Form, Input, Space} from 'antd';
+import { message } from '@/core/feedback/message';
 import { useTranslation } from 'react-i18next';
 import { createAgentApi, updateAgentApi } from '@/api/rest/agent';
 import type { Agent, CreateAgentRequest } from '@/api/rest/types';

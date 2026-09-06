@@ -1,24 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import {
-  Alert,
-  Button,
-  Col,
-  Drawer,
-  Empty,
-  Form,
-  Input,
-  List,
-  Modal,
-  Row,
-  Select,
-  Space,
-  Spin,
-  Table,
-  Tabs,
-  Tag,
-  Typography,
-  message,
-} from 'antd';
+import {Alert, Button, Col, Drawer, Empty, Form, Input, List, Modal, Row, Select, Space, Spin, Table, Tabs, Tag, Typography } from 'antd';
+import { message } from '@/core/feedback/message';
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import {
@@ -37,8 +19,7 @@ import {
   rollbackAgentApi,
   unbindMcpFromRevisionApi,
   unbindSkillFromRevisionApi,
-  updateAgentRevisionApi,
-} from '@/api/rest/agent';
+  updateAgentRevisionApi } from '@/api/rest/agent';
 import { fetchMcpMarket } from '@/api/hooks/mcp';
 import { fetchSkillBindable } from '@/api/hooks/skill';
 import McpOauthSection from '../../mcp/modules/mcp-oauth-section';
@@ -49,8 +30,7 @@ import type {
   McpRelease,
   RevisionMcpBinding,
   RevisionSkillBinding,
-  SkillRelease,
-} from '@/api/rest/types';
+  SkillRelease } from '@/api/rest/types';
 import { getApiErrorMessage } from '../../blacklist/modules/error-message';
 
 interface Props {
@@ -411,7 +391,7 @@ const AgentDetailDrawer = ({ open, agent, onClose, onChanged }: Props) => {
     }
     return (
       <Form form={draftForm} layout="vertical" preserve={false}>
-        <Alert type="info" showIcon message={t('draftExists')} style={{ marginBottom: 12 }} />
+        <Alert type="info" showIcon title={t('draftExists')} style={{ marginBottom: 12 }} />
         <Form.Item name="systemPrompt" label={t('systemPrompt')} rules={[{ required: true, message: '必填' }]}>
           <TextArea rows={5} placeholder={t('systemPromptPlaceholder')} />
         </Form.Item>
@@ -667,7 +647,7 @@ const AgentDetailDrawer = ({ open, agent, onClose, onChanged }: Props) => {
           <Alert
             type={agent.isEnabled === 1 ? 'success' : 'error'}
             showIcon
-            message={`${agent.description || ''} ${agent.isEnabled === 1 ? '● 已启用' : '● 已禁用'}`}
+            title={`${agent.description || ''} ${agent.isEnabled === 1 ? '● 已启用' : '● 已禁用'}`}
             style={{ marginBottom: 12 }}
           />
           <Tabs items={items} activeKey={tab} onChange={setTab} />

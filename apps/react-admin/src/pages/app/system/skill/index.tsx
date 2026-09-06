@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
-import { Button, message, Modal, Space, Table, Tabs, Tag, Input } from 'antd';
+import { Button, Modal, Space, Table, Tabs, Tag, Input} from 'antd';
+import { message } from '@/core/feedback/message';
 import { PlusOutlined } from '@ant-design/icons';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { ProTable } from '@ant-design/pro-components';
@@ -13,8 +14,7 @@ import {
   rejectSkillDraftApi,
   submitSkillDraftApi,
   takeDownSkillMarketApi,
-  withdrawSkillDraftApi,
-} from '@/api/rest/skill';
+  withdrawSkillDraftApi } from '@/api/rest/skill';
 import type { SkillDraft, SkillRelease } from '@/api/rest/types';
 import ContentContainer from '@/layouts/components/PageContainer/ContentContainer';
 import SkillFormDrawer from './modules/skill-form-drawer';

@@ -1,23 +1,12 @@
 import { useRef, useState } from 'react';
 import JSZip from 'jszip';
-import {
-  Button,
-  Col,
-  message,
-  Modal,
-  Popconfirm,
-  Row,
-  Space,
-  Table,
-  Tag,
-  Typography,
-} from 'antd';
+import { Button, Col, Modal, Popconfirm, Row, Space, Table, Tag, Typography } from 'antd';
+import { message } from '@/core/feedback/message';
 import {
   DeleteOutlined,
   DownloadOutlined,
   ImportOutlined,
-  PlusOutlined,
-} from '@ant-design/icons';
+  PlusOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { useDictLookups } from '@/api/hooks/dict';
@@ -29,13 +18,11 @@ import {
   exportI18nBatchApi,
   listI18nLocaleApi,
   listI18nTranslationApi,
-  listI18nTranslationKeyApi,
-} from '@/api/rest/i18n';
+  listI18nTranslationKeyApi } from '@/api/rest/i18n';
 import type {
   I18nLocale,
   I18nTranslation,
-  I18nTranslationKey,
-} from '@/api/rest/types';
+  I18nTranslationKey } from '@/api/rest/types';
 import ContentContainer from '@/layouts/components/PageContainer/ContentContainer';
 import { formatDateTime } from '@/utils/date';
 import I18nLocaleDrawer from './modules/locale-drawer';

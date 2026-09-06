@@ -1,27 +1,12 @@
 import { useEffect, useState } from 'react';
-import {
-  Alert,
-  Button,
-  Col,
-  Descriptions,
-  Divider,
-  Drawer,
-  Form,
-  Input,
-  Row,
-  Select,
-  Space,
-  Tag,
-  Typography,
-  message,
-} from 'antd';
+import {Alert, Button, Col, Descriptions, Divider, Drawer, Form, Input, Row, Select, Space, Tag, Typography } from 'antd';
+import { message } from '@/core/feedback/message';
 import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import {
   createSkillDraftApi,
   getSkillDraftBundleApi,
-  updateSkillDraftApi,
-} from '@/api/rest/skill';
+  updateSkillDraftApi } from '@/api/rest/skill';
 import type { SkillDraft, SkillResourceItem } from '@/api/rest/types';
 import { getApiErrorMessage } from '../../blacklist/modules/error-message';
 
@@ -208,7 +193,7 @@ const SkillFormDrawer = ({ open, row, onClose, onSaved }: Props) => {
               type="error"
               showIcon
               style={{ marginTop: 12 }}
-              message={`${t('rejectReason', { defaultValue: '驳回原因' })}: ${row.reviewComment || '-'}`}
+              title={`${t('rejectReason', { defaultValue: '驳回原因' })}: ${row.reviewComment || '-'}`}
             />
           )}
           {row.status === 'CONSUMED' && (
@@ -216,7 +201,7 @@ const SkillFormDrawer = ({ open, row, onClose, onSaved }: Props) => {
               type="warning"
               showIcon
               style={{ marginTop: 12 }}
-              message={t('consumedHint', { defaultValue: '该草稿已发布为 Release,不可再编辑;修改请新建草稿' })}
+              title={t('consumedHint', { defaultValue: '该草稿已发布为 Release,不可再编辑;修改请新建草稿' })}
             />
           )}
           <Divider style={{ margin: '16px 0' }} />

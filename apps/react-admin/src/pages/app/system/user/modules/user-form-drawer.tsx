@@ -1,23 +1,11 @@
 import { useMemo } from 'react';
-import {
-  Button,
-  Col,
-  DatePicker,
-  Drawer,
-  Form,
-  Input,
-  Row,
-  Select,
-  Space,
-  Switch,
-  message,
-} from 'antd';
+import { Button, Col, DatePicker, Drawer, Form, Input, Row, Select, Space, Switch } from 'antd';
+import { message } from '@/core/feedback/message';
 import type { Dayjs } from 'dayjs';
 import dayjs from 'dayjs';
 import {
   useCreateUser,
-  useUpdateUser,
-} from '@/api/hooks/user';
+  useUpdateUser } from '@/api/hooks/user';
 import { useAllRoles } from '@/api/hooks/role';
 import { useListAllI18nLocale } from '@/api/hooks/i18n';
 import type { UserListItem } from '@/api/rest/types';

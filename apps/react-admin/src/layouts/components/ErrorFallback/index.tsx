@@ -1,4 +1,5 @@
-import { Button, Result, Typography, Space, Alert, message } from 'antd';
+import { Button, Result, Typography, Space, Alert} from 'antd';
+import { message } from '@/core/feedback/message';
 import { useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { CopyOutlined, BugOutlined, ReloadOutlined, HomeOutlined } from '@ant-design/icons';
@@ -86,7 +87,7 @@ export const ErrorFallback = ({
             <div className="mt-6 text-left">
               <Alert
                 type="error"
-                message={t('fallback.errorFallback.errorDetails')}
+                title={t('fallback.errorFallback.errorDetails')}
                 showIcon
                 action={
                   <Button size="small" icon={<CopyOutlined />} onClick={handleCopy}>

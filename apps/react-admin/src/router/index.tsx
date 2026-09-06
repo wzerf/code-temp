@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
+import { message } from '@/core/feedback/message';
 import { RouterProvider } from 'react-router-dom';
-import { message } from 'antd';
 
 import { createAccessibleRouter, type AccessibleRouterResult } from '@/core/router/factory';
 import { useAuthStore, useAccessRefreshStore, useUserStore } from '@/stores';
@@ -13,8 +13,7 @@ import type { MenuItem } from '@/api/rest/types';
 import {
   clearAccessMenusCache,
   loadAccessMenusCache,
-  saveAccessMenusCache,
-} from '@/utils/menu-cache';
+  saveAccessMenusCache } from '@/utils/menu-cache';
 
 import { Forbidden } from '@/pages/core/error';
 import type { AppRouteObject, ComponentRecordType } from '@/core/router';
@@ -26,8 +25,7 @@ import Loading from '@/components/common/Loading';
 import {
   allRoutes,
   filterMenusByPageMap,
-  pageMap,
-} from './routes-config';
+  pageMap } from './routes-config';
 
 // 布局组件映射（后端 component 字段 → React 组件）
 // 后端模式：业务路由挂在静态 MainLayout 下；BasicLayout 仍可映射到同一壳

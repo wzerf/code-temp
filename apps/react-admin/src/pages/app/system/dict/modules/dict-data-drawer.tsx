@@ -1,35 +1,19 @@
 import { useEffect, useMemo } from 'react';
-import {
-  Button,
-  Card,
-  Col,
-  Drawer,
-  Form,
-  Input,
-  InputNumber,
-  Row,
-  Select,
-  Space,
-  Switch,
-  Tag,
-  message,
-} from 'antd';
+import { Button, Card, Col, Drawer, Form, Input, InputNumber, Row, Select, Space, Switch, Tag } from 'antd';
+import { message } from '@/core/feedback/message';
 import {
   useCreateDictData,
   useListAllDictType,
-  useUpdateDictData,
-} from '@/api/hooks/dict';
+  useUpdateDictData } from '@/api/hooks/dict';
 import type {
   CreateDictDataRequest,
   DictData,
-  DictTagType,
-} from '@/api/rest/types';
+  DictTagType } from '@/api/rest/types';
 import {
   getCurrentPlatform,
   PLATFORM_OPTIONS,
   PLATFORM_TAG_TYPE_OPTIONS,
-  TAG_TYPE_SET,
-} from './shared';
+  TAG_TYPE_SET } from './shared';
 
 interface Props {
   open: boolean;

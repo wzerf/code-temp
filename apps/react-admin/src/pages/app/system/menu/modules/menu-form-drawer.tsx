@@ -2,38 +2,21 @@
  * useEffect 同步服务端数据(boundApis)与受控 open prop 到本地 state 是合法用例;
  * Drawer destroyOnHidden 已在父层设,关闭/重开会重新挂载本组件,useState 不会残留 */
 import { useEffect, useMemo, useState } from 'react';
-import {
-  Button,
-  Checkbox,
-  Col,
-  Collapse,
-  Drawer,
-  Form,
-  Input,
-  InputNumber,
-  Row,
-  Select,
-  Space,
-  Switch,
-  Tabs,
-  Tag,
-  message,
-} from 'antd';
+import { Button, Checkbox, Col, Collapse, Drawer, Form, Input, InputNumber, Row, Select, Space, Switch, Tabs, Tag } from 'antd';
+import { message } from '@/core/feedback/message';
 import type { CheckboxChangeEvent } from 'antd';
 import {
   useAllMenus,
   useCreateMenu,
   useMenuApis,
   useSetMenuApis,
-  useUpdateMenu,
-} from '@/api/hooks/menu';
+  useUpdateMenu } from '@/api/hooks/menu';
 import { useAllApis } from '@/api/hooks/api';
 import type {
   CreateMenuRequest,
   MenuBindApiItem,
   MenuType,
-  SysMenu,
-} from '@/api/rest/types';
+  SysMenu } from '@/api/rest/types';
 import { useAccessRefreshStore } from '@/stores';
 
 export type MenuFormKind = 'create' | 'edit';

@@ -1,5 +1,6 @@
 import { useRef, useState, type ReactNode } from 'react';
-import { Button, Input, message, Modal, Space, Table, Tabs, Tag, Typography } from 'antd';
+import { Button, Input, Modal, Space, Table, Tabs, Tag, Typography} from 'antd';
+import { message } from '@/core/feedback/message';
 import { PlusOutlined } from '@ant-design/icons';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { ProTable } from '@ant-design/pro-components';
@@ -15,8 +16,7 @@ import {
   rejectModelDraftApi,
   submitModelDraftApi,
   verifyModelDraftApi,
-  withdrawModelDraftApi,
-} from '@/api/rest/model';
+  withdrawModelDraftApi } from '@/api/rest/model';
 import type { ModelDraft, ModelRelease, ModelVerifyResult } from '@/api/rest/types';
 import ContentContainer from '@/layouts/components/PageContainer/ContentContainer';
 import ModelFormDrawer from './modules/model-form-drawer';

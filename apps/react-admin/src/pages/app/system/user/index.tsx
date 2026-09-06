@@ -1,12 +1,12 @@
 import { useRef, useState } from 'react';
-import { Button, Popconfirm, Tag, message } from 'antd';
+import { Button, Popconfirm, Tag} from 'antd';
+import { message } from '@/core/feedback/message';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { ProTable } from '@ant-design/pro-components';
 import { PlusOutlined } from '@ant-design/icons';
 import {
   useDeleteUser,
-  useToggleUserStatus,
-} from '@/api/hooks/user';
+  useToggleUserStatus } from '@/api/hooks/user';
 import { listUsersApi } from '@/api/rest/user';
 import type { UserListItem } from '@/api/rest/types';
 import { formatDateTime } from '@/utils/date';

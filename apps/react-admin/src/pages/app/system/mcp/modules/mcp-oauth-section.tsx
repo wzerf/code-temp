@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Button, Modal, Space, Spin, Tag, Typography, message } from 'antd';
+import { Button, Modal, Space, Spin, Tag, Typography} from 'antd';
+import { message } from '@/core/feedback/message';
 import { useTranslation } from 'react-i18next';
 import {
   getMcpOauthStatusApi,
   listMcpBindableApi,
   refreshMcpOauthApi,
   revokeMcpOauthApi,
-  startMcpOauthApi,
-} from '@/api/rest/mcp';
+  startMcpOauthApi } from '@/api/rest/mcp';
 import type { McpRelease } from '@/api/rest/types';
 import { getApiErrorMessage } from '../../blacklist/modules/error-message';
 

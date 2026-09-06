@@ -1,5 +1,6 @@
-import { message } from 'antd';
+
 import { initI18n } from '@/core/i18n';
+import { message } from '@/core/feedback/message';
 import { fetchBackendI18n } from '@/core/i18n/utils';
 import { usePreferencesStore } from '@/core/preferences';
 import { type HttpResponse, RequestClient } from '@/core/transport/rest';

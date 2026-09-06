@@ -1,15 +1,6 @@
 import { useMemo } from 'react';
-import {
-  AutoComplete,
-  Button,
-  Drawer,
-  Form,
-  Input,
-  Select,
-  Space,
-  Switch,
-  message,
-} from 'antd';
+import {AutoComplete, Button, Drawer, Form, Input, Select, Space, Switch } from 'antd';
+import { message } from '@/core/feedback/message';
 import { useApiGroups, useCreateApi, useUpdateApi } from '@/api/hooks/api';
 import type { CreateApiRequest, HttpMethod, SysApi } from '@/api/rest/types';
 

@@ -1,17 +1,9 @@
 import { useEffect } from 'react';
-import {
-  Button,
-  Drawer,
-  Form,
-  Input,
-  Space,
-  Switch,
-  message,
-} from 'antd';
+import { Button, Drawer, Form, Input, Space, Switch } from 'antd';
+import { message } from '@/core/feedback/message';
 import {
   useCreateDictType,
-  useUpdateDictType,
-} from '@/api/hooks/dict';
+  useUpdateDictType } from '@/api/hooks/dict';
 import type { CreateDictTypeRequest, DictType } from '@/api/rest/types';
 import { CODE_PATTERN } from './shared';
 

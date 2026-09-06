@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { Empty, Spin, message } from 'antd';
+import {Empty, Spin} from 'antd';
+import { message } from '@/core/feedback/message';
 import { useTranslation } from 'react-i18next';
 import { bindSessionModelApi } from '@/api/rest/agent';
 import { isDraftConversation } from './conversationSession';

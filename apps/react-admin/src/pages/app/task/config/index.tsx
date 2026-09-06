@@ -1,19 +1,12 @@
 import { useRef, useState } from 'react';
-import {
-  Button,
-  Modal,
-  Popconfirm,
-  Space,
-  Tag,
-  message,
-} from 'antd';
+import { Button, Modal, Popconfirm, Space, Tag } from 'antd';
+import { message } from '@/core/feedback/message';
 import {
   DeleteOutlined,
   PauseCircleOutlined,
   PlayCircleOutlined,
   PlusOutlined,
-  ThunderboltOutlined,
-} from '@ant-design/icons';
+  ThunderboltOutlined } from '@ant-design/icons';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { ProTable } from '@ant-design/pro-components';
 import { useTranslation } from 'react-i18next';
@@ -22,8 +15,7 @@ import {
   deleteTaskConfigApi,
   listTaskConfigApi,
   triggerTaskConfigApi,
-  updateTaskConfigApi,
-} from '@/api/rest/task-config';
+  updateTaskConfigApi } from '@/api/rest/task-config';
 import type { TaskConfig, TaskConfigBatchAction } from '@/api/rest/types';
 import { useDictLookups } from '@/api/hooks/dict';
 import { useListTaskQueues, useListTaskWorkflowTypes } from '@/api/hooks/task-config';

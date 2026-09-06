@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
-import { Alert, Button, Input, message, Modal, Space, Table, Tabs, Tag, Typography } from 'antd';
+import {Alert, Button, Input, Modal, Space, Table, Tabs, Tag, Typography} from 'antd';
+import { message } from '@/core/feedback/message';
 import { PlusOutlined } from '@ant-design/icons';
 import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { ProTable } from '@ant-design/pro-components';
@@ -14,8 +15,7 @@ import {
   submitMcpDraftApi,
   takeDownMcpMarketApi,
   verifyMcpDraftApi,
-  withdrawMcpDraftApi,
-} from '@/api/rest/mcp';
+  withdrawMcpDraftApi } from '@/api/rest/mcp';
 import McpOauthSection from './modules/mcp-oauth-section';
 import type { McpDraft, McpRelease, McpVerifyResult } from '@/api/rest/types';
 import ContentContainer from '@/layouts/components/PageContainer/ContentContainer';
@@ -410,7 +410,7 @@ const McpPage = () => {
       >
         {verifyResult?.oauthAuthorizationUrl ? (
           <>
-            <Alert type="warning" showIcon message={t('oauthRequired')} description={t('oauthHint')} />
+            <Alert type="warning" showIcon title={t('oauthRequired')} description={t('oauthHint')} />
             <Typography.Paragraph copyable style={{ marginTop: 12 }}>{verifyResult.oauthAuthorizationUrl}</Typography.Paragraph>
             <Typography.Paragraph>
               <Typography.Link href={verifyResult.oauthAuthorizationUrl} target="_blank" rel="noreferrer">

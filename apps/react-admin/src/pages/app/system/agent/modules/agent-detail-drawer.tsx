@@ -350,7 +350,7 @@ const AgentDetailDrawer = ({ open, agent, onClose, onChanged }: Props) => {
         </Button>
       </Space>
       <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-        {selected == null
+        {selected === null
           ? t('marketSecretHint')
           : selected.visibility === 'MARKET'
             ? t('marketSecretHint')

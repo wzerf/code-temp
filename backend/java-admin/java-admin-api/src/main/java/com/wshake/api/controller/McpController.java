@@ -1,9 +1,13 @@
 package com.wshake.api.controller;
 
+import cn.dev33.satoken.stp.StpUtil;
 import com.wshake.api.dto.CreateMcpDraftRequest;
+import com.wshake.api.dto.McpOauthCallbackRequest;
 import com.wshake.api.dto.RejectMcpDraftRequest;
+import com.wshake.api.dto.StartMcpOauthRequest;
 import com.wshake.api.dto.UpdateMcpDraftRequest;
 import com.wshake.api.vo.McpDraftVO;
+import com.wshake.api.vo.McpOauthVO;
 import com.wshake.api.vo.McpReleaseVO;
 import com.wshake.api.vo.McpVerifyResultVO;
 import com.wshake.common.exception.BizException;
@@ -14,6 +18,9 @@ import com.wshake.service.mcp.McpControlService.CreateMcpCommand;
 import com.wshake.service.mcp.McpControlService.McpReleaseView;
 import com.wshake.service.mcp.McpControlService.McpVerifyResult;
 import com.wshake.service.mcp.McpControlService.UpdateMcpCommand;
+import com.wshake.service.mcp.McpOauthService;
+import com.wshake.service.mcp.McpOauthService.StartLoginResult;
+import com.wshake.service.mcp.McpOauthService.TokenStatus;
 import com.wshake.service.port.McpProbePort.McpToolEntry;
 import io.github.linpeilie.Converter;
 import io.swagger.v3.oas.annotations.Operation;
@@ -46,6 +53,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class McpController {
 
     private final McpControlService mcpService;
+    private final McpOauthService oauthService;
     private final Converter converter;
 
     @GetMapping("/draft/list")
@@ -92,7 +100,12 @@ public class McpController {
                 req.getPlainSecret(),
                 req.getConnectTimeoutMs(),
                 req.getRemark(),
-                null);
+                null,
+                req.getAuthType(),
+                req.getOauthClientId(),
+                req.getPlainOauthClientSecret(),
+                req.getOauthScope(),
+                req.getOauthRequireLogin());
         return Result.ok(converter.convert(mcpService.createDraft(cmd), McpDraftVO.class));
     }
 
@@ -106,7 +119,12 @@ public class McpController {
                 req.getHeadersJson(),
                 req.getPlainSecret(),
                 req.getConnectTimeoutMs(),
-                req.getRemark());
+                req.getRemark(),
+                req.getAuthType(),
+                req.getOauthClientId(),
+                req.getPlainOauthClientSecret(),
+                req.getOauthScope(),
+                req.getOauthRequireLogin());
         return Result.ok(converter.convert(mcpService.updateDraft(id, cmd), McpDraftVO.class));
     }
 
@@ -121,6 +139,7 @@ public class McpController {
     @Operation(summary = "握手验证(返回工具目录,不改状态;需 OAuth 时 data 带授权地址)")
     public Result<McpVerifyResultVO> verify(@PathVariable Long id) {
         try {
+            // 草稿无 Release、无用户 token 概念：沿用无 token 探测（登录校验走 approve/release 侧）
             return Result.ok(toVerifyResult(mcpService.verify(id)));
         } catch (BizException e) {
             return Result.error(e.getCode(), e.getMessage());
@@ -142,9 +161,12 @@ public class McpController {
     }
 
     @PostMapping("/draft/{id}/approve")
-    @Operation(summary = "通过审核并发布 Release(再次握手冻结连接配置)")
+    @Operation(summary = "通过审核并发布 Release(再次握手冻结连接配置;OAuth 草稿用审核人登录态校验)")
     public Result<McpReleaseVO> approve(@PathVariable Long id) {
-        McpReleaseView view = mcpService.approve(id);
+        Long publisherUserId = StpUtil.getLoginIdAsLong();
+        // 审核人若已对同名 Release 完成 OAuth 登录，approve 时用其 token 做登录校验
+        String publisherAccessToken = resolvePublisherAccessToken(id, publisherUserId);
+        McpReleaseView view = mcpService.approve(id, publisherUserId, publisherAccessToken);
         return Result.ok(converter.convert(view, McpReleaseVO.class));
     }
 
@@ -198,6 +220,74 @@ public class McpController {
     public Result<Void> deprecate(@PathVariable Long id) {
         mcpService.deprecate(id);
         return Result.ok(null);
+    }
+
+    // ---------- OAuth 登录（Authorization Code + PKCE） ----------
+
+    @PostMapping("/release/{id}/oauth/start")
+    @Operation(summary = "发起 MCP OAuth 登录", description = "DCR(可选)+拼授权地址+存一次性 state；前端打开返回地址完成登录")
+    public Result<McpOauthVO.StartLoginVO> startOauth(
+            @PathVariable Long id, @Valid @RequestBody StartMcpOauthRequest req) {
+        Long userId = StpUtil.getLoginIdAsLong();
+        StartLoginResult result = oauthService.startLogin(id, userId, req.getRedirectUri());
+        return Result.ok(new McpOauthVO.StartLoginVO(result.authorizationUrl(), result.state()));
+    }
+
+    @PostMapping("/oauth/callback")
+    @Operation(summary = "MCP OAuth 回调换票", description = "前端从回调地址取 code/state 后转交后端换票落库")
+    public Result<Void> oauthCallback(@Valid @RequestBody McpOauthCallbackRequest req) {
+        Long userId = StpUtil.getLoginIdAsLong();
+        oauthService.callback(req.getCode(), req.getState(), userId);
+        return Result.ok(null);
+    }
+
+    @GetMapping("/release/{id}/oauth/status")
+    @Operation(summary = "MCP OAuth 登录态", description = "当前用户在该 Release 上的 token 有效性")
+    public Result<McpOauthVO.TokenStatusVO> oauthStatus(@PathVariable Long id) {
+        Long userId = StpUtil.getLoginIdAsLong();
+        TokenStatus status = oauthService.status(id, userId);
+        return Result.ok(
+                new McpOauthVO.TokenStatusVO(status.loggedIn(), status.expired(), status.expiresAt(), status.scope()));
+    }
+
+    @PostMapping("/release/{id}/oauth/refresh")
+    @Operation(summary = "刷新 MCP OAuth token", description = "refresh_token 换票")
+    public Result<McpOauthVO.TokenStatusVO> oauthRefresh(@PathVariable Long id) {
+        Long userId = StpUtil.getLoginIdAsLong();
+        TokenStatus status = oauthService.refresh(id, userId);
+        return Result.ok(
+                new McpOauthVO.TokenStatusVO(status.loggedIn(), status.expired(), status.expiresAt(), status.scope()));
+    }
+
+    @DeleteMapping("/release/{id}/oauth/token")
+    @Operation(summary = "解绑 MCP OAuth 授权", description = "删除当前用户在该 Release 上的 token")
+    public Result<Void> oauthRevoke(@PathVariable Long id) {
+        Long userId = StpUtil.getLoginIdAsLong();
+        oauthService.revoke(id, userId);
+        return Result.ok(null);
+    }
+
+    /** approve 时解析审核人 token：找同名最新 PUBLISHED Release 上的用户 token（草稿尚未发布时通常为空）。 */
+    private String resolvePublisherAccessToken(Long draftId, Long publisherUserId) {
+        try {
+            McpControlService.McpDraftView draft = mcpService.getDraft(draftId);
+            if (draft == null || !"OAUTH".equalsIgnoreCase(draft.authType())) {
+                return null;
+            }
+            for (McpReleaseView release : mcpService.listBindable(publisherUserId)) {
+                if (release != null
+                        && draft.name().equals(release.name())
+                        && "OAUTH".equalsIgnoreCase(release.authType())) {
+                    String token = oauthService.accessTokenFor(release.id(), publisherUserId);
+                    if (token != null && !token.isBlank()) {
+                        return token;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            // 解析失败不阻塞 approve（service 侧按未登录处理）
+        }
+        return null;
     }
 
     private static McpVerifyResultVO toVerifyResult(McpVerifyResult result) {

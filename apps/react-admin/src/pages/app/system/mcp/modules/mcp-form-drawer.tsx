@@ -21,6 +21,11 @@ interface FormValues {
   plainSecret?: string;
   connectTimeoutMs?: number;
   remark?: string;
+  authType?: 'NONE' | 'OAUTH';
+  oauthClientId?: string;
+  plainOauthClientSecret?: string;
+  oauthScope?: string;
+  oauthRequireLogin?: number;
 }
 
 const { TextArea } = Input;
@@ -36,6 +41,10 @@ function buildMcpFormValues(row: McpDraft | null): FormValues {
       visibility: row.visibility as 'MARKET' | 'PRIVATE',
       connectTimeoutMs: row.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS,
       remark: row.remark,
+      authType: (row.authType as 'NONE' | 'OAUTH') ?? 'NONE',
+      oauthClientId: row.oauthClientId || undefined,
+      oauthScope: row.oauthScope || undefined,
+      oauthRequireLogin: row.oauthRequireLogin ?? 1,
     };
   }
   return {
@@ -44,6 +53,8 @@ function buildMcpFormValues(row: McpDraft | null): FormValues {
     url: '',
     visibility: 'PRIVATE',
     connectTimeoutMs: DEFAULT_CONNECT_TIMEOUT_MS,
+    authType: 'NONE',
+    oauthRequireLogin: 1,
   };
 }
 
@@ -52,6 +63,7 @@ const McpFormDrawer = ({ open, row, onClose, onSaved }: Props) => {
   const [form] = Form.useForm<FormValues>();
   const [saving, setSaving] = useState(false);
   const visibility = Form.useWatch('visibility', form) ?? 'PRIVATE';
+  const authType = Form.useWatch('authType', form) ?? 'NONE';
   const isEdit = !!row;
   // Form 用 key + initialValues 保证 destroyOnClose 挂载即回显，
   // 避免 useEffect + setFieldsValue 在字段注册前执行导致丢值。
@@ -61,6 +73,8 @@ const McpFormDrawer = ({ open, row, onClose, onSaved }: Props) => {
   const handleSave = async () => {
     const values = await form.validateFields();
     const vis = values.visibility ?? visibility;
+    const auth = values.authType ?? authType ?? 'NONE';
+    const isOauth = auth === 'OAUTH';
     setSaving(true);
     try {
       if (isEdit && row) {
@@ -70,9 +84,15 @@ const McpFormDrawer = ({ open, row, onClose, onSaved }: Props) => {
           transport: values.transport,
           url: values.url,
           headersJson: values.headersJson,
-          plainSecret: vis === 'PRIVATE' ? values.plainSecret || undefined : undefined,
+          plainSecret: vis === 'PRIVATE' && !isOauth ? values.plainSecret || undefined : undefined,
           connectTimeoutMs: values.connectTimeoutMs,
           remark: values.remark,
+          authType: auth,
+          oauthClientId: isOauth ? values.oauthClientId || undefined : undefined,
+          plainOauthClientSecret:
+            isOauth && vis === 'PRIVATE' ? values.plainOauthClientSecret || undefined : undefined,
+          oauthScope: isOauth ? values.oauthScope || undefined : undefined,
+          oauthRequireLogin: isOauth ? (values.oauthRequireLogin ?? 1) : undefined,
         });
         message.success(t('updateSuccess'));
       } else {
@@ -82,9 +102,15 @@ const McpFormDrawer = ({ open, row, onClose, onSaved }: Props) => {
           url: values.url,
           headersJson: values.headersJson,
           visibility: values.visibility,
-          plainSecret: vis === 'PRIVATE' ? values.plainSecret || undefined : undefined,
+          plainSecret: vis === 'PRIVATE' && !isOauth ? values.plainSecret || undefined : undefined,
           connectTimeoutMs: values.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS,
           remark: values.remark,
+          authType: auth,
+          oauthClientId: isOauth ? values.oauthClientId || undefined : undefined,
+          plainOauthClientSecret:
+            isOauth && vis === 'PRIVATE' ? values.plainOauthClientSecret || undefined : undefined,
+          oauthScope: isOauth ? values.oauthScope || undefined : undefined,
+          oauthRequireLogin: isOauth ? (values.oauthRequireLogin ?? 1) : undefined,
         });
         message.success(t('createSuccess'));
       }
@@ -155,13 +181,60 @@ const McpFormDrawer = ({ open, row, onClose, onSaved }: Props) => {
         <Form.Item name="url" label={t('url')} rules={[{ required: true, message: t('requiredUrl') }]}>
           <Input placeholder={t('urlPlaceholder')} />
         </Form.Item>
+        <Form.Item name="authType" label={t('authType')} extra={t('authTypeHint')}>
+          <Select
+            options={[
+              { value: 'NONE', label: t('authTypeMap.NONE') },
+              { value: 'OAUTH', label: t('authTypeMap.OAUTH') },
+            ]}
+          />
+        </Form.Item>
+        {authType === 'OAUTH' ? (
+          <>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Item name="oauthClientId" label={t('oauthClientId')} extra={t('oauthClientIdHint')}>
+                  <Input placeholder="client_id" autoComplete="off" />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                {visibility === 'PRIVATE' ? (
+                  <Form.Item
+                    name="plainOauthClientSecret"
+                    label={t('oauthClientSecret')}
+                    extra={t('oauthClientSecretHint')}
+                  >
+                    <Input.Password placeholder="client_secret" autoComplete="new-password" />
+                  </Form.Item>
+                ) : (
+                  <Alert type="info" showIcon message={t('oauthMarketNoSecretHint')} style={{ marginBottom: 24 }} />
+                )}
+              </Col>
+            </Row>
+            <Form.Item name="oauthScope" label={t('oauthScope')} extra={t('oauthScopeHint')}>
+              <Input placeholder="read write" autoComplete="off" />
+            </Form.Item>
+            {visibility === 'MARKET' ? (
+              <Form.Item name="oauthRequireLogin" label={t('oauthRequireLogin')} extra={t('oauthRequireLoginHint')}>
+                <Select
+                  options={[
+                    { value: 1, label: t('oauthRequireLoginMap.required') },
+                    { value: 0, label: t('oauthRequireLoginMap.optional') },
+                  ]}
+                />
+              </Form.Item>
+            ) : null}
+          </>
+        ) : null}
         <Form.Item name="headersJson" label={t('headersJson')} extra={t('headersPlaceholder')}>
           <TextArea rows={3} style={{ fontFamily: 'monospace' }} placeholder='{"Accept":"application/json"}' />
         </Form.Item>
-        {visibility === 'PRIVATE' ? (
+        {visibility === 'PRIVATE' && authType !== 'OAUTH' ? (
           <Form.Item name="plainSecret" label={t('plainSecret')} extra={t('secretHint')}>
             <Input.Password placeholder={t('secretPlaceholder')} autoComplete="new-password" />
           </Form.Item>
+        ) : visibility === 'PRIVATE' && authType === 'OAUTH' ? (
+          <Alert type="info" showIcon message={t('oauthNoStaticSecretHint')} style={{ marginBottom: 16 }} />
         ) : (
           <Alert type="info" showIcon message={t('marketNoSecretHint')} style={{ marginBottom: 16 }} />
         )}

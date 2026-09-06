@@ -129,12 +129,12 @@ public class AgentHarnessFactory {
         }
     }
 
-    /** 注册绑定 MCP 客户端：连接 Release 冻结配置 + 首启握手（未知即拒绝）。 */
+    /** 注册绑定 MCP 客户端：连接 Release 冻结配置 + 首启握手（未知即拒绝）。OAuth 用运行用户 token。 */
     private void registerMcpClients(Toolkit toolkit, AgentRunPlan plan) {
         List<io.agentscope.core.tool.mcp.McpClientWrapper> wrappers = new ArrayList<>();
         try {
             for (var entry : plan.mcps()) {
-                wrappers.add(mcpAssembler.assembleOne(entry));
+                wrappers.add(mcpAssembler.assembleOne(entry, plan.ownerUserId()));
             }
             for (var wrapper : wrappers) {
                 // 握手 + 固定工具名单;失败抛错由调用方转首启拒绝

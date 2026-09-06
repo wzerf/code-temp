@@ -66,11 +66,15 @@ public class McpControlService {
         if (rows == null) {
             rows = List.of();
         }
-        return PageData.of(converter.convert(rows, McpDraftView.class), page.getTotal());
+        List<McpDraftView> views = new ArrayList<>();
+        for (AgentMcpDraft row : rows) {
+            views.add(toDraftView(row));
+        }
+        return PageData.of(views, page.getTotal());
     }
 
     public McpDraftView getDraft(Long id) {
-        return converter.convert(requireDraft(id), McpDraftView.class);
+        return toDraftView(requireDraft(id));
     }
 
     @Transactional
@@ -92,11 +96,19 @@ public class McpControlService {
         // MARKET 草稿剥离明文密钥;PRIVATE 保存加密密文
         String secret = VIS_MARKET.equals(visibility) ? "" : cmd.plainSecret();
         row.setEncryptedSecret(secretCipher.encrypt(secret));
+        applyOauthConfig(
+                row,
+                visibility,
+                cmd.authType(),
+                cmd.oauthClientId(),
+                cmd.plainOauthClientSecret(),
+                cmd.oauthScope(),
+                cmd.oauthRequireLogin());
         row.setConnectTimeoutMs(cmd.connectTimeoutMs() == null ? 5000 : Math.max(1, cmd.connectTimeoutMs()));
         row.setRemark(clip(cmd.remark(), 512));
         row.setIsEnabled(1);
         draftRepository.insert(row);
-        return converter.convert(requireDraft(row.getId()), McpDraftView.class);
+        return toDraftView(requireDraft(row.getId()));
     }
 
     @Transactional
@@ -124,6 +136,14 @@ public class McpControlService {
             String secret = VIS_MARKET.equals(row.getVisibility()) ? "" : cmd.plainSecret();
             row.setEncryptedSecret(secretCipher.encrypt(secret));
         }
+        applyOauthConfig(
+                row,
+                row.getVisibility(),
+                cmd.authType(),
+                cmd.oauthClientId(),
+                cmd.plainOauthClientSecret(),
+                cmd.oauthScope(),
+                cmd.oauthRequireLogin());
         if (cmd.connectTimeoutMs() != null) {
             row.setConnectTimeoutMs(Math.max(1, cmd.connectTimeoutMs()));
         }
@@ -131,7 +151,7 @@ public class McpControlService {
             row.setRemark(clip(cmd.remark(), 512));
         }
         draftRepository.update(row);
-        return converter.convert(requireDraft(id), McpDraftView.class);
+        return toDraftView(requireDraft(id));
     }
 
     @Transactional
@@ -163,9 +183,34 @@ public class McpControlService {
 
     /** 握手验证：连接草稿并返回工具目录,不改变状态。失败即抛错（未知即拒绝）。需 OAuth 时返回授权地址。 */
     public McpVerifyResult verify(Long id) {
+        return verify(id, null);
+    }
+
+    /**
+     * 握手验证（带用户 token）：OAuth 草稿若调用方已登录，先用用户 access_token 探测；
+     * 成功则返回工具目录（登录有效），失败/无 token 则回落发现流程返回授权地址。
+     *
+     * @param oauthAccessToken 调用方用户 token 明文（可空；只在内存）
+     */
+    public McpVerifyResult verify(Long id, String oauthAccessToken) {
         AgentMcpDraft row = requireDraft(id);
+        // OAuth 草稿：优先用用户 token 直连验证登录有效性
+        if (isOauth(row) && oauthAccessToken != null && !oauthAccessToken.isBlank()) {
+            try {
+                McpProbePort.ProbeResult authed = probeWithToken(row, oauthAccessToken);
+                if (!authed.oauthRequired()) {
+                    List<McpProbePort.McpToolEntry> tools = authed.tools();
+                    if (tools != null && !tools.isEmpty()) {
+                        return McpVerifyResult.success(tools);
+                    }
+                }
+            } catch (Exception e) {
+                // token 无效则回落发现流程，不抛错
+            }
+        }
         McpProbePort.ProbeResult result = probe(row);
         if (result.oauthRequired()) {
+            cacheDiscovery(row, result.oauth());
             return McpVerifyResult.oauthRequired(result.oauth());
         }
         List<McpProbePort.McpToolEntry> tools = result.tools();
@@ -177,21 +222,97 @@ public class McpControlService {
 
     /**
      * 通过审核：再次握手冻结连接配置副本,插入不可变 Release,草稿置 CONSUMED。
+     *
+     * @param publisherUserId 发布者（审核人）用户 id；OAuth 草稿要求校验时用其 token 做登录校验
+     * @param publisherAccessToken 发布者 token 明文（可空；只在内存）
      */
     @Transactional
-    public McpReleaseView approve(Long id) {
+    public McpReleaseView approve(Long id, Long publisherUserId, String publisherAccessToken) {
         AgentMcpDraft row = requireDraft(id);
         requireStatus(row, STATUS_PENDING_REVIEW);
-        // 握手验证连接可用 + 目录非空；OAuth 未完成不得发布
-        McpProbePort.ProbeResult probed = probe(row);
-        if (probed.oauthRequired()) {
-            throw BizException.of(
-                    ResultCode.PARAM_INVALID,
-                    "需要 OAuth 登录，无法发布: " + probed.oauth().authorizationEndpoint());
+        McpProbePort.ProbeResult probed = null;
+        boolean oauthFirstPublish = false;
+        if (isOauth(row)) {
+            // OAuth 草稿：用发布者 token 校验登录态
+            if (publisherAccessToken != null && !publisherAccessToken.isBlank()) {
+                try {
+                    McpProbePort.ProbeResult authed = probeWithToken(row, publisherAccessToken);
+                    if (!authed.oauthRequired()
+                            && authed.tools() != null
+                            && !authed.tools().isEmpty()) {
+                        probed = authed;
+                    }
+                } catch (Exception e) {
+                    probed = null;
+                }
+            }
+            if (probed == null) {
+                // 未登录：要求校验（默认）→ 有旧版则拒绝（去旧版登录），首次发布则放行（发布后登录）；
+                // 可选跳过（requireLogin=0）→ 直接放行
+                boolean requireLogin = row.getOauthRequireLogin() == null || row.getOauthRequireLogin() != 0;
+                if (requireLogin) {
+                    AgentMcpRelease previous = releaseRepository.findLatestActive(
+                            row.getOwnerUserId(), row.getVisibility(), row.getName());
+                    if (previous == null) {
+                        // 首次发布：无旧版可登录，放行（先发现缓存端点，冻结配置，发布后在 Release 上登录）
+                        try {
+                            McpProbePort.ProbeResult discovered = probe(row);
+                            if (discovered.oauthRequired()) {
+                                cacheDiscovery(row, discovered.oauth());
+                            }
+                        } catch (Exception e) {
+                            // 忽略
+                        }
+                        oauthFirstPublish = true;
+                    } else {
+                        String endpoint = row.getOauthAuthorizationEndpoint();
+                        if (endpoint == null || endpoint.isBlank()) {
+                            try {
+                                McpProbePort.ProbeResult discovered = probe(row);
+                                if (discovered.oauthRequired()) {
+                                    cacheDiscovery(row, discovered.oauth());
+                                    endpoint = discovered.oauth().authorizationEndpoint();
+                                }
+                            } catch (Exception e) {
+                                // 忽略
+                            }
+                        }
+                        throw BizException.of(
+                                ResultCode.PARAM_INVALID,
+                                "该 MCP 需要 OAuth 登录后才能发布"
+                                        + (endpoint == null || endpoint.isBlank() ? "" : ": " + endpoint));
+                    }
+                }
+            }
         }
-        List<McpProbePort.McpToolEntry> tools = probed.tools();
+        if (probed == null && !oauthFirstPublish) {
+            // 握手验证连接可用 + 目录非空；OAuth 未完成不得发布
+            probed = probe(row);
+            if (probed.oauthRequired()) {
+                cacheDiscovery(row, probed.oauth());
+                boolean requireLogin = row.getOauthRequireLogin() == null || row.getOauthRequireLogin() != 0;
+                if (requireLogin) {
+                    AgentMcpRelease previous = releaseRepository.findLatestActive(
+                            row.getOwnerUserId(), row.getVisibility(), row.getName());
+                    if (previous != null) {
+                        throw BizException.of(
+                                ResultCode.PARAM_INVALID,
+                                "需要 OAuth 登录，无法发布: " + probed.oauth().authorizationEndpoint());
+                    }
+                    // 首次发布：放行（冻结发现端点，发布后登录）
+                    oauthFirstPublish = true;
+                }
+                // 可选跳过：OAuth Release 冻结发现端点，登录留给使用方
+            }
+        }
+        List<McpProbePort.McpToolEntry> tools = probed == null ? List.of() : probed.tools();
         if (tools == null || tools.isEmpty()) {
-            throw BizException.of(ResultCode.PARAM_INVALID, "MCP 工具目录为空,拒绝发布");
+            if (isOAuthReleasePending(row) || oauthFirstPublish) {
+                // OAuth 可选跳过 / 首次发布未登录：允许空目录发布（工具目录使用时再拉）
+                tools = List.of();
+            } else {
+                throw BizException.of(ResultCode.PARAM_INVALID, "MCP 工具目录为空,拒绝发布");
+            }
         }
 
         int nextVersion = nextVersion(row.getOwnerUserId(), row.getVisibility(), row.getName());
@@ -206,6 +327,7 @@ public class McpControlService {
         release.setHeadersJson(jsonOrNull(row.getHeadersJson()));
         // MARKET 发布剥离密钥:release 不落密钥;PRIVATE 沿用草稿密文
         release.setEncryptedSecret(VIS_MARKET.equals(row.getVisibility()) ? null : row.getEncryptedSecret());
+        freezeOauthConfig(release, row);
         release.setConnectTimeoutMs(row.getConnectTimeoutMs());
         release.setSourceDraftId(id);
         release.setRemark(row.getRemark());
@@ -214,6 +336,12 @@ public class McpControlService {
 
         draftRepository.updateStatus(id, STATUS_CONSUMED, "", null, null);
         return getRelease(release.getId());
+    }
+
+    /** 兼容旧调用：无发布者登录上下文（OAuth 可选跳过仍可发布；要求校验的 MARKET OAuth 会拒绝）。 */
+    @Transactional
+    public McpReleaseView approve(Long id) {
+        return approve(id, null, null);
     }
 
     // ---------- Release / 市场 ----------
@@ -291,6 +419,125 @@ public class McpControlService {
     }
 
     // ---------- 内部 ----------
+
+    private static boolean isOauth(AgentMcpDraft row) {
+        return row != null && "OAUTH".equalsIgnoreCase(row.getAuthType());
+    }
+
+    /** OAuth 可选跳过（requireLogin=0）且尚未登录时，允许空目录发布（工具目录使用时再拉）。 */
+    private static boolean isOAuthReleasePending(AgentMcpDraft row) {
+        if (!isOauth(row)) {
+            return false;
+        }
+        return row.getOauthRequireLogin() != null && row.getOauthRequireLogin() == 0;
+    }
+
+    /** OAuth 配置落库：NONE 清空 OAuth 列；OAUTH 校验并加密 client_secret。 */
+    private void applyOauthConfig(
+            AgentMcpDraft row,
+            String visibility,
+            String authType,
+            String oauthClientId,
+            String plainOauthClientSecret,
+            String oauthScope,
+            Integer oauthRequireLogin) {
+        boolean oauth = "OAUTH".equalsIgnoreCase(authType);
+        // 全空（创建/更新均未传 OAuth 字段）→ 保持原值（更新场景）或默认 NONE（创建场景由 DB 默认）
+        if (!oauth
+                && isBlank(oauthClientId)
+                && isBlank(plainOauthClientSecret)
+                && isBlank(oauthScope)
+                && oauthRequireLogin == null
+                && !"OAUTH".equalsIgnoreCase(row.getAuthType())) {
+            if (row.getAuthType() == null || row.getAuthType().isBlank()) {
+                row.setAuthType("NONE");
+            }
+            return;
+        }
+        if (!oauth) {
+            row.setAuthType("NONE");
+            row.setOauthClientId("");
+            row.setOauthClientSecretEnc(null);
+            row.setOauthScope("");
+            row.setOauthAuthorizationEndpoint("");
+            row.setOauthTokenEndpoint("");
+            return;
+        }
+        row.setAuthType("OAUTH");
+        row.setOauthClientId(oauthClientId == null ? "" : oauthClientId.trim());
+        if (plainOauthClientSecret != null) {
+            if (VIS_MARKET.equals(visibility) && !plainOauthClientSecret.isBlank()) {
+                throw BizException.of(ResultCode.PARAM_INVALID, "MARKET 草稿禁止配置 client_secret，请用 DCR 或公开 client");
+            }
+            row.setOauthClientSecretEnc(secretCipher.encrypt(plainOauthClientSecret));
+        }
+        if (oauthScope != null) {
+            row.setOauthScope(clip(oauthScope.trim(), 1024));
+        }
+        row.setOauthRequireLogin(oauthRequireLogin == null ? 1 : (oauthRequireLogin == 0 ? 0 : 1));
+    }
+
+    /** Release 冻结 OAuth 配置（MARKET 禁止冻结 client_secret）。 */
+    private void freezeOauthConfig(AgentMcpRelease release, AgentMcpDraft row) {
+        if (!isOauth(row)) {
+            release.setAuthType("NONE");
+            release.setOauthClientId("");
+            release.setOauthClientSecretEnc(null);
+            release.setOauthScope("");
+            release.setOauthAuthorizationEndpoint("");
+            release.setOauthTokenEndpoint("");
+            release.setOauthRequireLogin(1);
+            return;
+        }
+        release.setAuthType("OAUTH");
+        release.setOauthClientId(row.getOauthClientId() == null ? "" : row.getOauthClientId());
+        if (VIS_MARKET.equals(row.getVisibility())) {
+            release.setOauthClientSecretEnc(null);
+        } else {
+            release.setOauthClientSecretEnc(row.getOauthClientSecretEnc());
+        }
+        release.setOauthScope(row.getOauthScope() == null ? "" : row.getOauthScope());
+        release.setOauthAuthorizationEndpoint(
+                row.getOauthAuthorizationEndpoint() == null ? "" : row.getOauthAuthorizationEndpoint());
+        release.setOauthTokenEndpoint(row.getOauthTokenEndpoint() == null ? "" : row.getOauthTokenEndpoint());
+        release.setOauthRequireLogin(row.getOauthRequireLogin() == null ? 1 : row.getOauthRequireLogin());
+    }
+
+    /** verify/approve 时把发现到的端点缓存到草稿（下次 start 登录直接用）。 */
+    private void cacheDiscovery(AgentMcpDraft row, McpProbePort.OAuthChallenge oauth) {
+        if (oauth == null) {
+            return;
+        }
+        boolean changed = false;
+        if (oauth.authorizationEndpoint() != null
+                && !oauth.authorizationEndpoint().isBlank()
+                && !oauth.authorizationEndpoint().equals(row.getOauthAuthorizationEndpoint())) {
+            row.setOauthAuthorizationEndpoint(oauth.authorizationEndpoint());
+            changed = true;
+        }
+        if (oauth.scope() != null
+                && !oauth.scope().isBlank()
+                && (row.getOauthScope() == null || row.getOauthScope().isBlank())) {
+            row.setOauthScope(clip(oauth.scope(), 1024));
+            changed = true;
+        }
+        if (changed) {
+            draftRepository.update(row);
+        }
+    }
+
+    private McpProbePort.ProbeResult probeWithToken(AgentMcpDraft draft, String accessToken) {
+        Map<String, String> headers = parseHeaders(draft.getHeadersJson());
+        headers.put("Authorization", "Bearer " + accessToken);
+        try {
+            return mcpProbePort.probe(new McpProbePort.ProbeCommand(
+                    draft.getTransport(), draft.getUrl(), headers, draft.getConnectTimeoutMs()));
+        } catch (BizException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new BizException(ResultCode.PARAM_INVALID, "MCP 握手失败: " + e.getMessage());
+        }
+    }
 
     private McpProbePort.ProbeResult probe(AgentMcpDraft draft) {
         // 组装头: headers_json(静态) + 解密密钥注入 Authorization(若为 Bearer 类密钥)
@@ -373,7 +620,44 @@ public class McpControlService {
                 row.getCreatedAt(),
                 row.getUpdatedAt(),
                 row.getCreatedBy() == null ? 0L : row.getCreatedBy(),
-                row.getUpdatedBy() == null ? 0L : row.getUpdatedBy());
+                row.getUpdatedBy() == null ? 0L : row.getUpdatedBy(),
+                row.getAuthType() == null || row.getAuthType().isBlank() ? "NONE" : row.getAuthType(),
+                row.getOauthClientId() == null ? "" : row.getOauthClientId(),
+                row.getOauthScope() == null ? "" : row.getOauthScope(),
+                row.getOauthAuthorizationEndpoint() == null ? "" : row.getOauthAuthorizationEndpoint(),
+                row.getOauthTokenEndpoint() == null ? "" : row.getOauthTokenEndpoint(),
+                row.getOauthClientSecretEnc() != null
+                        && !row.getOauthClientSecretEnc().isEmpty());
+    }
+
+    /** 草稿详情：手动组装 OAuth 字段（AutoMapper 只管基础字段）。 */
+    private McpDraftView toDraftView(AgentMcpDraft row) {
+        McpDraftView base = converter.convert(row, McpDraftView.class);
+        return new McpDraftView(
+                base.id(),
+                base.ownerUserId(),
+                base.name(),
+                base.visibility(),
+                base.status(),
+                base.transport(),
+                base.url(),
+                base.headersJson(),
+                base.connectTimeoutMs(),
+                base.remark(),
+                base.isEnabled(),
+                base.deletedAt(),
+                base.createdAt(),
+                base.updatedAt(),
+                base.createdBy(),
+                base.updatedBy(),
+                row.getAuthType() == null || row.getAuthType().isBlank() ? "NONE" : row.getAuthType(),
+                row.getOauthClientId() == null ? "" : row.getOauthClientId(),
+                row.getOauthScope() == null ? "" : row.getOauthScope(),
+                row.getOauthAuthorizationEndpoint() == null ? "" : row.getOauthAuthorizationEndpoint(),
+                row.getOauthTokenEndpoint() == null ? "" : row.getOauthTokenEndpoint(),
+                row.getOauthRequireLogin() == null ? 1 : row.getOauthRequireLogin(),
+                row.getOauthClientSecretEnc() != null
+                        && !row.getOauthClientSecretEnc().isEmpty());
     }
 
     private AgentMcpDraft requireDraft(Long id) {
@@ -479,7 +763,39 @@ public class McpControlService {
             String plainSecret,
             Integer connectTimeoutMs,
             String remark,
-            Long ownerUserId) {}
+            Long ownerUserId,
+            String authType,
+            String oauthClientId,
+            String plainOauthClientSecret,
+            String oauthScope,
+            Integer oauthRequireLogin) {
+        public CreateMcpCommand(
+                String name,
+                String transport,
+                String url,
+                String headersJson,
+                String visibility,
+                String plainSecret,
+                Integer connectTimeoutMs,
+                String remark,
+                Long ownerUserId) {
+            this(
+                    name,
+                    transport,
+                    url,
+                    headersJson,
+                    visibility,
+                    plainSecret,
+                    connectTimeoutMs,
+                    remark,
+                    ownerUserId,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null);
+        }
+    }
 
     public record UpdateMcpCommand(
             String name,
@@ -488,7 +804,35 @@ public class McpControlService {
             String headersJson,
             String plainSecret,
             Integer connectTimeoutMs,
-            String remark) {}
+            String remark,
+            String authType,
+            String oauthClientId,
+            String plainOauthClientSecret,
+            String oauthScope,
+            Integer oauthRequireLogin) {
+        public UpdateMcpCommand(
+                String name,
+                String transport,
+                String url,
+                String headersJson,
+                String plainSecret,
+                Integer connectTimeoutMs,
+                String remark) {
+            this(
+                    name,
+                    transport,
+                    url,
+                    headersJson,
+                    plainSecret,
+                    connectTimeoutMs,
+                    remark,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null);
+        }
+    }
 
     public record McpVerifyResult(
             boolean success,
@@ -534,7 +878,57 @@ public class McpControlService {
             LocalDateTime createdAt,
             LocalDateTime updatedAt,
             Long createdBy,
-            Long updatedBy) {
+            Long updatedBy,
+            String authType,
+            String oauthClientId,
+            String oauthScope,
+            String oauthAuthorizationEndpoint,
+            String oauthTokenEndpoint,
+            Integer oauthRequireLogin,
+            boolean hasOauthClientSecret) {
+        public McpDraftView(
+                Long id,
+                Long ownerUserId,
+                String name,
+                String visibility,
+                String status,
+                String transport,
+                String url,
+                String headersJson,
+                Integer connectTimeoutMs,
+                String remark,
+                Integer isEnabled,
+                Long deletedAt,
+                LocalDateTime createdAt,
+                LocalDateTime updatedAt,
+                Long createdBy,
+                Long updatedBy) {
+            this(
+                    id,
+                    ownerUserId,
+                    name,
+                    visibility,
+                    status,
+                    transport,
+                    url,
+                    headersJson,
+                    connectTimeoutMs,
+                    remark,
+                    isEnabled,
+                    deletedAt,
+                    createdAt,
+                    updatedAt,
+                    createdBy,
+                    updatedBy,
+                    "NONE",
+                    "",
+                    "",
+                    "",
+                    "",
+                    1,
+                    false);
+        }
+
         public McpDraftView {
             ownerUserId = ownerUserId == null ? 0L : ownerUserId;
             headersJson = headersJson == null ? "" : headersJson;
@@ -543,6 +937,12 @@ public class McpControlService {
             deletedAt = deletedAt == null ? 0L : deletedAt;
             createdBy = createdBy == null ? 0L : createdBy;
             updatedBy = updatedBy == null ? 0L : updatedBy;
+            authType = authType == null || authType.isBlank() ? "NONE" : authType;
+            oauthClientId = oauthClientId == null ? "" : oauthClientId;
+            oauthScope = oauthScope == null ? "" : oauthScope;
+            oauthAuthorizationEndpoint = oauthAuthorizationEndpoint == null ? "" : oauthAuthorizationEndpoint;
+            oauthTokenEndpoint = oauthTokenEndpoint == null ? "" : oauthTokenEndpoint;
+            oauthRequireLogin = oauthRequireLogin == null ? 1 : oauthRequireLogin;
         }
     }
 
@@ -577,7 +977,13 @@ public class McpControlService {
             LocalDateTime createdAt,
             LocalDateTime updatedAt,
             Long createdBy,
-            Long updatedBy) {}
+            Long updatedBy,
+            String authType,
+            String oauthClientId,
+            String oauthScope,
+            String oauthAuthorizationEndpoint,
+            String oauthTokenEndpoint,
+            boolean hasOauthClientSecret) {}
 
     private static String trimToNull(String value) {
         if (value == null) {
@@ -585,6 +991,10 @@ public class McpControlService {
         }
         String v = value.trim();
         return v.isEmpty() ? null : v;
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 
     private static String upperToNull(String value) {

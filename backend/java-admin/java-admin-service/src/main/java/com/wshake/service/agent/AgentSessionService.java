@@ -168,7 +168,8 @@ public class AgentSessionService {
                     b.getSessionId(),
                     b.getMcpReleaseId(),
                     b.getMcpName(),
-                    b.getEncryptedSecret() != null && !b.getEncryptedSecret().isEmpty()));
+                    b.getEncryptedSecret() != null && !b.getEncryptedSecret().isEmpty(),
+                    oauthAuthTypeOf(b.getMcpReleaseId())));
         }
         return views;
     }
@@ -221,6 +222,21 @@ public class AgentSessionService {
     }
 
     // ---------- 内部 ----------
+
+    /** 绑定 Release 的认证方式（前端判断 OAuth 展示用；缺失回落 NONE）。 */
+    private String oauthAuthTypeOf(Long releaseId) {
+        try {
+            com.wshake.service.entity.AgentMcpRelease release = mcpReleaseRepository.findById(releaseId);
+            if (release == null
+                    || release.getAuthType() == null
+                    || release.getAuthType().isBlank()) {
+                return "NONE";
+            }
+            return release.getAuthType();
+        } catch (Exception e) {
+            return "NONE";
+        }
+    }
 
     private AgentSession requireSession(Long id) {
         if (id == null) {
@@ -282,7 +298,11 @@ public class AgentSessionService {
     public record BindSessionSkillCommand(Long skillReleaseId, String skillName, String contentHash) {}
 
     public record SessionMcpBindingView(
-            Long id, Long sessionId, Long mcpReleaseId, String mcpName, boolean hasSecret) {}
+            Long id, Long sessionId, Long mcpReleaseId, String mcpName, boolean hasSecret, String authType) {
+        public SessionMcpBindingView(Long id, Long sessionId, Long mcpReleaseId, String mcpName, boolean hasSecret) {
+            this(id, sessionId, mcpReleaseId, mcpName, hasSecret, "NONE");
+        }
+    }
 
     public record BindSessionMcpCommand(Long mcpReleaseId, String mcpName, String encryptedSecret) {}
 }

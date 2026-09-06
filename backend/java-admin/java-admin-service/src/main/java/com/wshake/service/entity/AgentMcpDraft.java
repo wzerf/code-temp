@@ -47,6 +47,27 @@ public class AgentMcpDraft extends BaseEntity implements ProxyEntityAvailable<Ag
     /** 加密密钥密文（不存明文；MARKET 发布时剥离）。 */
     private String encryptedSecret;
 
+    /** NONE=静态密钥直连；OAUTH=OAuth 登录。 */
+    private String authType;
+
+    /** OAuth Client ID（公开值；不支持 DCR 的服务必填）。 */
+    private String oauthClientId;
+
+    /** OAuth Client Secret 密文（MARKET 必须为空）。 */
+    private String oauthClientSecretEnc;
+
+    /** 空格分隔 scope（发布者预填；登录时可追加）。 */
+    private String oauthScope;
+
+    /** 发现缓存：授权端点。 */
+    private String oauthAuthorizationEndpoint;
+
+    /** 发现缓存：换票端点。 */
+    private String oauthTokenEndpoint;
+
+    /** MARKET 发布：approve 是否要求校验发布者登录态；0=可选跳过。 */
+    private Integer oauthRequireLogin;
+
     /** 连接超时（毫秒）。 */
     private Integer connectTimeoutMs;
 

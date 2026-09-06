@@ -39,4 +39,22 @@ public class McpReleaseVO {
     private LocalDateTime updatedAt;
     private Long createdBy;
     private Long updatedBy;
+
+    @Schema(description = "认证方式：NONE=静态密钥直连；OAUTH=OAuth 登录")
+    private String authType;
+
+    @Schema(description = "OAuth Client ID（冻结）")
+    private String oauthClientId;
+
+    @Schema(description = "OAuth scope（冻结）")
+    private String oauthScope;
+
+    @Schema(description = "OAuth 授权端点（冻结）")
+    private String oauthAuthorizationEndpoint;
+
+    @Schema(description = "OAuth 换票端点（冻结）")
+    private String oauthTokenEndpoint;
+
+    @Schema(description = "是否已配 OAuth Client Secret（仅标记；MARKET 恒为 false）")
+    private Boolean hasOauthClientSecret;
 }

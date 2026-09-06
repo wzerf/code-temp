@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wshake.infra.agent.runtime.AgentBindingSnapshot.McpEntry;
 import com.wshake.service.agent.AgentSecretCipher;
 import com.wshake.service.entity.AgentMcpRelease;
+import com.wshake.service.mcp.McpOauthService;
 import com.wshake.service.repository.AgentMcpReleaseRepository;
 import io.agentscope.core.tool.mcp.McpClientBuilder;
 import io.agentscope.core.tool.mcp.McpClientWrapper;
@@ -34,15 +35,17 @@ public class BindingMcpAssembler {
 
     private final AgentMcpReleaseRepository releaseRepository;
     private final AgentSecretCipher secretCipher;
+    private final McpOauthService oauthService;
     private final ObjectMapper objectMapper;
 
     /**
      * 装配一个 MCP 客户端（连接 Release 冻结配置;wrapper 就绪后由调用方注册并握手）。
      *
      * @param entry 合并后的 MCP 绑定条目（releaseId + 冻结密钥）
+     * @param userId 当前用户（OAuth Release 取其 token；null 则跳过 OAuth 注入）
      * @return MCP 客户端包装（未关闭;由调用方注册后持有）
      */
-    public McpClientWrapper assembleOne(McpEntry entry) {
+    public McpClientWrapper assembleOne(McpEntry entry, Long userId) {
         AgentMcpRelease release = requireRelease(entry.mcpReleaseId());
         String name = release.getName();
         String transport = release.getTransport() == null ? "" : release.getTransport();
@@ -50,14 +53,27 @@ public class BindingMcpAssembler {
         if (url == null || url.isBlank()) {
             throw new IllegalStateException("mcp release " + release.getId() + " 未配置 url");
         }
-        // 静态头 + 绑定密钥 → Authorization 头（与 McpControlService.probe 同构）
+        // 静态头 + 密钥 → Authorization 头（与 McpControlService.probe 同构）
+        // OAuth Release：当前用户 access_token 优先；静态密钥回落
         Map<String, String> headers = parseHeaders(release.getHeadersJson());
-        String secret =
-                entry.encryptedSecret() != null && !entry.encryptedSecret().isBlank()
-                        ? secretCipher.decrypt(entry.encryptedSecret())
-                        : secretCipher.decrypt(release.getEncryptedSecret());
-        if (secret != null && !secret.isBlank()) {
-            headers.putIfAbsent("Authorization", "Bearer " + secret);
+        String oauthToken = null;
+        if ("OAUTH".equalsIgnoreCase(release.getAuthType()) && userId != null && userId > 0) {
+            try {
+                oauthToken = oauthService.accessTokenFor(release.getId(), userId);
+            } catch (Exception e) {
+                oauthToken = null;
+            }
+        }
+        if (oauthToken != null && !oauthToken.isBlank()) {
+            headers.put("Authorization", "Bearer " + oauthToken);
+        } else {
+            String secret =
+                    entry.encryptedSecret() != null && !entry.encryptedSecret().isBlank()
+                            ? secretCipher.decrypt(entry.encryptedSecret())
+                            : secretCipher.decrypt(release.getEncryptedSecret());
+            if (secret != null && !secret.isBlank()) {
+                headers.putIfAbsent("Authorization", "Bearer " + secret);
+            }
         }
 
         McpClientBuilder builder =
@@ -73,6 +89,11 @@ public class BindingMcpAssembler {
         }
         // 握手在 toolkit.registerMcpClient 时进行;这里仅构建 wrapper
         return builder.buildSync();
+    }
+
+    /** 兼容旧调用：无用户上下文（OAuth 注入跳过）。 */
+    public McpClientWrapper assembleOne(McpEntry entry) {
+        return assembleOne(entry, null);
     }
 
     private AgentMcpRelease requireRelease(Long releaseId) {

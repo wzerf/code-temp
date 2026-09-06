@@ -49,6 +49,27 @@ public class AgentMcpRelease extends BaseEntity implements ProxyEntityAvailable<
     /** 加密密钥密文（MARKET Release 必须为空）。 */
     private String encryptedSecret;
 
+    /** NONE=静态密钥直连；OAUTH=OAuth 登录（冻结）。 */
+    private String authType;
+
+    /** OAuth Client ID（冻结）。 */
+    private String oauthClientId;
+
+    /** OAuth Client Secret 密文（MARKET 必须为空；冻结）。 */
+    private String oauthClientSecretEnc;
+
+    /** 空格分隔 scope（冻结）。 */
+    private String oauthScope;
+
+    /** 授权端点（冻结）。 */
+    private String oauthAuthorizationEndpoint;
+
+    /** 换票端点（冻结）。 */
+    private String oauthTokenEndpoint;
+
+    /** MARKET 发布时的校验要求（冻结；运行时无用）。 */
+    private Integer oauthRequireLogin;
+
     /** 连接超时（冻结）。 */
     private Integer connectTimeoutMs;
 

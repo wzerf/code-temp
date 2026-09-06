@@ -5,7 +5,7 @@
 -- 字符集:     utf8mb4 / utf8mb4_unicode_ci
 -- 引擎:       InnoDB
 -- 版本要求:   MySQL 5.7.8+ 及兼容发行版（prod 不用 utf8mb4_0900_ai_ci；该 collation 仅官方 MySQL 8.0+）
--- 表数:       47 张
+-- 表数:       49 张
 --             核心 15（含 sys_data_permission / sys_blacklist / sys_material / sys_pay_method / sys_recharge_package / sys_withdraw_package）
 --             账单 2（sys_pay_bill / sys_withdraw_bill；无 is_enabled / deleted_at / created_by / updated_by）
 --             关联 4（sys_user_role / sys_role_api / sys_role_menu / sys_menu_api）
@@ -1253,6 +1253,13 @@ CREATE TABLE agent_mcp_draft (
     url                 VARCHAR(512)    NOT NULL  COMMENT '连接地址(HTTP/SSE endpoint)',
     headers_json        JSON            DEFAULT NULL  COMMENT '静态头(无密)',
     encrypted_secret    TEXT            DEFAULT NULL  COMMENT '加密密钥密文(不存明文;MARKET 发布时剥离)',
+    auth_type           VARCHAR(32)     NOT NULL DEFAULT 'NONE'  COMMENT 'NONE=静态密钥直连;OAUTH=OAuth 登录',
+    oauth_client_id     VARCHAR(256)    NOT NULL DEFAULT ''  COMMENT 'OAuth Client ID（公开值;不支持 DCR 的服务必填）',
+    oauth_client_secret_enc TEXT        DEFAULT NULL  COMMENT 'OAuth Client Secret 密文（MARKET 必须为空）',
+    oauth_scope         VARCHAR(1024)   NOT NULL DEFAULT ''  COMMENT '空格分隔 scope（发布者预填;登录时可追加）',
+    oauth_authorization_endpoint VARCHAR(512) NOT NULL DEFAULT ''  COMMENT '发现缓存：授权端点',
+    oauth_token_endpoint VARCHAR(512)   NOT NULL DEFAULT ''  COMMENT '发现缓存：换票端点',
+    oauth_require_login TINYINT(1)      NOT NULL DEFAULT 1  COMMENT 'MARKET 发布：approve 是否要求校验发布者登录态；0=可选跳过',
     connect_timeout_ms  INT UNSIGNED    NOT NULL DEFAULT 5000  COMMENT '连接超时(毫秒)',
     review_comment      VARCHAR(512)    NOT NULL DEFAULT ''  COMMENT '审核意见(对用户可见)',
     reviewed_by         BIGINT UNSIGNED NOT NULL DEFAULT 0  COMMENT '审核人(0=未审;软引用 sys_user.id)',
@@ -1284,6 +1291,13 @@ CREATE TABLE agent_mcp_release (
     url                 VARCHAR(512)    NOT NULL  COMMENT '连接地址(冻结)',
     headers_json        JSON            DEFAULT NULL  COMMENT '静态头(冻结)',
     encrypted_secret    TEXT            DEFAULT NULL  COMMENT '加密密钥密文(MARKET Release 必须为空)',
+    auth_type           VARCHAR(32)     NOT NULL DEFAULT 'NONE'  COMMENT 'NONE=静态密钥直连;OAUTH=OAuth 登录',
+    oauth_client_id     VARCHAR(256)    NOT NULL DEFAULT ''  COMMENT 'OAuth Client ID（冻结）',
+    oauth_client_secret_enc TEXT        DEFAULT NULL  COMMENT 'OAuth Client Secret 密文（MARKET 必须为空;冻结）',
+    oauth_scope         VARCHAR(1024)   NOT NULL DEFAULT ''  COMMENT '空格分隔 scope（冻结）',
+    oauth_authorization_endpoint VARCHAR(512) NOT NULL DEFAULT ''  COMMENT '授权端点（冻结）',
+    oauth_token_endpoint VARCHAR(512)   NOT NULL DEFAULT ''  COMMENT '换票端点（冻结）',
+    oauth_require_login TINYINT(1)      NOT NULL DEFAULT 1  COMMENT 'MARKET 发布时的校验要求（冻结;运行时无用）',
     connect_timeout_ms  INT UNSIGNED    NOT NULL DEFAULT 5000  COMMENT '连接超时(冻结)',
     source_draft_id     BIGINT UNSIGNED DEFAULT NULL  COMMENT '来源草稿 id(软引用)',
     remark              VARCHAR(512)    NOT NULL DEFAULT ''  COMMENT '备注',
@@ -1300,6 +1314,45 @@ CREATE TABLE agent_mcp_release (
     INDEX idx_agent_mcp_release_deleted_at (deleted_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   COMMENT='MCP Release(连接配置冻结副本;目录不入库;MARKET 无密钥 PRIVATE 带密钥)';
+
+-- MCP OAuth 用户 token：按 (release, user) 隔离；access/refresh 密文落库，明文只在内存
+CREATE TABLE agent_mcp_oauth_token (
+    id                  BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    mcp_release_id      BIGINT UNSIGNED NOT NULL  COMMENT '绑定的 Release(FK)',
+    user_id             BIGINT UNSIGNED NOT NULL  COMMENT '登录用户(软引用 sys_user.id)',
+    access_token_enc    TEXT            NOT NULL  COMMENT 'access_token 密文(不存明文)',
+    refresh_token_enc   TEXT            DEFAULT NULL  COMMENT 'refresh_token 密文(可空)',
+    token_type          VARCHAR(32)     NOT NULL DEFAULT 'Bearer'  COMMENT 'token 类型',
+    expires_at          TIMESTAMP       NULL DEFAULT NULL  COMMENT '过期时间(NULL=服务端未给)',
+    scope               VARCHAR(1024)   NOT NULL DEFAULT ''  COMMENT '实际授予 scope',
+    created_at          TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at          TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uniq_oauth_token_release_user (mcp_release_id, user_id),
+    INDEX idx_oauth_token_user (user_id),
+    CONSTRAINT fk_oauth_token_release FOREIGN KEY (mcp_release_id) REFERENCES agent_mcp_release (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='MCP OAuth 用户 token（按 release+user 隔离；明文只在内存）';
+
+-- MCP OAuth 一次性登录态：state+PKCE verifier 暂存；回调即删
+CREATE TABLE agent_mcp_oauth_state (
+    id                  BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    state               VARCHAR(64)     NOT NULL  COMMENT '一次性 state（CSRF）',
+    mcp_release_id      BIGINT UNSIGNED NOT NULL  COMMENT '目标 Release(FK)',
+    user_id             BIGINT UNSIGNED NOT NULL  COMMENT '发起登录的用户(软引用 sys_user.id)',
+    code_verifier       VARCHAR(128)    NOT NULL  COMMENT 'PKCE verifier（只存内存级随机串）',
+    redirect_uri        VARCHAR(512)    NOT NULL  COMMENT '本次登录的回调地址',
+    scope               VARCHAR(1024)   NOT NULL DEFAULT ''  COMMENT '本次请求的 scope',
+    resource            VARCHAR(512)    NOT NULL DEFAULT ''  COMMENT 'RFC9728 resource 指示',
+    client_id           VARCHAR(256)    NOT NULL DEFAULT ''  COMMENT '本次使用的 client_id（DCR 或配置）',
+    expires_at          TIMESTAMP       NOT NULL  COMMENT '过期时间（10 分钟）',
+    created_at          TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uniq_oauth_state (state),
+    INDEX idx_oauth_state_expires (expires_at),
+    CONSTRAINT fk_oauth_state_release FOREIGN KEY (mcp_release_id) REFERENCES agent_mcp_release (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='MCP OAuth 一次性登录态（state+PKCE；回调即删）';
 
 -- ============================================================
 -- Section A4b: 模型草稿与 Release

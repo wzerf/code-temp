@@ -16,6 +16,7 @@ import {
   verifyMcpDraftApi,
   withdrawMcpDraftApi,
 } from '@/api/rest/mcp';
+import McpOauthSection from './modules/mcp-oauth-section';
 import type { McpDraft, McpRelease, McpVerifyResult } from '@/api/rest/types';
 import ContentContainer from '@/layouts/components/PageContainer/ContentContainer';
 import McpFormDrawer from './modules/mcp-form-drawer';
@@ -43,6 +44,8 @@ const McpPage = () => {
   const [verifyOpen, setVerifyOpen] = useState(false);
   const [verifyResult, setVerifyResult] = useState<McpVerifyResult | null>(null);
   const [verifyLoading, setVerifyLoading] = useState(false);
+  const [verifyDraftId, setVerifyDraftId] = useState<number | null>(null);
+  const [verifyDraftName, setVerifyDraftName] = useState<string | null>(null);
 
   const reload = () => actionRef.current?.reload?.();
   const statusLabel = (s: string) => t(`statusMap.${s}`, { defaultValue: s });
@@ -90,10 +93,12 @@ const McpPage = () => {
     Modal.confirm({ title, okText: okText ?? t('confirm'), cancelText: t('cancel'), onOk: fn });
   };
 
-  const handleVerify = async (id: number) => {
+  const handleVerify = async (id: number, name?: string) => {
     setVerifyOpen(true);
     setVerifyLoading(true);
     setVerifyResult(null);
+    setVerifyDraftId(id);
+    setVerifyDraftName(name ?? null);
     try {
       const res = await verifyMcpDraftApi(id);
       setVerifyResult(res);
@@ -120,6 +125,12 @@ const McpPage = () => {
   const renderStatus = (s: string) => <Tag color={STATUS_COLOR[s]}>{statusLabel(s)}</Tag>;
   const renderVisibility = (v: string) =>
     v === 'MARKET' ? <Tag color="blue">{t('visibilityMap.MARKET')}</Tag> : <Tag>{t('visibilityMap.PRIVATE')}</Tag>;
+  const renderAuthType = (v?: string) =>
+    v === 'OAUTH' ? (
+      <Tag color="purple">{t('authTypeMap.OAUTH')}</Tag>
+    ) : (
+      <Tag>{t('authTypeMap.NONE', { defaultValue: '静态密钥' })}</Tag>
+    );
 
   const draftColumns: ProColumns<McpDraft>[] = [
     { title: t('id'), dataIndex: 'id', width: 70, search: false },
@@ -153,6 +164,17 @@ const McpPage = () => {
       width: 100,
       render: (_, r) => <Tag>{t(`transportMap.${r.transport}`, { defaultValue: r.transport })}</Tag>,
     },
+    {
+      title: t('authTypeTag'),
+      dataIndex: 'authType',
+      width: 100,
+      valueType: 'select',
+      valueEnum: {
+        NONE: { text: t('authTypeMap.NONE', { defaultValue: '静态密钥' }) },
+        OAUTH: { text: t('authTypeMap.OAUTH') },
+      },
+      render: (_, r) => renderAuthType(r.authType),
+    },
     { title: t('url'), dataIndex: 'url', ellipsis: true, search: false },
     {
       title: t('status'),
@@ -172,7 +194,7 @@ const McpPage = () => {
       search: false,
       render: (_text, r) => {
         const actions: React.ReactNode[] = [
-          <a key="verify" onClick={() => handleVerify(r.id)}>
+          <a key="verify" onClick={() => handleVerify(r.id, r.name)}>
             {t('verify')}
           </a>,
         ];
@@ -222,6 +244,12 @@ const McpPage = () => {
       render: (_, r) => renderVisibility(r.visibility),
     },
     { title: t('transport'), dataIndex: 'transport', width: 100, render: (_, r) => <Tag>{r.transport}</Tag> },
+    {
+      title: t('authTypeTag'),
+      dataIndex: 'authType',
+      width: 100,
+      render: (_, r) => renderAuthType(r.authType),
+    },
     { title: t('url'), dataIndex: 'url', ellipsis: true, search: false },
     {
       title: t('hasSecret'),
@@ -237,6 +265,20 @@ const McpPage = () => {
       valueEnum: Object.fromEntries(['PUBLISHED', 'DEPRECATED'].map((s) => [s, { text: statusLabel(s) }])),
       render: (_, r) => renderStatus(r.status),
     },
+    {
+      title: t('oauthStatus', { defaultValue: '登录态' }),
+      dataIndex: 'oauthStatus',
+      width: 280,
+      search: false,
+      render: (_, r) =>
+        r.authType === 'OAUTH' ? (
+          <McpOauthSection releaseId={r.id} onLoggedIn={reload} />
+        ) : (
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            —
+          </Typography.Text>
+        ),
+    },
     { title: t('createdAt'), dataIndex: 'createdAt', width: 160, valueType: 'dateTime', search: false },
   ];
 
@@ -244,7 +286,26 @@ const McpPage = () => {
     { title: t('id'), dataIndex: 'id', width: 70 },
     { title: t('name'), dataIndex: 'name', width: 200 },
     { title: t('version'), dataIndex: 'version', width: 90 },
+    {
+      title: t('authTypeTag'),
+      dataIndex: 'authType',
+      width: 100,
+      render: (_: unknown, r: McpRelease) => renderAuthType(r.authType),
+    },
     { title: t('url'), dataIndex: 'url', ellipsis: true },
+    {
+      title: t('oauthStatus', { defaultValue: '登录态' }),
+      key: 'oauthStatus',
+      width: 280,
+      render: (_: unknown, r: McpRelease) =>
+        r.authType === 'OAUTH' ? (
+          <McpOauthSection releaseId={r.id} onLoggedIn={loadMarket} />
+        ) : (
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            —
+          </Typography.Text>
+        ),
+    },
     {
       title: t('action'),
       key: 'action',
@@ -361,6 +422,17 @@ const McpPage = () => {
                 {t('oauthScope')}：{verifyResult.oauthScope}
               </Typography.Text>
             ) : null}
+            <McpOauthSection
+              draftId={verifyDraftId}
+              draftName={verifyDraftName}
+              onLoggedIn={() => {
+                // 登录成功后自动重验：确认登录态已落库
+                if (verifyDraftId !== null) {
+                  message.success(t('oauthLoginSuccess'));
+                  handleVerify(verifyDraftId, verifyDraftName ?? undefined);
+                }
+              }}
+            />
           </>
         ) : (
           <>

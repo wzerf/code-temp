@@ -38,6 +38,21 @@ public class CreateMcpDraftRequest {
     @Schema(description = "密钥明文(仅 PRIVATE 草稿可配;MARKET 传入将被忽略;落库为密文)")
     private String plainSecret;
 
+    @Schema(description = "认证方式：NONE=静态密钥直连；OAUTH=OAuth 登录", example = "NONE")
+    private String authType;
+
+    @Schema(description = "OAuth Client ID（公开值）")
+    private String oauthClientId;
+
+    @Schema(description = "OAuth Client Secret 明文（仅 PRIVATE；MARKET 禁止；落库为密文）")
+    private String plainOauthClientSecret;
+
+    @Schema(description = "OAuth scope（空格分隔）")
+    private String oauthScope;
+
+    @Schema(description = "MARKET 发布是否要求校验发布者登录态；0=可选跳过，默认 1")
+    private Integer oauthRequireLogin;
+
     @Schema(description = "连接超时毫秒,默认 5000")
     private Integer connectTimeoutMs;
 

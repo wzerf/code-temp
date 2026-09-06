@@ -36,4 +36,25 @@ public class McpDraftVO {
     private LocalDateTime updatedAt;
     private Long createdBy;
     private Long updatedBy;
+
+    @Schema(description = "认证方式：NONE=静态密钥直连；OAUTH=OAuth 登录")
+    private String authType;
+
+    @Schema(description = "OAuth Client ID")
+    private String oauthClientId;
+
+    @Schema(description = "OAuth scope")
+    private String oauthScope;
+
+    @Schema(description = "OAuth 授权端点（发现缓存）")
+    private String oauthAuthorizationEndpoint;
+
+    @Schema(description = "OAuth 换票端点（发现缓存）")
+    private String oauthTokenEndpoint;
+
+    @Schema(description = "MARKET 发布是否要求校验发布者登录态；0=可选跳过")
+    private Integer oauthRequireLogin;
+
+    @Schema(description = "是否已配 OAuth Client Secret（仅标记）")
+    private Boolean hasOauthClientSecret;
 }

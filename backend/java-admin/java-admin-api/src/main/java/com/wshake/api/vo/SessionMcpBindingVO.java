@@ -24,4 +24,7 @@ public class SessionMcpBindingVO {
     private Long mcpReleaseId;
     private String mcpName;
     private Boolean hasSecret;
+
+    @Schema(description = "Release 认证方式：NONE/OAUTH")
+    private String authType;
 }

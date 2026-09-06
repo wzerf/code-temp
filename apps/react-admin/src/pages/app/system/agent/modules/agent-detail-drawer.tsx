@@ -41,6 +41,7 @@ import {
 } from '@/api/rest/agent';
 import { fetchMcpMarket } from '@/api/hooks/mcp';
 import { fetchSkillBindable } from '@/api/hooks/skill';
+import McpOauthSection from '../../mcp/modules/mcp-oauth-section';
 import type {
   Agent,
   AgentRevision,
@@ -288,9 +289,29 @@ const AgentDetailDrawer = ({ open, agent, onClose, onChanged }: Props) => {
   const mcpBindColumns = [
     { title: t('mcpName'), dataIndex: 'mcpName' },
     {
+      title: t('authType', { defaultValue: '认证' }),
+      key: 'authType',
+      width: 110,
+      render: (_: unknown, r: RevisionMcpBinding) =>
+        r.authType === 'OAUTH' ? <Tag color="purple">OAuth</Tag> : <Tag>{t('staticSecret', { defaultValue: '静态密钥' })}</Tag>,
+    },
+    {
       title: t('hasSecret'),
       key: 'hasSecret',
       render: (_: unknown, r: RevisionMcpBinding) => (r.hasSecret ? <Tag color="green">✓</Tag> : <Tag>—</Tag>),
+    },
+    {
+      title: t('oauthStatus', { defaultValue: '登录态' }),
+      key: 'oauthStatus',
+      width: 220,
+      render: (_: unknown, r: RevisionMcpBinding) =>
+        r.authType === 'OAUTH' ? (
+          <McpOauthSection releaseId={r.mcpReleaseId} onLoggedIn={() => draft && loadBindings(draft.id)} />
+        ) : (
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            —
+          </Typography.Text>
+        ),
     },
     {
       title: t('action'),
@@ -313,6 +334,7 @@ const AgentDetailDrawer = ({ open, agent, onClose, onChanged }: Props) => {
 
   const mcpSelectWithSecret = () => {
     const selected = mcpOptions.find((s) => s.id === pendingMcpId) ?? null;
+    const selectedIsOauth = selected?.authType === 'OAUTH';
     return (
     <Space direction="vertical" style={{ width: '100%' }}>
       <Space>
@@ -326,22 +348,28 @@ const AgentDetailDrawer = ({ open, agent, onClose, onChanged }: Props) => {
           }}
           options={mcpOptions.map((s) => ({
             value: s.id,
-            label: `${s.name} v${s.version} [${s.visibility}]`,
+            label: `${s.name} v${s.version} [${s.visibility}]${s.authType === 'OAUTH' ? ' [OAuth]' : ''}`,
           }))}
         />
-        <Input.Password
-          style={{ width: 240 }}
-          placeholder={t('secretPlaceholder')}
-          value={mcpSecretInput}
-          onChange={(e) => setMcpSecretInput(e.target.value)}
-          autoComplete="new-password"
-        />
+        {selectedIsOauth ? (
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            {t('oauthBindHint', { defaultValue: 'OAuth 类型：绑定后在上方列表完成登录，无需填密钥' })}
+          </Typography.Text>
+        ) : (
+          <Input.Password
+            style={{ width: 240 }}
+            placeholder={t('secretPlaceholder')}
+            value={mcpSecretInput}
+            onChange={(e) => setMcpSecretInput(e.target.value)}
+            autoComplete="new-password"
+          />
+        )}
         <Button
           type="primary"
           disabled={!pendingMcpId}
           onClick={async () => {
             if (!pendingMcpId) return;
-            await handleBindMcp(pendingMcpId, mcpSecretInput || undefined);
+            await handleBindMcp(pendingMcpId, selectedIsOauth ? undefined : mcpSecretInput || undefined);
             setPendingMcpId(null);
             setMcpSecretInput('');
           }}
@@ -349,13 +377,17 @@ const AgentDetailDrawer = ({ open, agent, onClose, onChanged }: Props) => {
           {t('bindMcp')}
         </Button>
       </Space>
-      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-        {selected === null
-          ? t('marketSecretHint')
-          : selected.visibility === 'MARKET'
+      {selectedIsOauth && pendingMcpId ? (
+        <McpOauthSection releaseId={pendingMcpId} onLoggedIn={() => draft && loadBindings(draft.id)} />
+      ) : (
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+          {selected === null
             ? t('marketSecretHint')
-            : t('privateSecretHint')}
-      </Typography.Text>
+            : selected.visibility === 'MARKET'
+              ? t('marketSecretHint')
+              : t('privateSecretHint')}
+        </Typography.Text>
+      )}
     </Space>
     );
   };

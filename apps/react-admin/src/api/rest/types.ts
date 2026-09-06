@@ -1166,6 +1166,8 @@ export interface RevisionMcpBinding {
   mcpReleaseId: number;
   mcpName: string;
   hasSecret: boolean;
+  /** 冗余的 Release 认证方式（前端判断 OAuth 展示用；旧接口可能缺省） */
+  authType?: string;
 }
 
 export interface BindMcpRequest {
@@ -1329,6 +1331,15 @@ export interface McpDraft {
   updatedAt: string;
   createdBy: number;
   updatedBy: number;
+  /** 认证方式：NONE=静态密钥直连；OAUTH=OAuth 登录 */
+  authType?: string;
+  oauthClientId?: string;
+  oauthScope?: string;
+  oauthAuthorizationEndpoint?: string;
+  oauthTokenEndpoint?: string;
+  /** MARKET 发布是否要求校验发布者登录态；0=可选跳过 */
+  oauthRequireLogin?: number;
+  hasOauthClientSecret?: boolean;
 }
 
 export interface McpDraftQuery {
@@ -1350,6 +1361,11 @@ export interface CreateMcpDraftRequest {
   plainSecret?: string;
   connectTimeoutMs?: number;
   remark?: string;
+  authType?: string;
+  oauthClientId?: string;
+  plainOauthClientSecret?: string;
+  oauthScope?: string;
+  oauthRequireLogin?: number;
 }
 
 export interface UpdateMcpDraftRequest {
@@ -1361,6 +1377,11 @@ export interface UpdateMcpDraftRequest {
   plainSecret?: string;
   connectTimeoutMs?: number;
   remark?: string;
+  authType?: string;
+  oauthClientId?: string;
+  plainOauthClientSecret?: string;
+  oauthScope?: string;
+  oauthRequireLogin?: number;
 }
 
 /** MCP Release（连接配置冻结副本;不含密钥）。 */
@@ -1384,6 +1405,13 @@ export interface McpRelease {
   updatedAt: string;
   createdBy: number;
   updatedBy: number;
+  /** 认证方式：NONE=静态密钥直连；OAUTH=OAuth 登录 */
+  authType?: string;
+  oauthClientId?: string;
+  oauthScope?: string;
+  oauthAuthorizationEndpoint?: string;
+  oauthTokenEndpoint?: string;
+  hasOauthClientSecret?: boolean;
 }
 
 export interface McpReleaseQuery {

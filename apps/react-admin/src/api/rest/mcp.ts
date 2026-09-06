@@ -94,3 +94,40 @@ export function takeDownMcpMarketApi(id: number) {
 export function deprecateMcpReleaseApi(id: number) {
   return post<never>(`/system/mcp/release/${id}/deprecate`);
 }
+
+// ---------- OAuth 登录 ----------
+
+/** 发起 OAuth 登录（返回浏览器应打开的授权地址） */
+export function startMcpOauthApi(releaseId: number, body: { redirectUri: string }) {
+  return post<{ authorizationUrl: string; state: string }>(`/system/mcp/release/${releaseId}/oauth/start`, body);
+}
+
+/** OAuth 回调换票 */
+export function callbackMcpOauthApi(body: { code: string; state: string }) {
+  return post<never>('/system/mcp/oauth/callback', body);
+}
+
+/** 当前用户登录态 */
+export function getMcpOauthStatusApi(releaseId: number) {
+  return get<{
+    loggedIn: boolean;
+    expired: boolean;
+    expiresAt: string | null;
+    scope: string;
+  }>(`/system/mcp/release/${releaseId}/oauth/status`);
+}
+
+/** 刷新 token */
+export function refreshMcpOauthApi(releaseId: number) {
+  return post<{
+    loggedIn: boolean;
+    expired: boolean;
+    expiresAt: string | null;
+    scope: string;
+  }>(`/system/mcp/release/${releaseId}/oauth/refresh`);
+}
+
+/** 解绑授权 */
+export function revokeMcpOauthApi(releaseId: number) {
+  return del<never>(`/system/mcp/release/${releaseId}/oauth/token`);
+}

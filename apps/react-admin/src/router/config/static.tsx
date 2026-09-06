@@ -5,6 +5,7 @@ import { AuthGuard } from '@/router/guards';
 import MainLayout from '@/layouts/MainLayout';
 import RouteErrorFallback from '@/layouts/components/ErrorFallback/RouteErrorFallback';
 import { NotFound } from '@/pages/core/error';
+import McpOauthCallbackPage from '@/pages/app/system/mcp/oauth-callback';
 
 /**
  * 静态基础路由配置
@@ -32,6 +33,13 @@ export const staticRoutes: AppRouteObject[] = [
         index: true,
         element: <Navigate to="/analytics" replace />,
         meta: { title: 'routes:home', hideInMenu: true, hideInTab: true },
+      },
+      // MCP OAuth 回调落点（redirect_uri；不在菜单中，仅登录后可达）
+      {
+        name: 'mcp-oauth-callback',
+        path: 'system/mcp/oauth-callback',
+        element: <McpOauthCallbackPage />,
+        meta: { title: 'mcp:oauthCallbackProcessing', hideInMenu: true, hideInTab: true },
       },
       // 通配 404：必须保留；backend 模式拼菜单时也会被 factory 保留
       {

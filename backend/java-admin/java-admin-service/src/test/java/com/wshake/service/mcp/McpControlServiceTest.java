@@ -268,8 +268,14 @@ class McpControlServiceTest {
 
     @Test
     void approve_oauthRequired_rejectsWithoutInsert() {
+        // PRIVATE + OAUTH + requireLogin + 有旧版：未登录拒绝发布
         AgentMcpDraft d = draft(1L, "PENDING_REVIEW", "PRIVATE", "");
+        d.setAuthType("OAUTH");
+        d.setOauthRequireLogin(1);
         when(draftRepo.findById(1L)).thenReturn(d);
+        AgentMcpRelease prev = new AgentMcpRelease();
+        prev.setId(40L);
+        when(releaseRepo.findLatestActive(1L, "PRIVATE", "github")).thenReturn(prev);
         when(probePort.probe(any(ProbeCommand.class)))
                 .thenReturn(ProbeResult.oauth(
                         new OAuthChallenge("https://www.facebook.com/v26.0/dialog/oauth", "", "", "")));
@@ -278,5 +284,100 @@ class McpControlServiceTest {
                 .hasMessageContaining("OAuth")
                 .hasMessageContaining("https://www.facebook.com/v26.0/dialog/oauth");
         verify(releaseRepo, never()).insert(any());
+    }
+
+    @Test
+    void approve_oauthFirstPublish_allowsWithoutLogin() {
+        // 首次发布（无旧版）：未登录也放行，发布后在 Release 上登录
+        AgentMcpDraft d = draft(1L, "PENDING_REVIEW", "MARKET", "");
+        d.setAuthType("OAUTH");
+        d.setOauthRequireLogin(1);
+        d.setOauthClientId("client-123");
+        when(draftRepo.findById(1L)).thenReturn(d);
+        when(releaseRepo.findLatestActive(1L, "MARKET", "github")).thenReturn(null);
+        when(probePort.probe(any(ProbeCommand.class)))
+                .thenReturn(
+                        ProbeResult.oauth(new OAuthChallenge("https://auth.example.com/authorize", "read", "", "")));
+        when(releaseRepo.listByNameAllVersions(1L, "MARKET", "github")).thenReturn(List.of());
+        doAnswer(inv -> {
+                    inv.getArgument(0, AgentMcpRelease.class).setId(53L);
+                    return 1;
+                })
+                .when(releaseRepo)
+                .insert(any(AgentMcpRelease.class));
+        AgentMcpRelease r = new AgentMcpRelease();
+        r.setId(53L);
+        r.setName("github");
+        r.setVisibility("MARKET");
+        r.setVersion(1);
+        when(releaseRepo.findById(53L)).thenReturn(r);
+
+        var view = service.approve(1L);
+
+        assertThat(view.version()).isEqualTo(1);
+        org.mockito.ArgumentCaptor<AgentMcpRelease> captor = org.mockito.ArgumentCaptor.forClass(AgentMcpRelease.class);
+        verify(releaseRepo).insert(captor.capture());
+        assertThat(captor.getValue().getAuthType()).isEqualTo("OAUTH");
+        assertThat(captor.getValue().getOauthAuthorizationEndpoint()).isEqualTo("https://auth.example.com/authorize");
+    }
+
+    @Test
+    void approve_oauthOptionalSkipsLogin_allowsMarketRelease() {
+        // MARKET + OAUTH + requireLogin=0：可选跳过，未登录也可发布（冻结发现端点）
+        AgentMcpDraft d = draft(1L, "PENDING_REVIEW", "MARKET", "");
+        d.setAuthType("OAUTH");
+        d.setOauthRequireLogin(0);
+        d.setOauthClientId("client-123");
+        when(draftRepo.findById(1L)).thenReturn(d);
+        when(probePort.probe(any(ProbeCommand.class)))
+                .thenReturn(
+                        ProbeResult.oauth(new OAuthChallenge("https://auth.example.com/authorize", "read", "", "")));
+        when(releaseRepo.listByNameAllVersions(1L, "MARKET", "github")).thenReturn(List.of());
+        doAnswer(inv -> {
+                    inv.getArgument(0, AgentMcpRelease.class).setId(52L);
+                    return 1;
+                })
+                .when(releaseRepo)
+                .insert(any(AgentMcpRelease.class));
+        AgentMcpRelease r = new AgentMcpRelease();
+        r.setId(52L);
+        r.setName("github");
+        r.setVisibility("MARKET");
+        r.setVersion(1);
+        when(releaseRepo.findById(52L)).thenReturn(r);
+
+        var view = service.approve(1L);
+
+        assertThat(view.version()).isEqualTo(1);
+        org.mockito.ArgumentCaptor<AgentMcpRelease> captor = org.mockito.ArgumentCaptor.forClass(AgentMcpRelease.class);
+        verify(releaseRepo).insert(captor.capture());
+        assertThat(captor.getValue().getAuthType()).isEqualTo("OAUTH");
+        // MARKET 禁止冻结 client_secret
+        assertThat(captor.getValue().getOauthClientSecretEnc()).isNull();
+        assertThat(captor.getValue().getOauthClientId()).isEqualTo("client-123");
+        assertThat(captor.getValue().getOauthAuthorizationEndpoint()).isEqualTo("https://auth.example.com/authorize");
+    }
+
+    @Test
+    void createOauthDraft_marketRejectsClientSecret() {
+        when(draftRepo.existsActiveDraft(1L, "github", "MARKET", null)).thenReturn(false);
+        CreateMcpCommand cmd = new CreateMcpCommand(
+                "github",
+                "http",
+                "https://mcp.example.com/mcp",
+                null,
+                "MARKET",
+                null,
+                5000,
+                "",
+                1L,
+                "OAUTH",
+                "client-123",
+                "secret-should-fail",
+                "read",
+                1);
+        assertThatThrownBy(() -> service.createDraft(cmd))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("MARKET");
     }
 }

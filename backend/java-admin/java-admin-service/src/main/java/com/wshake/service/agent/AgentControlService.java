@@ -296,7 +296,8 @@ public class AgentControlService {
                     b.getAgentRevisionId(),
                     b.getMcpReleaseId(),
                     b.getMcpName(),
-                    b.getEncryptedSecret() != null && !b.getEncryptedSecret().isEmpty()));
+                    b.getEncryptedSecret() != null && !b.getEncryptedSecret().isEmpty(),
+                    oauthAuthTypeOf(b.getMcpReleaseId())));
         }
         return views;
     }
@@ -411,6 +412,21 @@ public class AgentControlService {
             throw BizException.of(ResultCode.PARAM_INVALID, "mcp binding " + id + " not found");
         }
         return row;
+    }
+
+    /** 绑定 Release 的认证方式（前端判断 OAuth 展示用；缺失回落 NONE）。 */
+    private String oauthAuthTypeOf(Long releaseId) {
+        try {
+            com.wshake.service.entity.AgentMcpRelease release = mcpReleaseRepository.findById(releaseId);
+            if (release == null
+                    || release.getAuthType() == null
+                    || release.getAuthType().isBlank()) {
+                return "NONE";
+            }
+            return release.getAuthType();
+        } catch (Exception e) {
+            return "NONE";
+        }
     }
 
     private static void requireDraftStatus(AgentRevision row) {
@@ -529,7 +545,12 @@ public class AgentControlService {
 
     public record BindSkillCommand(Long skillReleaseId, String skillName, String contentHash, Integer overrideWinner) {}
 
-    public record McpBindingView(Long id, Long agentRevisionId, Long mcpReleaseId, String mcpName, boolean hasSecret) {}
+    public record McpBindingView(
+            Long id, Long agentRevisionId, Long mcpReleaseId, String mcpName, boolean hasSecret, String authType) {
+        public McpBindingView(Long id, Long agentRevisionId, Long mcpReleaseId, String mcpName, boolean hasSecret) {
+            this(id, agentRevisionId, mcpReleaseId, mcpName, hasSecret, "NONE");
+        }
+    }
 
     public record BindMcpCommand(Long mcpReleaseId, String mcpName, String encryptedSecret) {}
 

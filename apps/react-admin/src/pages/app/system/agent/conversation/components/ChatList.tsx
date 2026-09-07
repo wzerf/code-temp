@@ -91,7 +91,13 @@ function AssistantBubbleContent({
   return (
     <div className="agent-chat-assistant-content">
       {(content.thinking || (content.toolCalls?.length ?? 0) > 0) && (
-        <ThoughtChainBubble thinking={content.thinking} toolCalls={content.toolCalls} streaming={streaming} />
+        <ThoughtChainBubble
+          thinking={content.thinking}
+          thinkingStartedAt={content.thinkingStartedAt}
+          thinkingEndedAt={content.thinkingEndedAt}
+          toolCalls={content.toolCalls}
+          streaming={streaming}
+        />
       )}
       {content.error ? (
         <Alert type="error" showIcon title={content.error} style={{ marginBottom: 4 }} />

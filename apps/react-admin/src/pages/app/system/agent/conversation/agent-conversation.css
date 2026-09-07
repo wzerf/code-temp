@@ -397,15 +397,41 @@
   font-size: 0.92em;
 }
 
-.agent-chat-thought-chain {
+.agent-chat-thought-chain-wrap {
+  position: relative;
   margin-bottom: 8px;
   max-width: 100%;
+}
+
+.agent-chat-thought-chain-actions {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  right: 0;
+}
+
+.agent-chat-thought-chain-actions .ant-btn {
+  height: 24px;
+  padding-inline: 4px;
+  color: var(--ant-color-text-tertiary);
+  font-size: 12px;
+}
+
+.agent-chat-thought-chain {
+  max-width: 100%;
+  padding-right: 72px;
 }
 
 .agent-chat-thought-chain .ant-collapse-header {
   padding-inline: 0 !important;
   color: var(--ant-color-text-secondary);
   font-size: 13px;
+}
+
+.agent-chat-duration {
+  margin-inline-start: 8px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
 }
 
 .agent-chat-thinking-body {

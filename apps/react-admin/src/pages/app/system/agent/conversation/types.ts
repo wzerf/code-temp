@@ -247,6 +247,8 @@ export interface ToolCallView {
   /** TOOL_CALL_RESULT 的内容摘要 */
   resultText?: string | null;
   status?: 'running' | 'done' | 'error';
+  startedAt?: number;
+  endedAt?: number;
 }
 
 /** 后端 RunAgentInput 请求体（XRequest 发送的 body） */
@@ -273,6 +275,10 @@ export interface AssistantContent {
   content: string;
   /** 思考链文本（REASONING_* delta 累积） */
   thinking?: string;
+  /** 思考过程开始时间（毫秒时间戳） */
+  thinkingStartedAt?: number;
+  /** 思考过程结束时间（毫秒时间戳） */
+  thinkingEndedAt?: number;
   /** 本 turn 内工具调用节点（按顺序） */
   toolCalls?: ToolCallView[];
   /** RUN_ERROR 的错误信息 */

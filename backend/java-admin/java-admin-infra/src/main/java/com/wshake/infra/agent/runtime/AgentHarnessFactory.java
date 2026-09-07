@@ -105,13 +105,19 @@ public class AgentHarnessFactory {
         return plan.baseUrl().contains("api.x.ai") ? new XaiChatFormatter() : new OpenAIChatFormatter();
     }
 
-    /** 权限上下文：放行 toolkit 中已装配的全部工具（服务端装配即授权），默认 ASK。 */
+    /** 权限上下文：放行 toolkit 中已装配的全部工具（服务端装配即授权），默认 ASK。
+     *
+     * <p>注意：{@code ruleContent} 必须为 null。{@code ToolBase.matchRule} 默认实现仅在
+     * {@code ruleContent == null} 时返回 true；非空字符串会导致 allow 规则永远不命中，
+     * MCP 工具全部落入 ASK → 会话卡死在 HITL ASKING 态（下次运行报
+     * "Agent is paused for human-in-the-loop confirmation"）。 */
     private PermissionContextState buildPermissionContext(Toolkit toolkit) {
         var ctxBuilder = PermissionContextState.builder().mode(PermissionMode.DEFAULT);
         for (String toolName : toolkit.getToolNames()) {
-            ctxBuilder.addAllowRule(
-                    toolName,
-                    new PermissionRule(toolName, "platform-assembled tool", PermissionBehavior.ALLOW, "platform"));
+            ctxBuilder.addAllowRule(toolName, new PermissionRule(toolName, null, PermissionBehavior.ALLOW, "platform"));
+        }
+        for (String toolName : List.of("wait_async_results", "load_skill_through_path", "read_skill")) {
+            ctxBuilder.addAllowRule(toolName, new PermissionRule(toolName, null, PermissionBehavior.ALLOW, "platform"));
         }
         return ctxBuilder.build();
     }

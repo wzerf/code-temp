@@ -2,13 +2,14 @@
 
 > **状态：** 目标架构（已按落地代码校准）
 > **读者：** 实施平台的工程师与 agent
-> **范围：** 五大模块——Agent 管理、Agent 对话、模型管理、Skill 管理/市场、MCP 管理/市场。
+> **范围：** 六大模块——Agent 管理、Agent 对话、模型管理、Skill 管理/市场、MCP 管理/市场、子 Agent（SubAgent）。
 > **数据/流转关联图：** 见 [`docs/agent-module-table-flows.md`](agent-module-table-flows.md)。
+> **子 Agent 详述：** 见 [`docs/agent-subagent-architecture.md`](agent-subagent-architecture.md)。
 > **设计基线：** `CONTEXT.md`、`backend/db/docs/db-conventions.md`、`docs/adr/`、Flyway `V3__agent_schema.sql` 与 `V4__agent_schema_seed.sql`、AgentScope Java `2.0.1`。
 
 ## 1. 定位与边界
 
-在现有 Trellis Admin 之上建设可运营的 Agent 平台。系统由**控制面**与**运行面**两个平面组成，并划分为五个对等模块：
+在现有 Trellis Admin 之上建设可运营的 Agent 平台。系统由**控制面**与**运行面**两个平面组成，并划分为六个对等模块：
 
 | 模块            | 平面            | 职责                                                                              |
 | --------------- | --------------- | --------------------------------------------------------------------------------- |
@@ -17,6 +18,7 @@
 | 模型管理        | 控制面 + 运行面 | 官方模型审核发布、用户私有模型、不可变 Release、可用性护栏、Revision/Session 选择 |
 | Skill 管理/市场 | 控制面 + 运行面 | Skill 草稿、审核发布、不可变 Release、市场、Git 受控导入、Revision Binding        |
 | MCP 管理/市场   | 控制面 + 运行面 | MCP 草稿、握手验证、审核发布、连接配置 Release、市场、Revision Binding            |
+| 子 Agent        | 控制面 + 运行面 | 子 Agent 声明草稿/发布/绑定、委派与并行、隔离与权限继承、流式透传、分支对话       |
 
 **控制面**负责“哪些资源可用、由谁使用、以什么版本组合”，只处理可审计的配置与生命周期。
 **运行面**负责把固定的 Agent Revision 解析为一次可恢复、可中断、可审计的 `HarnessAgent` 调用，只消费已固定的版本与 Binding，不重新计算“最新状态”。
@@ -167,11 +169,11 @@ sequenceDiagram
 
 ### 5.5 事件类型
 
-运行面通过 AgentScope `agentscope-extensions-agui` 将内部 `AgentEvent` 流转为 AG-UI 标准事件（`RUN_STARTED` / `RUN_FINISHED` / `RUN_ERROR` / `TEXT_MESSAGE_*` / `REASONING_MESSAGE_*` / `TOOL_CALL_*` / `CUSTOM`），终态为 `RUN_FINISHED` / `RUN_ERROR`。前端消费 AG-UI 事件，详见 [`agent-conversation-architecture.md`](agent-conversation-architecture.md)。
+运行面通过 AgentScope `agentscope-extensions-agui` 将内部 `AgentEvent` 流转为 AG-UI 标准事件（`RUN_STARTED` / `RUN_FINISHED` / `RUN_ERROR` / `TEXT_MESSAGE_*` / `REASONING_MESSAGE_*` / `TOOL_CALL_*` / `CUSTOM`），终态为 `RUN_FINISHED` / `RUN_ERROR`。同步子 Agent 事件含 `source` 标记并实时透传到 SSE（`source=null` 为父，`source="main/<subagent>"` 为子）；前端按 `source` 隔离渲染（详见 [`agent-subagent-architecture.md`](agent-subagent-architecture.md) §5.3 与 [`agent-conversation-architecture.md`](agent-conversation-architecture.md)）。
 
 ### 5.6 运行面安全开关
 
-`AgentRuntimeService.buildAgent` 显式禁用：文件系统工具、shell、memory tools/hooks、workspace context、`@path` 展开、subagents、dynamic skills、默认 workspace skills。平台仅按 `permission_policy.allowedTools` 允许受信 Java Tool（当前为 `get_platform_time`）。
+`AgentHarnessFactory`（`AgentRuntimeService.buildAgent`）显式禁用：文件系统工具、shell、memory tools/hooks、workspace context、`@path` 展开、dynamic skills、默认 workspace skills。子 Agent（subagents）在未绑定子声明时保持禁用，绑定后按 `AgentRunPlan.subagents` 逐条 `builder.subagent(...)` 启用，详见 [`agent-subagent-architecture.md`](agent-subagent-architecture.md) §5.2。平台仅按 `permission_policy.allowedTools` 允许受信 Java Tool（当前为 `get_platform_time`）。
 
 ## 6. 模块三：模型管理
 

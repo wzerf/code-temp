@@ -15,3 +15,6 @@
 - Uses pnpm as the package manager; run project tooling via `pnpm exec ...` (e.g., `pnpm exec tsc`) rather than bare `npx`/`npm`. Confidence: 0.7
 - When making frontend edits (React/TS), verifies by running the TypeScript type check before reporting completion. Confidence: 0.7
 - Prefers sibling admin features to share the same interaction pattern, not just visual layout — e.g., asked that Skill binding be changed to match MCP binding (explicit bind button + auto-loaded options) instead of a divergent auto-bind-on-select flow. Confidence: 0.7
+- Expects warning-free Java code and asks to resolve IDE/compiler warnings (redundant overrides, raw generic types, unchecked assignments, constant conditions/nullability) rather than leaving or suppressing them. Confidence: 0.75
+- Prefers subtle, low-visual-weight UI hints over prominent banners — called a blue info Alert for a minor capability note “太突兀了吧”, expecting lightweight inline text (e.g., Form extra) instead. Confidence: 0.6
+- Prefers media/gallery displays to use uniform constrained tile sizes regardless of item count (e.g., capped grid width with square 1:1 cover tiles) rather than a full-width large single image — explicitly asked that generated images keep the same size whether one or many. Confidence: 0.7

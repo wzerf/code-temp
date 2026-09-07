@@ -98,6 +98,7 @@ public class ModelControlService {
         row.setParameterGuardrails(
                 normalizeJsonObject(cmd.parameterGuardrails(), DEFAULT_GUARDRAILS, "parameterGuardrails"));
         row.setContextLength(normalizeContextLength(cmd.contextLength()));
+        requireImageCapabilities(row.getCode(), row.getCapabilities(), objectMapper);
         row.setEncryptedSecret(secretCipher.encrypt(requireSecret(cmd.plainSecret())));
         row.setRemark(clip(cmd.remark(), 512));
         row.setIsEnabled(1);
@@ -171,6 +172,9 @@ public class ModelControlService {
         }
         if (cmd.capabilities() != null) {
             row.setCapabilities(normalizeJsonObject(cmd.capabilities(), DEFAULT_CAPABILITIES, "capabilities"));
+        }
+        if (cmd.code() != null || cmd.capabilities() != null) {
+            requireImageCapabilities(row.getCode(), row.getCapabilities(), objectMapper);
         }
         if (cmd.parameterGuardrails() != null) {
             row.setParameterGuardrails(
@@ -307,16 +311,51 @@ public class ModelControlService {
      * 可用模型候选 = 官方 PUBLISHED ∪ 调用者自己的私有 PUBLISHED。
      */
     public List<ModelReleaseView> listAvailable(Long ownerUserId) {
+        return listAvailableFiltered(ownerUserId, null);
+    }
+
+    public List<ModelReleaseView> listAvailableFiltered(Long ownerUserId, String code) {
         List<ModelReleaseView> views = new ArrayList<>();
         for (AgentModelRelease row : releaseRepository.listOfficialPublished()) {
+            if (!matchesCode(row, code)) {
+                continue;
+            }
             views.add(toReleaseView(row));
         }
         if (ownerUserId != null && ownerUserId > 0) {
             for (AgentModelRelease row : releaseRepository.listPrivatePublishedByOwner(ownerUserId)) {
+                if (!matchesCode(row, code)) {
+                    continue;
+                }
                 views.add(toReleaseView(row));
             }
         }
+        if ("image".equalsIgnoreCase(code)) {
+            views.removeIf(v -> !isImageCapable(v.capabilities()));
+        }
         return views;
+    }
+
+    private static boolean matchesCode(AgentModelRelease row, String code) {
+        if (code == null || code.isBlank()) {
+            return true;
+        }
+        String rowCode = row.getCode() == null ? "" : row.getCode().trim();
+        return code.equalsIgnoreCase(rowCode);
+    }
+
+    private boolean isImageCapable(String capabilitiesJson) {
+        if (capabilitiesJson == null || capabilitiesJson.isBlank()) {
+            return false;
+        }
+        try {
+            com.fasterxml.jackson.databind.JsonNode node = objectMapper.readTree(capabilitiesJson);
+            return node != null
+                    && node.isObject()
+                    && node.path("image_generation").asBoolean(false);
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     /** 会话绑定前校验：Release 必须 PUBLISHED，且对调用者可见。 */
@@ -476,6 +515,29 @@ public class ModelControlService {
             throw BizException.of(ResultCode.PARAM_INVALID, "scope must be OFFICIAL|PRIVATE");
         }
         return v;
+    }
+
+    private static void requireImageCapabilities(String code, String capabilitiesJson, ObjectMapper mapper) {
+        if (code == null || !"image".equalsIgnoreCase(code.trim())) {
+            return;
+        }
+        String caps = capabilitiesJson;
+        if (caps == null || caps.isBlank()) {
+            throw BizException.of(ResultCode.PARAM_INVALID, "code=image 时 capabilities.image_generation 必须为 true");
+        }
+        try {
+            com.fasterxml.jackson.databind.JsonNode node = mapper.readTree(caps);
+            if (node == null
+                    || !node.isObject()
+                    || !node.path("image_generation").asBoolean(false)) {
+                throw BizException.of(
+                        ResultCode.PARAM_INVALID, "code=image 时 capabilities 必须包含 {\"image_generation\":true}");
+            }
+        } catch (BizException e) {
+            throw e;
+        } catch (Exception e) {
+            throw BizException.of(ResultCode.PARAM_INVALID, "capabilities 必须为合法 JSON 对象");
+        }
     }
 
     private static String requireProvider(String raw) {

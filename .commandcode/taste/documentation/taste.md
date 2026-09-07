@@ -1,4 +1,4 @@
-- For documentation-only requests, produces only the document and does not implement code changes (explicit "只写文档"). Confidence: 0.7
+- For documentation-only requests, produces only the document and does not implement code changes (explicit "只写文档"). Confidence: 0.8
 - Architecture docs should include interaction/sequence flow diagrams (交互流程图), not just prose and structure. Confidence: 0.7
 - Treats the architecture doc set as living references that must stay complete as the feature surface grows — when a module is missing (e.g., 模型管理 absent from agent-module-architecture.md), the user points at the specific file and asks to fill the gap, expecting the new module documented as a first-class module alongside existing ones. Confidence: 0.6
 - Treats the architecture doc set as living references that must stay complete as the feature surface grows — when a planned module is missing (e.g., 模型管理 absent from agent-module-architecture.md), the user points at the specific doc and asks to fill the gap, expecting the new module documented as a first-class module alongside existing ones. Confidence: 0.6

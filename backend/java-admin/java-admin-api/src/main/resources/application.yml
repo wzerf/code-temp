@@ -125,6 +125,13 @@ app:
     emit-tool-call-args: ${AGENT_EMIT_TOOL_CALL_ARGS:true}
     emit-state-events: ${AGENT_EMIT_STATE_EVENTS:false}
     emit-token-usage: ${AGENT_EMIT_TOKEN_USAGE:false}
+  image:
+    max-prompt-chars: ${IMAGE_MAX_PROMPT_CHARS:4000}
+    max-images-per-call: ${IMAGE_MAX_IMAGES:4}
+    rate-window: ${IMAGE_RATE_WINDOW:1m}
+    rate-burst: ${IMAGE_RATE_BURST:5}
+    max-image-bytes: ${IMAGE_MAX_BYTES:8388608}
+    upload-to-storage: ${IMAGE_UPLOAD_TO_STORAGE:false}
   # 对象存储：local 默认；s3 对接 compose MinIO（127.0.0.1:4900）
   storage:
     type: ${STORAGE_TYPE:local}

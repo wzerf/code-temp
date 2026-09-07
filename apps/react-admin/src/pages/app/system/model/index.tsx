@@ -34,7 +34,7 @@ const STATUS_COLOR: Record<string, string> = {
 const ModelPage = () => {
   const { t } = useTranslation('model');
   const actionRef = useRef<ActionType | undefined>(undefined);
-  const [tab, setTab] = useState<'drafts' | 'releases' | 'available'>('drafts');
+  const [tab, setTab] = useState<'drafts' | 'releases' | 'available' | 'image'>('drafts');
   const [drawerMode, setDrawerMode] = useState<'create' | 'edit' | null>(null);
   const [editing, setEditing] = useState<ModelDraft | null>(null);
   const [availableRows, setAvailableRows] = useState<ModelRelease[]>([]);
@@ -109,10 +109,10 @@ const ModelPage = () => {
     }
   };
 
-  const loadAvailable = async () => {
+  const loadAvailable = async (code?: string) => {
     setAvailableLoading(true);
     try {
-      setAvailableRows(await listModelAvailableApi());
+      setAvailableRows(await listModelAvailableApi(undefined, code));
     } finally {
       setAvailableLoading(false);
     }
@@ -131,6 +131,17 @@ const ModelPage = () => {
   const renderStatus = (s: string) => <Tag color={STATUS_COLOR[s]}>{statusLabel(s)}</Tag>;
   const renderScope = (v: string) =>
     v === 'OFFICIAL' ? <Tag color="blue">{t('scopeMap.OFFICIAL')}</Tag> : <Tag>{t('scopeMap.PRIVATE')}</Tag>;
+  const isImageCapabilities = (raw: string) => {
+    try {
+ return !!JSON.parse(raw || '{}')?.image_generation; 
+} catch {
+ return false; 
+}
+  };
+  const renderCap = (raw: string) => {
+    const isImage = isImageCapabilities(raw);
+    return isImage ? <Tag color="purple">{t('cap.image_generation', { defaultValue: '生图' })}</Tag> : <Tag>{t('cap.text', { defaultValue: '文本' })}</Tag>;
+  };
 
   const draftColumns: ProColumns<ModelDraft>[] = [
     { title: t('id'), dataIndex: 'id', width: 70, search: false },
@@ -163,6 +174,8 @@ const ModelPage = () => {
       render: (_, r) => <Tag>{t(`providerMap.${r.provider}`, { defaultValue: r.provider })}</Tag>,
     },
     { title: t('modelName'), dataIndex: 'modelName', width: 160, search: false },
+    { title: t('capabilities', { defaultValue: '能力' }), dataIndex: 'capabilities', width: 90, search: false, render: (_, r) => renderCap(r.capabilities) },
+    { title: 'code', dataIndex: 'code', width: 90, search: false, render: (_, r) => r.code ? <Tag>{r.code}</Tag> : <Tag>{t('codeEmpty', { defaultValue: '—' })}</Tag> },
     { title: '上下文', dataIndex: 'contextLength', width: 110, search: false },
     {
       title: t('status'),
@@ -279,6 +292,8 @@ const ModelPage = () => {
     },
     { title: t('provider'), dataIndex: 'provider', width: 160, search: false },
     { title: t('modelName'), dataIndex: 'modelName', width: 160, search: false },
+    { title: t('capabilities', { defaultValue: '能力' }), dataIndex: 'capabilities', width: 90, search: false, render: (_, r) => renderCap(r.capabilities) },
+    { title: 'code', dataIndex: 'code', width: 90, search: false, render: (_, r) => r.code ? <Tag>{r.code}</Tag> : <Tag>—</Tag> },
     { title: '上下文', dataIndex: 'contextLength', width: 110, search: false },
     {
       title: t('hasSecret'),
@@ -328,6 +343,8 @@ const ModelPage = () => {
     },
     { title: t('provider'), dataIndex: 'provider', width: 160 },
     { title: t('modelName'), dataIndex: 'modelName', width: 160 },
+    { title: t('capabilities', { defaultValue: '能力' }), dataIndex: 'capabilities', width: 90, render: (_: unknown, r: ModelRelease) => renderCap((r as ModelRelease).capabilities) },
+    { title: 'code', dataIndex: 'code', width: 90, render: (_: unknown, r: ModelRelease) => (r as ModelRelease).code ? <Tag>{(r as ModelRelease).code}</Tag> : <Tag>—</Tag> },
     { title: '上下文', dataIndex: 'contextLength', width: 110 },
   ];
 
@@ -381,7 +398,24 @@ const ModelPage = () => {
       label: t('tabAvailable'),
       children: (
         <Space direction="vertical" style={{ width: '100%' }}>
-          <Button onClick={loadAvailable} loading={availableLoading} style={{ alignSelf: 'flex-end' }}>
+          <Button onClick={() => loadAvailable()} loading={availableLoading} style={{ alignSelf: 'flex-end' }}>
+            {t('refresh')}
+          </Button>
+          <Table<ModelRelease>
+            rowKey="id"
+            columns={availableColumns as never}
+            dataSource={availableRows}
+            pagination={false}
+          />
+        </Space>
+      ),
+    },
+    {
+      key: 'image',
+      label: t('tabImage', { defaultValue: '生图模型' }),
+      children: (
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <Button onClick={() => loadAvailable('image')} loading={availableLoading} style={{ alignSelf: 'flex-end' }}>
             {t('refresh')}
           </Button>
           <Table<ModelRelease>
@@ -402,6 +436,7 @@ const ModelPage = () => {
         onChange={(k) => {
           setTab(k as typeof tab);
           if (k === 'available') loadAvailable();
+          if (k === 'image') loadAvailable('image');
         }}
         items={tabItems}
       />

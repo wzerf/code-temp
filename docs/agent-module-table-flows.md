@@ -2,35 +2,40 @@
 
 > **状态：** 目标架构（已按落地 Flyway V3~V4 校准）
 > **读者：** 实施平台的工程师与 agent
-> **范围：** 五大模块涉及的全部表、字段职责、状态流转与表间关联。配套架构见 [`docs/agent-module-architecture.md`](agent-module-architecture.md)。
+> **范围：** 六大模块涉及的全部表、字段职责、状态流转与表间关联。配套架构见 [`docs/agent-module-architecture.md`](agent-module-architecture.md)，子 Agent 详述见 [`docs/agent-subagent-architecture.md`](agent-subagent-architecture.md)。
 
 ## 1. 表总览
 
-| 模块       | 表                             | 职责                                                          | 是否 SDK 读取 |
-| ---------- | ------------------------------ | ------------------------------------------------------------- | ------------- |
-| Agent 管理 | `agent_definition`             | 稳定定义 + 当前发布 Revision 指针                             | 否            |
-| Agent 管理 | `agent_revision`               | 草稿/不可变发布快照                                           | 否            |
-| Agent 对话 | `agent_session`                | 会话控制面元数据 + 固定 Revision + 记住的 `model_release_id`  | 否            |
-| 模型       | `agent_model_draft`            | 模型连接配置草稿（`scope` = OFFICIAL / PRIVATE）              | 否            |
-| 模型       | `agent_model_release`          | 模型连接配置 Release 副本（发布即进入可用模型池）             | 否            |
-| Skill      | `agent_skill_draft`            | 草稿/审核中内容                                               | 否            |
-| Skill      | `agent_skill_draft_resource`   | 草稿附属文件                                                  | 否            |
-| Skill      | `agent_skill_release`          | 不可变 Release 快照，市场列表由此派生                         | 否            |
-| Skill      | `agent_skill_release_resource` | Release 冻结附属文件                                          | 否            |
-| Skill      | `agent_skill_git_source`       | 受控 Git 来源配置                                             | 否            |
-| Skill      | `agent_skill_git_sync`         | Git 幂等同步记录                                              | 否            |
-| Skill      | `agent_revision_skill_binding` | Revision 绑定的 Skill Release 快照指针                        | 否            |
-| Skill      | `agent_session_skill_binding`  | Session 绑定的 Skill Release 快照指针（用户侧追加/覆盖）      | 否            |
-| MCP        | `agent_mcp_draft`              | MCP 连接配置草稿（私有可带密钥，市场草稿应无密钥）            | 否            |
-| MCP        | `agent_mcp_release`            | MCP 连接配置 Release 副本（MARKET 无密钥，PRIVATE 带密钥）    | 否            |
-| MCP        | `agent_revision_mcp_binding`   | Revision 绑定的 MCP Release 指针 + 补配密钥                   | 否            |
-| MCP        | `agent_session_mcp_binding`    | Session 绑定的 MCP Release 指针 + 补配密钥（用户侧追加/覆盖） | 否            |
+| 模块       | 表                                | 职责                                                          | 是否 SDK 读取 |
+| ---------- | --------------------------------- | ------------------------------------------------------------- | ------------- |
+| Agent 管理 | `agent_definition`                | 稳定定义 + 当前发布 Revision 指针                             | 否            |
+| Agent 管理 | `agent_revision`                  | 草稿/不可变发布快照                                           | 否            |
+| Agent 对话 | `agent_session`                   | 会话控制面元数据 + 固定 Revision + 记住的 `model_release_id`  | 否            |
+| 模型       | `agent_model_draft`               | 模型连接配置草稿（`scope` = OFFICIAL / PRIVATE）              | 否            |
+| 模型       | `agent_model_release`             | 模型连接配置 Release 副本（发布即进入可用模型池）             | 否            |
+| Skill      | `agent_skill_draft`               | 草稿/审核中内容                                               | 否            |
+| Skill      | `agent_skill_draft_resource`      | 草稿附属文件                                                  | 否            |
+| Skill      | `agent_skill_release`             | 不可变 Release 快照，市场列表由此派生                         | 否            |
+| Skill      | `agent_skill_release_resource`    | Release 冻结附属文件                                          | 否            |
+| Skill      | `agent_skill_git_source`          | 受控 Git 来源配置                                             | 否            |
+| Skill      | `agent_skill_git_sync`            | Git 幂等同步记录                                              | 否            |
+| Skill      | `agent_revision_skill_binding`    | Revision 绑定的 Skill Release 快照指针                        | 否            |
+| Skill      | `agent_session_skill_binding`     | Session 绑定的 Skill Release 快照指针（用户侧追加/覆盖）      | 否            |
+| MCP        | `agent_mcp_draft`                 | MCP 连接配置草稿（私有可带密钥，市场草稿应无密钥）            | 否            |
+| MCP        | `agent_mcp_release`               | MCP 连接配置 Release 副本（MARKET 无密钥，PRIVATE 带密钥）    | 否            |
+| MCP        | `agent_revision_mcp_binding`      | Revision 绑定的 MCP Release 指针 + 补配密钥                   | 否            |
+| MCP        | `agent_session_mcp_binding`       | Session 绑定的 MCP Release 指针 + 补配密钥（用户侧追加/覆盖） | 否            |
+| 子 Agent   | `agent_subagent_draft`            | 子 Agent 声明草稿（description/隔离/模型/工具白名单）         | 否            |
+| 子 Agent   | `agent_subagent_release`          | 子 Agent 不可变 Release 快照（发布冻结）                      | 否            |
+| 子 Agent   | `agent_revision_subagent_binding` | Revision 绑定的子 Agent Release 指针（发布者预置）            | 否            |
 
 > Skill 不设 `agent_skill` / `agent_skill_resource` 市场行：Skill 市场列表直接由 `agent_skill_release` 派生，运行面用自定义加载器读取 Binding 快照，不依赖 `MysqlSkillRepository`。
 
 > 模型不设 `agent_revision_model_binding`：模型无「绑定才能用」的门槛，`agent_revision` 通过 `model_config.default_model_release_id` 引用默认模型，发布即进入可用模型池。
 
-> 运行面状态不落库，全部在 Redis：会话状态（`agent:runtime:state:*`）、事件流（`agent:runtime:request:*`）、执行锁（`agent:runtime:lock:*`）、MCP 目录缓存（`agent:runtime:mcp-catalog:*`）。
+> 子 Agent 不设 `agent_session_subagent_binding`：子 Agent 可见集完全由会话固定的 Revision 决定（发布者预置），不设会话级追加；运行面状态（子实例句柄、后台任务、前后端 `source` 标记）不落 MySQL，详见 [`agent-subagent-architecture.md`](agent-subagent-architecture.md)。
+
+> 运行面状态不落库，全部在 Redis：会话状态（`agent:runtime:state:*`）、事件流（`agent:runtime:request:*`）、执行锁（`agent:runtime:lock:*`）、MCP 目录缓存（`agent:runtime:mcp-catalog:*`）、子 Agent 任务（`workspace/agents/<parent>/tasks/<sessionId>.json`）。
 
 ## 2. ER 关联总图
 

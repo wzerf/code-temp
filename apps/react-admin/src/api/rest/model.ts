@@ -86,8 +86,16 @@ export function getModelReleaseApi(id: number) {
 }
 
 /** 可用模型池 */
-export function listModelAvailableApi(ownerUserId?: number) {
-  return get<ModelRelease[]>('/system/model/available', ownerUserId ? { ownerUserId } : {});
+export function listModelAvailableApi(ownerUserId?: number, code?: string) {
+  const params: Record<string, unknown> = {};
+  if (ownerUserId) params.ownerUserId = ownerUserId;
+  if (code) params.code = code;
+  return get<ModelRelease[]>('/system/model/available', params);
+}
+
+/** 可用生图模型池 */
+export function listImageModelAvailableApi(ownerUserId?: number) {
+  return listModelAvailableApi(ownerUserId, 'image');
 }
 
 /** 弃用单个 Release */

@@ -41,8 +41,12 @@ public class AgentHarnessFactory {
     private final AgentSkillReleaseRepository skillReleaseRepository;
     private final AgentSkillReleaseResourceRepository skillResourceRepository;
     private final BindingMcpAssembler mcpAssembler;
+    private final ViewImageTool viewImageTool;
+    private final GenerateImageTool generateImageTool;
+    private final EditImageTool editImageTool;
+    private final MultiEditImageTool multiEditImageTool;
 
-    /** 平台白名单工具注册表：name → 工具实例。 */
+    /** 平台白名单工具注册表：name → 工具实例。view_image 为常驻只读工具，不经白名单门控。 */
     private static final List<io.agentscope.core.tool.AgentTool> PLATFORM_TOOLS = List.of(new PlatformTimeTool());
 
     /**
@@ -54,6 +58,10 @@ public class AgentHarnessFactory {
     public HarnessAgent create(AgentRunPlan plan) {
         Toolkit toolkit = new Toolkit();
         registerPlatformTools(toolkit, plan.allowedTools());
+        toolkit.registerTool(viewImageTool);
+        toolkit.registerTool(generateImageTool);
+        toolkit.registerTool(editImageTool);
+        toolkit.registerTool(multiEditImageTool);
         // 绑定 MCP：握手 + 固定工具名单;失败即拒绝首启
         registerMcpClients(toolkit, plan);
         AgentStateStore stateStore = stateStoreProvider.stateStore();
@@ -64,11 +72,19 @@ public class AgentHarnessFactory {
         } catch (java.io.IOException e) {
             throw new IllegalStateException("无法创建 agent workspace: " + workspace, e);
         }
+        String sysPrompt = nz(plan.systemPrompt());
+        if (!sysPrompt.contains("generate_image")) {
+            sysPrompt = sysPrompt
+                    + "\n\n生图指引（通用，不绑定具体对象）：\n"
+                    + "- 首次出图用 generate_image；已有一张图后，任何\"改一下/去掉.../换成.../按这张图改\"都视为增量编辑，优先走 edit_image（单图）或 multi_edit_image（多图），不要回退到 generate_image 重绘整图。\n"
+                    + "- 改图必须携带参考图：若上下文没有 image_url，先用 view_image 读取上一张生成图获得可访问链接，再调 edit_image；有多张参考则用 multi_edit_image。\n"
+                    + "- 改图 prompt 必须显式约束\"仅对指定元素做最小改动，其余构图/主体/文字/色板/布局/比例保持不变\"，并保持与原图一致的 aspect_ratio/resolution；不要新增或移除未提及的元素。";
+        }
         var builder = HarnessAgent.builder()
                 .name(nz(plan.agentName()))
                 .agentId("platform-agent")
                 .description("Platform Agent")
-                .sysPrompt(nz(plan.systemPrompt()))
+                .sysPrompt(sysPrompt)
                 .model(OpenAIChatModel.builder()
                         .apiKey(plan.plainSecret())
                         .baseUrl(plan.baseUrl())

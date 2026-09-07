@@ -101,7 +101,17 @@
     "XCHAT",
     "XCONV",
     "wshake",
-    "zhipu"
+    "zhipu",
+    "Doubao",
+    "doubao",
+    "Tongyi",
+    "tongyi",
+    "volces",
+    "wanx",
+    "dall",
+    "aigc",
+    "SUBD",
+    "SESS"
   ],
   "ignorePaths": [
     "**/node_modules/**",

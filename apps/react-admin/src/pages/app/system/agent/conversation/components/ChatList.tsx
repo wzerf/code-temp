@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import { Bubble } from '@ant-design/x';
 import type { MessageInfo } from '@ant-design/x-sdk/es/x-chat';
 import { MdPreview } from 'md-editor-rt';
 import 'md-editor-rt/lib/preview.css';
 import { RobotOutlined, UserOutlined } from '@ant-design/icons';
-import { Alert, Space, Spin, Typography } from 'antd';
+import { Alert, Image as AntImage, Space, Spin, Typography } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { isDarkMode } from '@/components/common/Editor/src/utils';
 import ThoughtChainBubble from './ThoughtChainBubble';
@@ -49,11 +49,12 @@ function assistantHasVisibleBody(content: AssistantContent): boolean {
       content.content?.trim() ||
       content.thinking?.trim() ||
       (content.toolCalls?.length ?? 0) > 0 ||
+      (content.generatedImages?.length ?? 0) > 0 ||
       (content.waitingForApproval && content.interrupts?.length),
   );
 }
 
-function MdContent({
+const MdContent = memo(function MdContent({
   text,
   messageKey,
   streaming,
@@ -73,11 +74,41 @@ function MdContent({
       className={streaming ? 'agent-chat-markdown agent-chat-markdown--streaming' : 'agent-chat-markdown'}
     />
   );
-}
+});
 
 function UserText({ text }: { text: string }) {
   return <span className="agent-chat-user-text">{text}</span>;
 }
+
+const GeneratedImages = memo(function GeneratedImages({ images }: { images: Array<{ mimeType: string; b64: string }> }) {
+  if (!images?.length) return null;
+  const cols = images.length <= 2 ? 2 : 3;
+  return (
+    <AntImage.PreviewGroup>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+          gap: 8,
+          marginTop: 8,
+          maxWidth: cols === 2 ? 520 : 640,
+        }}
+      >
+        {images.map((img, i) => (
+          <div key={i} style={{ aspectRatio: '1 / 1', overflow: 'hidden', borderRadius: 8, border: '1px solid #eee', background: '#fafafa' }}>
+            <AntImage
+              alt={`generated-${i}`}
+              src={`data:${img.mimeType};base64,${img.b64}`}
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              preview={{ mask: '预览' }}
+              wrapperStyle={{ width: '100%', height: '100%' }}
+            />
+          </div>
+        ))}
+      </div>
+    </AntImage.PreviewGroup>
+  );
+});
 
 function AssistantBubbleContent({
   content,
@@ -102,7 +133,10 @@ function AssistantBubbleContent({
       {content.error ? (
         <Alert type="error" showIcon title={content.error} style={{ marginBottom: 4 }} />
       ) : (
-        <MdContent text={content.content} messageKey={messageKey} streaming={streaming} />
+        <>
+          <MdContent text={content.content} messageKey={messageKey} streaming={streaming} />
+          <GeneratedImages images={content.generatedImages ?? []} />
+        </>
       )}
     </div>
   );

@@ -43,7 +43,7 @@ const DEFAULT_CAPABILITIES =
 const DEFAULT_GUARDRAILS =
   '{"temperature":{"min":0,"max":2,"default":0.7},"top_p":{"min":0,"max":1,"default":1},"max_tokens":{"min":1,"max":128000,"default":4096}}';
 
-const CAP_KEYS = ['text', 'thinking', 'tool_use', 'vision', 'json_mode'] as const;
+const CAP_KEYS = ['text', 'thinking', 'tool_use', 'vision', 'json_mode', 'image_generation'] as const;
 const DEFAULT_CONTEXT_LENGTH = 500_000;
 
 const ModelFormDrawer = ({ open, row, onClose, onSaved }: Props) => {
@@ -54,7 +54,16 @@ const ModelFormDrawer = ({ open, row, onClose, onSaved }: Props) => {
   const [catalog, setCatalog] = useState<CatalogRow[]>([]);
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const [filter, setFilter] = useState('');
-  const [caps, setCaps] = useState<string[]>(['text', 'tool_use', 'json_mode']);
+  const initialCaps = useMemo(() => {
+    if (!row?.capabilities) return ['text', 'tool_use', 'json_mode'];
+    try {
+      const obj = JSON.parse(row.capabilities);
+      return CAP_KEYS.filter((k) => obj[k]);
+    } catch {
+ return ['text', 'tool_use', 'json_mode']; 
+}
+  }, [row]);
+  const [caps, setCaps] = useState<string[]>(initialCaps);
   const isEdit = !!row;
   const initialValues = useMemo<FormValues>(
     () =>
@@ -87,8 +96,11 @@ const ModelFormDrawer = ({ open, row, onClose, onSaved }: Props) => {
     return catalog.filter((r) => r.modelName.toLowerCase().includes(q) || r.name.toLowerCase().includes(q));
   }, [catalog, filter]);
 
-  const capabilitiesJson = () =>
-    JSON.stringify(Object.fromEntries(CAP_KEYS.map((k) => [k, caps.includes(k)])));
+  const capabilitiesJson = () => {
+    const obj = Object.fromEntries(CAP_KEYS.map((k) => [k, caps.includes(k)]));
+    const withImage = caps.includes('image_generation') ? { ...obj, image_generation: true } : obj;
+    return JSON.stringify(withImage);
+  };
 
   const handleProbe = async () => {
     try {
@@ -139,16 +151,30 @@ const ModelFormDrawer = ({ open, row, onClose, onSaved }: Props) => {
   const handleSave = async () => {
     if (isEdit && row) {
       const values = await form.validateFields();
+      const capsForEdit = (() => {
+        try {
+          const parsed = values.capabilities ? JSON.parse(values.capabilities) : {};
+          if (caps.includes('image_generation')) parsed.image_generation = true;
+          else delete parsed.image_generation;
+          if (caps.includes('image_generation') && values.code !== 'image') {
+            // 生图能力必须对应 code=image，后端也会校验
+          }
+          return JSON.stringify(parsed);
+        } catch {
+ return capabilitiesJson(); 
+}
+      })();
+      const codeForEdit = caps.includes('image_generation') ? 'image' : values.code;
       setSaving(true);
       try {
         await updateModelDraftApi({
           id: row.id,
           name: values.name,
-          code: values.code,
+          code: codeForEdit,
           provider: values.provider,
           baseUrl: values.baseUrl,
           modelName: values.modelName,
-          capabilities: values.capabilities,
+          capabilities: capsForEdit,
           parameterGuardrails: values.parameterGuardrails,
           contextLength: values.contextLength,
           plainSecret: values.plainSecret || undefined,
@@ -166,7 +192,11 @@ const ModelFormDrawer = ({ open, row, onClose, onSaved }: Props) => {
     }
 
     const values = await form.validateFields(['scope', 'provider', 'baseUrl', 'plainSecret']);
-    const selected = catalog.filter((r) => selectedKeys.includes(r.key));
+    const isImageMode = caps.includes('image_generation');
+    const selected = catalog.filter((r) => selectedKeys.includes(r.key)).map((r) => ({
+      ...r,
+      code: isImageMode ? 'image' : r.code,
+    }));
     if (selected.length === 0) {
       message.error(t('requiredSelection'));
       return;
@@ -368,11 +398,17 @@ const ModelFormDrawer = ({ open, row, onClose, onSaved }: Props) => {
                 },
               ]}
             />
-            <Form.Item label={t('capabilities')} style={{ marginTop: 16 }}>
+            <Form.Item label={t('capabilities')} style={{ marginTop: 16 }} extra={caps.includes('image_generation') ? t('imageCapHintShort', { defaultValue: '将作为生图模型（code=image）进入可用池' }) : undefined}>
               <Checkbox.Group
                 value={caps}
-                onChange={(v) => setCaps(v.map(String))}
-                options={CAP_KEYS.map((k) => ({ value: k, label: t(`cap.${k}`) }))}
+                onChange={(vals) => {
+                  const next = vals.map(String);
+                  setCaps(next);
+                  if (next.includes('image_generation')) {
+                    setCatalog((rows) => rows.map((r) => ({ ...r, code: 'image' })));
+                  }
+                }}
+                options={CAP_KEYS.map((k) => ({ value: k, label: t(`cap.${k}`, { defaultValue: k === 'image_generation' ? '生图' : k }) }))}
               />
             </Form.Item>
           </>
@@ -383,9 +419,32 @@ const ModelFormDrawer = ({ open, row, onClose, onSaved }: Props) => {
           </Form.Item>
         )}
         {isEdit && (
-          <Form.Item name="capabilities" label={t('capabilities')}>
-            <TextArea rows={3} style={{ fontFamily: 'monospace' }} />
-          </Form.Item>
+          <>
+            <Form.Item label={t('capabilities')}>
+              <Checkbox.Group
+                value={caps}
+                onChange={(vals) => {
+                  const next = vals.map(String);
+                  setCaps(next);
+                  const raw = form.getFieldValue('capabilities') as string | undefined;
+                  try {
+                    const parsed = raw ? JSON.parse(raw) : {};
+                    if (next.includes('image_generation')) parsed.image_generation = true;
+                    else delete parsed.image_generation;
+                    form.setFieldsValue({ capabilities: JSON.stringify(parsed) });
+                    if (next.includes('image_generation')) form.setFieldsValue({ code: 'image' });
+                  } catch {
+                    form.setFieldsValue({ capabilities: capabilitiesJson() });
+                    if (next.includes('image_generation')) form.setFieldsValue({ code: 'image' });
+                  }
+                }}
+                options={CAP_KEYS.map((k) => ({ value: k, label: t(`cap.${k}`, { defaultValue: k }) }))}
+              />
+            </Form.Item>
+            <Form.Item name="capabilities" label={t('capabilitiesJson', { defaultValue: '能力 JSON' })}>
+              <TextArea rows={3} style={{ fontFamily: 'monospace' }} />
+            </Form.Item>
+          </>
         )}
         <Form.Item name="parameterGuardrails" label={t('parameterGuardrails')}>
           <TextArea rows={isEdit ? 4 : 3} style={{ fontFamily: 'monospace' }} />

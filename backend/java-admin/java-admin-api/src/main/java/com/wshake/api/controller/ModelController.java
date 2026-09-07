@@ -227,9 +227,15 @@ public class ModelController {
 
     @GetMapping("/available")
     @Operation(summary = "可用模型池(官方 PUBLISHED + 本人私有 PUBLISHED)")
-    public Result<List<ModelReleaseVO>> available(@RequestParam(required = false) Long ownerUserId) {
+    public Result<List<ModelReleaseVO>> available(
+            @RequestParam(required = false) Long ownerUserId, @RequestParam(required = false) String code) {
         Long owner = ownerUserId != null ? ownerUserId : RequestContext.userIdOrNull();
-        return Result.ok(converter.convert(modelService.listAvailable(owner), ModelReleaseVO.class));
+        String c = code == null ? null : code.trim();
+        if (c != null && c.isEmpty()) {
+            c = null;
+        }
+        var views = c == null ? modelService.listAvailable(owner) : modelService.listAvailableFiltered(owner, c);
+        return Result.ok(converter.convert(views, ModelReleaseVO.class));
     }
 
     @PostMapping("/release/{id}/deprecate")

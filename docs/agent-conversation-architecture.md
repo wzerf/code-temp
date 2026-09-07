@@ -4,7 +4,7 @@
 > **读者：** 实施对话端 UI 的工程师与 agent
 > **范围：** Agent 对话的运行面前端——会话管理、流式对话、取消/续接、自由选 Agent/模型、Skill/MCP 会话级装配。
 > **协议基线：** [AG-UI（Agent-User Interaction Protocol）](https://github.com/ag-ui-protocol/ag-ui)，后端经 AgentScope `agentscope-extensions-agui` 输出标准 AG-UI 事件流。
-> **配套文档：** [`agent-module-architecture.md`](agent-module-architecture.md)（五大模块总体架构）、[`agent-module-table-flows.md`](agent-module-table-flows.md)（表流转）。
+> **配套文档：** [`agent-module-architecture.md`](agent-module-architecture.md)（六大模块总体架构）、[`agent-subagent-architecture.md`](agent-subagent-architecture.md)（子 Agent 前后端架构）、[`agent-module-table-flows.md`](agent-module-table-flows.md)（表流转）。
 > **组件基线：** Ant Design X `2.9.0`，独立式 Playground（<https://x.ant.design/docs/playground/independent-cn>）。
 
 ## 1. 定位与边界
@@ -257,18 +257,19 @@ apps/react-admin/src/pages/app/system/agent/conversation/
 
 ### 5.2 组件映射（对标独立式 reference）
 
-| 独立式 reference 片段            | 本方案组件           | 说明                                                        |
-| -------------------------------- | -------------------- | ----------------------------------------------------------- |
-| 顶部选择器（自建）               | `AgentPicker`        | 跨 Agent 切换，驱动会话集合重载                             |
-| 顶部选择器（自建）               | `ModelPicker`        | 会话内选模型，候选来自 `models/available`                   |
-| `Conversations`                  | `ChatSide`           | 会话列表，`creation` 触发 `createAgentSessionApi`           |
-| `Bubble.List` + `role`           | `ChatList`           | 消息渲染，`role` 里配置 assistant 的 Markdown/思考链/footer |
-| `Sender` + `Sender.Header`       | `ChatSender`         | 输入、附件、取消；`loading={isRequesting}`                  |
-| `Welcome` + `Prompts`            | `ChatList` 空态      | 空会话时展示欢迎与推荐提示                                  |
-| `Think` / `ThoughtChain`         | `ThoughtChainBubble` | 渲染 `REASONING_MESSAGE_*` / `TOOL_CALL_*`                  |
-| `Attachments`                    | `ChatSender` 头部    | 附件上传（后续接入，首期可不做）                            |
-| `Actions`（copy/retry/feedback） | Bubble footer        | 复制、重试（`onReload`）、反馈                              |
-| 自建（HITL）                     | `HitlApproveBar`     | 渲染 `RUN_FINISHED.outcome.interrupts`，回传 `resume[]`     |
+| 独立式 reference 片段            | 本方案组件           | 说明                                                                           |
+| -------------------------------- | -------------------- | ------------------------------------------------------------------------------ |
+| 顶部选择器（自建）               | `AgentPicker`        | 跨 Agent 切换，驱动会话集合重载                                                |
+| 顶部选择器（自建）               | `ModelPicker`        | 会话内选模型，候选来自 `models/available`                                      |
+| `Conversations`                  | `ChatSide`           | 会话列表，`creation` 触发 `createAgentSessionApi`                              |
+| `Bubble.List` + `role`           | `ChatList`           | 消息渲染，`role` 里配置 assistant 的 Markdown/思考链/footer                    |
+| `Sender` + `Sender.Header`       | `ChatSender`         | 输入、附件、取消；`loading={isRequesting}`                                     |
+| `Welcome` + `Prompts`            | `ChatList` 空态      | 空会话时展示欢迎与推荐提示                                                     |
+| `Think` / `ThoughtChain`         | `ThoughtChainBubble` | 渲染 `REASONING_MESSAGE_*` / `TOOL_CALL_*`                                     |
+| `Attachments`                    | `ChatSender` 头部    | 附件上传（后续接入，首期可不做）                                               |
+| `Actions`（copy/retry/feedback） | Bubble footer        | 复制、重试（`onReload`）、反馈                                                 |
+| 自建（HITL）                     | `HitlApproveBar`     | 渲染 `RUN_FINISHED.outcome.interrupts`，回传 `resume[]`                        |
+| 自建（子 Agent）                 | `SubAgentGroup/Card` | 按 `source` 隔离渲染子思考/工具/文本（见 `agent-subagent-architecture.md` §6） |
 
 ### 5.3 状态层装配
 
@@ -351,7 +352,7 @@ agentscope:
 | token 用量（`emitTokenUsage=true`） | `CUSTOM`，`name=token_usage`                                                      |
 | 未映射 `AgentEvent`                 | `RAW`（含官方 `event` 与 `source` 字段）                                          |
 
-子 Agent（`source != null`）事件默认**不映射**为原生 `RUN_*` / `TEXT_MESSAGE_*` / `TOOL_CALL_*`，而是降级为 `CUSTOM`（`subagent.*` 命名空间），避免污染父运行的生命周期与文本流。
+子 Agent（`source != null`）事件默认**不映射**为原生 `RUN_*` / `TEXT_MESSAGE_*` / `TOOL_CALL_*`，而是降级为 `CUSTOM`（`subagent.*` 命名空间），避免污染父运行的生命周期与文本流；同步子 Agent 的实时透传与前端按 `source` 隔离渲染见 [`agent-subagent-architecture.md`](agent-subagent-architecture.md) §5.3/§6。
 
 ### 6.3 AG-UI 事件 → 前端消息模型映射
 

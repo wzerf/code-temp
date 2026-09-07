@@ -45,14 +45,24 @@ export default function ThoughtChainBubble({
     : manualKeys ?? [...new Set([...itemKeys, ...runningKeys, ...(streaming && thinking?.trim() ? ['thinking'] : [])])];
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    if (!streaming) return;
+    const running = streaming || tools.some((t) => t.status === 'running');
+    if (!running) return;
     const timer = setInterval(() => setNow(Date.now()), 500);
     return () => clearInterval(timer);
-  }, [streaming]);
+  }, [streaming, tools]);
   const durationText = useCallback(
     (startedAt?: number, endedAt?: number) => {
       if (!startedAt) return null;
-      const duration = Math.max(0, (endedAt ?? now) - startedAt);
+      if (endedAt == null) return null;
+      const duration = Math.max(0, endedAt - startedAt);
+      return `${(duration / 1000).toFixed(1)} 秒`;
+    },
+    [],
+  );
+  const runningDurationText = useCallback(
+    (startedAt?: number) => {
+      if (!startedAt) return null;
+      const duration = Math.max(0, now - startedAt);
       return `${(duration / 1000).toFixed(1)} 秒`;
     },
     [now],
@@ -65,10 +75,10 @@ export default function ThoughtChainBubble({
         key: 'thinking',
         label: (
           <Text type="secondary" style={{ fontSize: 13 }}>
-            <SyncOutlined spin={streaming} /> {streaming ? '思考中…' : '思考过程'}
-            {thinkingStartedAt && (
+            <SyncOutlined spin={streaming && thinkingEndedAt == null} /> {streaming && thinkingEndedAt == null ? '思考中…' : '思考过程'}
+            {(thinkingEndedAt != null ? durationText(thinkingStartedAt, thinkingEndedAt) : runningDurationText(thinkingStartedAt)) && (
               <Text type="secondary" className="agent-chat-duration">
-                {durationText(thinkingStartedAt, thinkingEndedAt)}
+                {thinkingEndedAt != null ? durationText(thinkingStartedAt, thinkingEndedAt) : runningDurationText(thinkingStartedAt)}
               </Text>
             )}
           </Text>
@@ -93,9 +103,9 @@ export default function ThoughtChainBubble({
             <ThunderboltOutlined style={{ marginInline: 6 }} />
             <Text code>{tool.name || `工具 ${index + 1}`}</Text>
             {running && <Tag style={{ marginInlineStart: 8 }}>执行中</Tag>}
-            {durationText(tool.startedAt, tool.endedAt) && (
+            {(tool.status !== 'running' ? durationText(tool.startedAt, tool.endedAt) : runningDurationText(tool.startedAt)) && (
               <Text type="secondary" className="agent-chat-duration">
-                {durationText(tool.startedAt, tool.endedAt)}
+                {tool.status !== 'running' ? durationText(tool.startedAt, tool.endedAt) : runningDurationText(tool.startedAt)}
               </Text>
             )}
           </span>
@@ -117,7 +127,7 @@ export default function ThoughtChainBubble({
       });
     });
     return result;
-  }, [thinking, thinkingStartedAt, thinkingEndedAt, tools, streaming, durationText]);
+  }, [thinking, thinkingStartedAt, thinkingEndedAt, tools, streaming, durationText, runningDurationText]);
 
   if (items.length === 0) return null;
   return (

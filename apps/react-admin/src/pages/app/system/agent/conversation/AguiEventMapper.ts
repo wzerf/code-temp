@@ -34,8 +34,12 @@ export function applyAguiEvent(prev: AssistantContent | undefined, event: AguiEv
 
     case 'REASONING_START':
     case 'REASONING_MESSAGE_START':
+      base.thinkingStartedAt ??= event.timestamp ?? Date.now();
+      return base;
+
     case 'REASONING_END':
     case 'REASONING_MESSAGE_END':
+      base.thinkingEndedAt = event.timestamp ?? Date.now();
       return base;
 
     case 'REASONING_MESSAGE_CONTENT':
@@ -60,6 +64,7 @@ export function applyAguiEvent(prev: AssistantContent | undefined, event: AguiEv
           name: ev.toolCallName || (ev.type === 'TOOL_CALL_CHUNK' ? '(tool)' : ''),
           argsText: '',
           status: 'running',
+          startedAt: event.timestamp ?? Date.now(),
         });
         base.toolCalls = tools;
       }
@@ -80,6 +85,7 @@ export function applyAguiEvent(prev: AssistantContent | undefined, event: AguiEv
       const tool = findTool(base, ev.toolCallId);
       if (tool) {
         tool.status = 'done';
+        tool.endedAt = event.timestamp ?? Date.now();
       }
       return base;
     }
@@ -89,7 +95,10 @@ export function applyAguiEvent(prev: AssistantContent | undefined, event: AguiEv
       const tool = findTool(base, ev.toolCallId);
       if (tool) {
         tool.resultText = ev.content ?? null;
-        tool.status = tool.status === 'running' ? 'done' : tool.status;
+        if (tool.status === 'running') {
+          tool.status = 'done';
+          tool.endedAt = event.timestamp ?? Date.now();
+        }
       }
       return base;
     }

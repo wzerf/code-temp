@@ -7,6 +7,7 @@ import { PlusOutlined } from '@ant-design/icons';
 import { useDeleteRole } from '@/api/hooks/role';
 import { listRolesApi } from '@/api/rest/role';
 import type { SysRole } from '@/api/rest/types';
+import { useProTableScrollY } from '@/hooks/useProTableScrollY';
 import ContentContainer from '@/layouts/components/PageContainer/ContentContainer';
 import RoleFormDrawer, { type RoleFormKind } from './modules/role-form-drawer';
 import RolePermissionDrawer from './modules/role-permission-drawer';
@@ -18,6 +19,8 @@ const STATUS_TAG: Record<0 | 1, { color: string; text: string }> = {
 
 const RolePage = () => {
   const actionRef = useRef<ActionType | undefined>(undefined);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const scrollY = useProTableScrollY(wrapRef);
   const reload = () => actionRef.current?.reload?.();
 
   const deleteMut = useDeleteRole({
@@ -126,7 +129,8 @@ const RolePage = () => {
   ];
 
   return (
-    <ContentContainer scrollable>
+    <ContentContainer style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <div ref={wrapRef} className="table-wrap" style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <ProTable<SysRole>
         rowKey="id"
         headerTitle="角色管理"
@@ -139,7 +143,7 @@ const RolePage = () => {
           showSizeChanger: true,
           showTotal: (t) => `共 ${t} 条`,
         }}
-        scroll={{ x: 1100 }}
+        scroll={{ x: 1100, y: scrollY }}
         toolBarRender={() => [
           <Button
             key="create"
@@ -153,6 +157,7 @@ const RolePage = () => {
         tableAlertRender={false}
         dateFormatter="string"
       />
+      </div>
       <RoleFormDrawer
         open={drawerOpen}
         kind={drawerKind}

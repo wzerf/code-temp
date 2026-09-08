@@ -4,6 +4,7 @@ import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { ProTable } from '@ant-design/pro-components';
 import { listApiLogsApi } from '@/api/rest/api-log';
 import type { ApiLogListItem, ApiLogSource } from '@/api/rest/types';
+import { useProTableScrollY } from '@/hooks/useProTableScrollY';
 import { formatDateTime } from '@/utils/date';
 import ApiLogDetailDrawer from './modules/detail-drawer';
 
@@ -27,6 +28,8 @@ function methodColor(method: string) {
 /** API 日志列表面板（供「日志审计」页 Tab 嵌入） */
 export function ApiLogPanel() {
   const actionRef = useRef<ActionType | undefined>(undefined);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const scrollY = useProTableScrollY(wrapRef);
   const [source, setSource] = useState<ApiLogSource>('hot');
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailRow, setDetailRow] = useState<ApiLogListItem | null>(null);
@@ -155,36 +158,39 @@ export function ApiLogPanel() {
 
   return (
     <>
-      <ProTable<ApiLogListItem>
-        actionRef={actionRef}
-        rowKey="id"
-        columns={columns}
-        request={fetchRows}
-        params={{ source }}
-        onRow={(record) => ({
-          onClick: () => openDetail(record),
-          style: { cursor: 'pointer' },
-        })}
-        search={{ labelWidth: 'auto', defaultCollapsed: false }}
-        pagination={{ defaultPageSize: 20, showSizeChanger: true }}
-        options={{ density: true, reload: true, setting: true }}
-        toolbar={{
-          menu: {
-            type: 'tab',
-            activeKey: source,
-            items: [
-              { key: 'hot', label: '热表' },
-              { key: 'archive', label: '归档' },
-            ],
-            onChange: (key) => {
-              setSource((key as ApiLogSource) || 'hot');
-              actionRef.current?.reload?.();
+      <div ref={wrapRef} className="table-wrap">
+        <ProTable<ApiLogListItem>
+          actionRef={actionRef}
+          rowKey="id"
+          columns={columns}
+          request={fetchRows}
+          params={{ source }}
+          onRow={(record) => ({
+            onClick: () => openDetail(record),
+            style: { cursor: 'pointer' },
+          })}
+          search={{ labelWidth: 'auto', defaultCollapsed: false }}
+          pagination={{ defaultPageSize: 20, showSizeChanger: true }}
+          options={{ density: true, reload: true, setting: true }}
+          scroll={{ y: scrollY }}
+          toolbar={{
+            menu: {
+              type: 'tab',
+              activeKey: source,
+              items: [
+                { key: 'hot', label: '热表' },
+                { key: 'archive', label: '归档' },
+              ],
+              onChange: (key) => {
+                setSource((key as ApiLogSource) || 'hot');
+                actionRef.current?.reload?.();
+              },
             },
-          },
-        }}
-        dateFormatter="string"
-        headerTitle="API 日志"
-      />
+          }}
+          dateFormatter="string"
+          headerTitle="API 日志"
+        />
+      </div>
       <ApiLogDetailDrawer
         open={detailOpen}
         row={detailRow}

@@ -7,6 +7,7 @@ import { ProTable } from '@ant-design/pro-components';
 import { useTranslation } from 'react-i18next';
 import { deleteAgentApi, disableAgentApi, enableAgentApi, listAgentApi } from '@/api/rest/agent';
 import type { Agent } from '@/api/rest/types';
+import { useProTableScrollY } from '@/hooks/useProTableScrollY';
 import ContentContainer from '@/layouts/components/PageContainer/ContentContainer';
 import AgentFormDrawer from './modules/agent-form-drawer';
 import AgentDetailDrawer from './modules/agent-detail-drawer';
@@ -20,6 +21,8 @@ function statusOrUndefined(v: number | '' | undefined): 0 | 1 | undefined {
 const AgentPage = () => {
   const { t } = useTranslation('agent');
   const actionRef = useRef<ActionType | undefined>(undefined);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const scrollY = useProTableScrollY(wrapRef);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editing, setEditing] = useState<Agent | null>(null);
   const [detail, setDetail] = useState<Agent | null>(null);
@@ -158,7 +161,8 @@ const AgentPage = () => {
   ];
 
   return (
-    <ContentContainer scrollable>
+    <ContentContainer style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <div ref={wrapRef} className="table-wrap" style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <ProTable<Agent>
         rowKey="id"
         headerTitle={
@@ -176,7 +180,7 @@ const AgentPage = () => {
           showSizeChanger: true,
           showTotal: (total) => t('total', { total }),
         }}
-        scroll={{ x: 1100 }}
+        scroll={{ x: 1100, y: scrollY }}
         toolBarRender={() => [
           <Button
             key="create"
@@ -191,6 +195,7 @@ const AgentPage = () => {
           </Button>,
         ]}
       />
+      </div>
       <AgentFormDrawer
         open={drawerOpen}
         row={editing}

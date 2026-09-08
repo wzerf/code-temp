@@ -7,6 +7,7 @@ import { listTaskConfigApi } from '@/api/rest/task-config';
 import { listTaskExecutionApi } from '@/api/rest/task-execution';
 import type { TaskExecution, TaskExecutionStatus } from '@/api/rest/types';
 import { useListTaskWorkflowTypes } from '@/api/hooks/task-config';
+import { useProTableScrollY } from '@/hooks/useProTableScrollY';
 import { onTaskExecutionChanged } from '../modules/events';
 import TaskExecutionDetailDrawer from './modules/detail-drawer';
 import { formatDateTime } from '@/utils/date';
@@ -28,6 +29,8 @@ const STATUS_OPTIONS: TaskExecutionStatus[] = [
 export function TaskExecutionPanel() {
   const { t } = useTranslation('task');
   const actionRef = useRef<ActionType | undefined>(undefined);
+  const tableWrapRef = useRef<HTMLDivElement | null>(null);
+  const tableScrollY = useProTableScrollY(tableWrapRef);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailRow, setDetailRow] = useState<TaskExecution | null>(null);
   const [configOptions, setConfigOptions] = useState<{ label: string; value: number }[]>([]);
@@ -203,24 +206,26 @@ export function TaskExecutionPanel() {
 
   return (
     <>
-      <ProTable<TaskExecution>
-        actionRef={actionRef}
-        rowKey="id"
-        columns={columns}
-        request={fetchRows}
-        // 与日志审计一致：点击行打开详情
-        onRow={(record) => ({
-          onClick: () => openDetail(record),
-          style: { cursor: 'pointer' },
-        })}
-        search={{ labelWidth: 'auto', defaultCollapsed: false }}
-        pagination={{ defaultPageSize: 20, showSizeChanger: true }}
-        options={{ density: true, reload: true, setting: true }}
-        dateFormatter="string"
-        headerTitle={t('executionListTitle')}
-        scroll={{ x: 1400 }}
-        // 明确不提供删除 / 批量删除
-      />
+      <div ref={tableWrapRef} className="task-table-wrap">
+        <ProTable<TaskExecution>
+          actionRef={actionRef}
+          rowKey="id"
+          columns={columns}
+          request={fetchRows}
+          // 与日志审计一致：点击行打开详情
+          onRow={(record) => ({
+            onClick: () => openDetail(record),
+            style: { cursor: 'pointer' },
+          })}
+          search={{ labelWidth: 'auto', defaultCollapsed: false }}
+          pagination={{ defaultPageSize: 20, showSizeChanger: true }}
+          options={{ density: true, reload: true, setting: true }}
+          dateFormatter="string"
+          headerTitle={t('executionListTitle')}
+          scroll={{ x: 1400, y: tableScrollY }}
+          // 明确不提供删除 / 批量删除
+        />
+      </div>
       <TaskExecutionDetailDrawer
         open={detailOpen}
         row={detailRow}

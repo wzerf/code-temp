@@ -15,6 +15,7 @@ import {
   listDictTypeApi } from '@/api/rest/dict-type';
 import type { DictData, DictType } from '@/api/rest/types';
 import { useDictLookups } from '@/api/hooks/dict';
+import { useProTableScrollY } from '@/hooks/useProTableScrollY';
 import ContentContainer from '@/layouts/components/PageContainer/ContentContainer';
 import DictTypeDrawer from './modules/dict-type-drawer';
 import DictDataDrawer from './modules/dict-data-drawer';
@@ -287,6 +288,10 @@ function buildDataColumns(
 const DictPage = () => {
   const typeActionRef = useRef<ActionType | undefined>(undefined);
   const entryActionRef = useRef<ActionType | undefined>(undefined);
+  const typeWrapRef = useRef<HTMLDivElement | null>(null);
+  const entryWrapRef = useRef<HTMLDivElement | null>(null);
+  const typeScrollY = useProTableScrollY(typeWrapRef);
+  const entryScrollY = useProTableScrollY(entryWrapRef);
 
   const [selectedTypeId, setSelectedTypeId] = useState<number | null>(null);
   const [selectedType, setSelectedType] = useState<DictType | null>(null);
@@ -758,9 +763,10 @@ const DictPage = () => {
   };
 
   return (
-    <ContentContainer heightMode="auto" scrollable padding="16px">
-      <Row gutter={16}>
-        <Col xs={24} md={12}>
+    <ContentContainer className="dual-table-page" padding="16px" style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <Row gutter={16} style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'stretch' }}>
+        <Col xs={24} md={12} style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <div ref={typeWrapRef} className="table-wrap" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <ProTable<DictType>
             headerTitle="字典类型"
             cardBordered
@@ -769,6 +775,7 @@ const DictPage = () => {
             columns={typeCols}
             search={{ labelWidth: 'auto' }}
             request={fetchTypeRows}
+            scroll={{ y: typeScrollY }}
             pagination={{
               // 用 defaultPageSize 代替 pageSize：ProTable 会把 pageSize 透传给 antd Table，
               // 而 antd Table 在受控模式下会一直用这个值，导致改变分页大小后显示不更新。
@@ -803,9 +810,11 @@ const DictPage = () => {
             tableAlertRender={renderTypeAlert}
             tableAlertOptionRender={false}
           />
+          </div>
         </Col>
 
-        <Col xs={24} md={12}>
+        <Col xs={24} md={12} style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <div ref={entryWrapRef} className="table-wrap" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <ProTable<DictData>
             headerTitle={
               <Space size={8} align="center" wrap>
@@ -836,10 +845,7 @@ const DictPage = () => {
               showSizeChanger: true,
               showTotal: (total) => `共 ${total} 条`,
             }}
-            // 右表数据量较大，启用表内垂直滚动，避免整页被顶长。
-            // 高度为视口减去头部 / 搜索栏 / 分页 / 卡片 padding 后的估算值，
-            // 通过 scroll.y 给 antd Table 一个明确的可滚动高度。
-            scroll={{ x: 'max-content', y: 'calc(100vh - 360px)' }}
+            scroll={{ x: 'max-content', y: entryScrollY }}
             toolBarRender={entryToolbar}
             options={{
               reload: () => entryActionRef.current?.reload?.(),
@@ -853,6 +859,7 @@ const DictPage = () => {
             tableAlertRender={renderEntryAlert}
             tableAlertOptionRender={false}
           />
+          </div>
         </Col>
       </Row>
 

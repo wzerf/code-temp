@@ -18,6 +18,7 @@ import type {
   BlacklistScope,
   BlacklistTargetType } from '@/api/rest/types';
 import { useDictLookups } from '@/api/hooks/dict';
+import { useProTableScrollY } from '@/hooks/useProTableScrollY';
 import ContentContainer from '@/layouts/components/PageContainer/ContentContainer';
 import BlacklistFormDrawer from './modules/blacklist-form-drawer';
 import { getApiErrorMessage } from './modules/error-message';
@@ -30,6 +31,8 @@ function statusOrUndefined(v: number | '' | undefined): 0 | 1 | undefined {
 const BlacklistPage = () => {
   const { t } = useTranslation('blacklist');
   const actionRef = useRef<ActionType | undefined>(undefined);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const scrollY = useProTableScrollY(wrapRef);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [bulkLoading, setBulkLoading] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -359,7 +362,8 @@ const BlacklistPage = () => {
   };
 
   return (
-    <ContentContainer scrollable>
+    <ContentContainer style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <div ref={wrapRef} className="table-wrap" style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <ProTable<Blacklist>
         rowKey="id"
         headerTitle={t('pageTitle')}
@@ -372,7 +376,7 @@ const BlacklistPage = () => {
           showSizeChanger: true,
           showTotal: (total) => t('total', { total }),
         }}
-        scroll={{ x: 1400 }}
+        scroll={{ x: 1400, y: scrollY }}
         toolBarRender={() => [
           <Button
             key="create"
@@ -395,6 +399,7 @@ const BlacklistPage = () => {
         tableAlertOptionRender={false}
         dateFormatter="string"
       />
+      </div>
       <BlacklistFormDrawer
         open={drawerOpen}
         row={editing}

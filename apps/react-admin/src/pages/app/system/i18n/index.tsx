@@ -23,6 +23,7 @@ import type {
   I18nLocale,
   I18nTranslation,
   I18nTranslationKey } from '@/api/rest/types';
+import { useProTableScrollY } from '@/hooks/useProTableScrollY';
 import ContentContainer from '@/layouts/components/PageContainer/ContentContainer';
 import { formatDateTime } from '@/utils/date';
 import I18nLocaleDrawer from './modules/locale-drawer';
@@ -35,6 +36,10 @@ const I18nPage = () => {
   const localeActionRef = useRef<ActionType | undefined>(undefined);
   const translationActionRef = useRef<ActionType | undefined>(undefined);
   const translationKeyActionRef = useRef<ActionType | undefined>(undefined);
+  const localeWrapRef = useRef<HTMLDivElement | null>(null);
+  const localeScrollY = useProTableScrollY(localeWrapRef);
+  const transWrapRef = useRef<HTMLDivElement | null>(null);
+  const transScrollY = useProTableScrollY(transWrapRef);
 
   // 左表选中态
   const [selectedLocaleId, setSelectedLocaleId] = useState<number | null>(null);
@@ -874,9 +879,10 @@ const I18nPage = () => {
   };
 
   return (
-    <ContentContainer heightMode="fixed" scrollable padding="16px">
-      <Row gutter={16}>
-        <Col xs={24} md={12}>
+    <ContentContainer className="dual-table-page" padding="16px" style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <Row gutter={16} style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'stretch' }}>
+        <Col xs={24} md={12} style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <div ref={localeWrapRef} className="table-wrap" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <ProTable<I18nLocale>
             headerTitle="语言"
             cardBordered
@@ -885,6 +891,7 @@ const I18nPage = () => {
             columns={localeColumns}
             search={{ labelWidth: 'auto' }}
             request={fetchLocaleRows}
+            scroll={{ y: localeScrollY }}
             pagination={{
               defaultPageSize: 10,
               showSizeChanger: true,
@@ -918,9 +925,11 @@ const I18nPage = () => {
             tableAlertRender={renderLocaleAlert}
             tableAlertOptionRender={false}
           />
+          </div>
         </Col>
 
-        <Col xs={24} md={12}>
+        <Col xs={24} md={12} style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <div ref={transWrapRef} className="table-wrap" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {isCollapsedView ? (
             <ProTable<I18nTranslationKey>
               headerTitle={
@@ -942,14 +951,13 @@ const I18nPage = () => {
                 showSizeChanger: true,
                 showTotal: (total) => `共 ${total} 条`,
               }}
-              scroll={{ x: 'max-content' }}
+              scroll={{ x: 'max-content', y: transScrollY }}
               toolBarRender={translationToolbar}
               options={{
                 reload: () => translationKeyActionRef.current?.reload?.(),
                 setting: { listsHeight: 400 },
               }}
               dateFormatter="string"
-              locale={{ emptyText: '暂无数据' }}
               expandable={{
                 expandedRowKeys: expandedTranslationKeys,
                 onExpand: (expanded, record) => {
@@ -1005,19 +1013,19 @@ const I18nPage = () => {
                 showSizeChanger: true,
                 showTotal: (total) => `共 ${total} 条`,
               }}
-              scroll={{ x: 'max-content' }}
+              scroll={{ x: 'max-content', y: transScrollY }}
               toolBarRender={translationToolbar}
               options={{
                 reload: () => translationActionRef.current?.reload?.(),
                 setting: { listsHeight: 400 },
               }}
               dateFormatter="string"
-              locale={{ emptyText: '暂无数据' }}
               rowSelection={translationRowSelection}
               tableAlertRender={renderTranslationAlert}
               tableAlertOptionRender={false}
             />
           )}
+          </div>
         </Col>
       </Row>
 

@@ -10,6 +10,7 @@ import {
 import { useDeleteMenu, useUpdateMenu } from '@/api/hooks/menu';
 import { listMenusApi } from '@/api/rest/menu';
 import type { MenuType, SysMenu } from '@/api/rest/types';
+import { useProTableScrollY } from '@/hooks/useProTableScrollY';
 import ContentContainer from '@/layouts/components/PageContainer/ContentContainer';
 import { useAccessRefreshStore } from '@/stores';
 import MenuFormDrawer, { type MenuFormKind } from './modules/menu-form-drawer';
@@ -63,6 +64,8 @@ const STATUS_TAG: Record<0 | 1, { color: string; text: string }> = {
 
 const MenuPage = () => {
   const actionRef = useRef<ActionType | undefined>(undefined);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const scrollY = useProTableScrollY(wrapRef);
   const reload = () => actionRef.current?.reload?.();
 
   const deleteMut = useDeleteMenu({
@@ -243,7 +246,8 @@ const MenuPage = () => {
   }, [allExpanded, allExpandableIds]);
 
   return (
-    <ContentContainer scrollable>
+    <ContentContainer style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <div ref={wrapRef} className="table-wrap" style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <ProTable<SysMenu>
         rowKey="id"
         headerTitle="菜单管理"
@@ -258,7 +262,7 @@ const MenuPage = () => {
           showSizeChanger: true,
           showTotal: (t) => `共 ${t} 个根菜单，${itemTotal} 条数据`,
         }}
-        scroll={{ x: 1100 }}
+        scroll={{ x: 1100, y: scrollY }}
         toolBarRender={() => [
           <Button
             key="create"
@@ -292,6 +296,7 @@ const MenuPage = () => {
         tableAlertRender={false}
         dateFormatter="string"
       />
+      </div>
       <MenuFormDrawer
         open={drawerOpen}
         kind={drawerKind}

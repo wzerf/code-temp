@@ -10,6 +10,7 @@ import {
 import { listUsersApi } from '@/api/rest/user';
 import type { UserListItem } from '@/api/rest/types';
 import { formatDateTime } from '@/utils/date';
+import { useProTableScrollY } from '@/hooks/useProTableScrollY';
 import ContentContainer from '@/layouts/components/PageContainer/ContentContainer';
 import UserFormDrawer, { type UserFormKind } from './modules/user-form-drawer';
 import ResetPasswordModal from './modules/reset-password-modal';
@@ -21,6 +22,8 @@ const STATUS_TAG: Record<0 | 1, { color: string; text: string }> = {
 
 const UserPage = () => {
   const actionRef = useRef<ActionType | undefined>(undefined);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const scrollY = useProTableScrollY(wrapRef);
   const reload = () => actionRef.current?.reload?.();
 
   const deleteMut = useDeleteUser({
@@ -169,7 +172,8 @@ const UserPage = () => {
   ];
 
   return (
-    <ContentContainer scrollable>
+    <ContentContainer style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <div ref={wrapRef} className="table-wrap" style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <ProTable<UserListItem>
         rowKey="id"
         headerTitle="用户管理"
@@ -182,7 +186,7 @@ const UserPage = () => {
           showSizeChanger: true,
           showTotal: (t) => `共 ${t} 条`,
         }}
-        scroll={{ x: 1200 }}
+        scroll={{ x: 1200, y: scrollY }}
         toolBarRender={() => [
           <Button
             key="create"
@@ -196,6 +200,7 @@ const UserPage = () => {
         tableAlertRender={false}
         dateFormatter="string"
       />
+      </div>
       <UserFormDrawer
         open={drawerOpen}
         kind={drawerKind}

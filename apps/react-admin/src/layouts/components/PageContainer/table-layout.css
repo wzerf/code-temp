@@ -1,0 +1,154 @@
+.table-page {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.table-page .ant-tabs,
+.content-container .ant-tabs {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.table-page .ant-tabs-content-holder,
+.content-container .ant-tabs-content-holder {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.table-page .ant-tabs-content,
+.content-container .ant-tabs-content {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.table-page .ant-tabs-tabpane,
+.content-container .ant-tabs-tabpane {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.table-page .ant-tabs-tabpane:not(.ant-tabs-tabpane-active),
+.content-container .ant-tabs-tabpane:not(.ant-tabs-tabpane-active) {
+  display: none !important;
+}
+
+.table-page-pane {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.table-wrap {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.table-wrap > .ant-pro-table {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.table-wrap .ant-table-body {
+  scrollbar-gutter: stable;
+}
+
+.table-wrap .ant-empty {
+  padding: 48px 0;
+}
+
+.table-wrap .ant-table-placeholder .ant-table-cell {
+  border-bottom: none;
+}
+
+.table-wrap .ant-table-placeholder td {
+  background: var(--ant-color-bg-container) !important;
+}
+
+.table-wrap .ant-table-tbody > tr.ant-table-placeholder:hover > td {
+  background: var(--ant-color-bg-container) !important;
+}
+
+/* 全站表格空态卡片背景与用户管理一致：由表格容器铺底，避免灰色空隙外露 */
+.content-container .ant-table,
+.content-container .ant-table-container,
+.content-container .ant-table-content,
+.content-container .ant-table-body,
+.content-container .ant-table-placeholder td {
+  background: var(--ant-color-bg-container) !important;
+}
+
+.content-container .ant-table-placeholder .ant-table-cell {
+  border-bottom: none;
+}
+
+.content-container .ant-table-tbody > tr.ant-table-placeholder:hover > td {
+  background: var(--ant-color-bg-container) !important;
+}
+
+.content-container .ant-empty {
+  padding: 48px 0;
+}
+
+.dual-table-page .ant-row {
+  flex: 1;
+  min-height: 0;
+}
+
+.dual-table-page .ant-row > .ant-col {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.content-container .ant-pro-table {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.content-container .ant-card {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.content-container .ant-card-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.dual-table-page .ant-pro-table-search {
+  background: var(--ant-color-bg-container) !important;
+  border: 1px solid var(--ant-color-border-secondary, #f0f0f0) !important;
+  border-radius: var(--ant-border-radius-lg, 8px) !important;
+  margin-block-end: 16px !important;
+  padding: 16px !important;
+}
+

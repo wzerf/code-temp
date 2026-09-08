@@ -19,6 +19,7 @@ import {
 import type { TaskConfig, TaskConfigBatchAction } from '@/api/rest/types';
 import { useDictLookups } from '@/api/hooks/dict';
 import { useListTaskQueues, useListTaskWorkflowTypes } from '@/api/hooks/task-config';
+import { useProTableScrollY } from '@/hooks/useProTableScrollY';
 import { getApiErrorMessage } from '../modules/error-message';
 import { notifyTaskExecutionChanged } from '../modules/events';
 import TaskConfigDrawer from './modules/config-drawer';
@@ -32,6 +33,8 @@ function statusOrUndefined(v: number | '' | undefined): 0 | 1 | undefined {
 export function TaskConfigPanel() {
   const { t } = useTranslation('task');
   const actionRef = useRef<ActionType | undefined>(undefined);
+  const tableWrapRef = useRef<HTMLDivElement | null>(null);
+  const tableScrollY = useProTableScrollY(tableWrapRef);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [bulkLoading, setBulkLoading] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -394,26 +397,28 @@ export function TaskConfigPanel() {
 
   return (
     <>
-      <ProTable<TaskConfig>
-        actionRef={actionRef}
-        rowKey="id"
-        columns={columns}
-        request={fetchRows}
-        search={{ labelWidth: 'auto', defaultCollapsed: false }}
-        pagination={{ defaultPageSize: 20, showSizeChanger: true }}
-        options={{ density: true, reload: true, setting: true }}
-        toolBarRender={toolbar}
-        rowSelection={{
-          selectedRowKeys,
-          onChange: setSelectedRowKeys,
-          preserveSelectedRowKeys: true,
-        }}
-        tableAlertRender={renderAlert}
-        tableAlertOptionRender={false}
-        dateFormatter="string"
-        headerTitle={t('configListTitle')}
-        scroll={{ x: 1200 }}
-      />
+      <div ref={tableWrapRef} className="task-table-wrap">
+        <ProTable<TaskConfig>
+          actionRef={actionRef}
+          rowKey="id"
+          columns={columns}
+          request={fetchRows}
+          search={{ labelWidth: 'auto', defaultCollapsed: false }}
+          pagination={{ defaultPageSize: 20, showSizeChanger: true }}
+          options={{ density: true, reload: true, setting: true }}
+          toolBarRender={toolbar}
+          rowSelection={{
+            selectedRowKeys,
+            onChange: setSelectedRowKeys,
+            preserveSelectedRowKeys: true,
+          }}
+          tableAlertRender={renderAlert}
+          tableAlertOptionRender={false}
+          dateFormatter="string"
+          headerTitle={t('configListTitle')}
+          scroll={{ x: 1200, y: tableScrollY }}
+        />
+      </div>
       <TaskConfigDrawer
         open={drawerOpen}
         row={editing}

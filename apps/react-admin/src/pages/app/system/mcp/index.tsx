@@ -18,6 +18,7 @@ import {
   withdrawMcpDraftApi } from '@/api/rest/mcp';
 import McpOauthSection from './modules/mcp-oauth-section';
 import type { McpDraft, McpRelease, McpVerifyResult } from '@/api/rest/types';
+import { useProTableScrollY } from '@/hooks/useProTableScrollY';
 import ContentContainer from '@/layouts/components/PageContainer/ContentContainer';
 import McpFormDrawer from './modules/mcp-form-drawer';
 import { getApiErrorMessage } from '../blacklist/modules/error-message';
@@ -34,6 +35,10 @@ const STATUS_COLOR: Record<string, string> = {
 const McpPage = () => {
   const { t } = useTranslation('mcp');
   const actionRef = useRef<ActionType | undefined>(undefined);
+  const draftWrapRef = useRef<HTMLDivElement | null>(null);
+  const releaseWrapRef = useRef<HTMLDivElement | null>(null);
+  const draftScrollY = useProTableScrollY(draftWrapRef);
+  const releaseScrollY = useProTableScrollY(releaseWrapRef);
   const [tab, setTab] = useState<'drafts' | 'releases' | 'market'>('drafts');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editing, setEditing] = useState<McpDraft | null>(null);
@@ -336,6 +341,7 @@ const McpPage = () => {
       key: 'drafts',
       label: t('tabDrafts'),
       children: (
+        <div ref={draftWrapRef} className="table-wrap" style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         <ProTable<McpDraft>
           rowKey="id"
           headerTitle={t('tabDrafts')}
@@ -344,7 +350,7 @@ const McpPage = () => {
           request={fetchDraftRows}
           search={{ labelWidth: 'auto' }}
           pagination={{ defaultPageSize: 20, showSizeChanger: true, showTotal: (v) => t('total', { total: v }) }}
-          scroll={{ x: 1400 }}
+          scroll={{ x: 1400, y: draftScrollY }}
           toolBarRender={() => [
             <Button
               key="create"
@@ -359,12 +365,14 @@ const McpPage = () => {
             </Button>,
           ]}
         />
+        </div>
       ),
     },
     {
       key: 'releases',
       label: t('tabReleases'),
       children: (
+        <div ref={releaseWrapRef} className="table-wrap" style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         <ProTable<McpRelease>
           rowKey="id"
           headerTitle={t('tabReleases')}
@@ -372,8 +380,9 @@ const McpPage = () => {
           request={fetchReleaseRows}
           search={{ labelWidth: 'auto' }}
           pagination={{ defaultPageSize: 20, showSizeChanger: true, showTotal: (v) => t('total', { total: v }) }}
-          scroll={{ x: 1200 }}
+          scroll={{ x: 1200, y: releaseScrollY }}
         />
+        </div>
       ),
     },
     {
@@ -391,7 +400,7 @@ const McpPage = () => {
   ];
 
   return (
-    <ContentContainer>
+    <ContentContainer className="table-page" style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <Tabs
         activeKey={tab}
         onChange={(k) => {

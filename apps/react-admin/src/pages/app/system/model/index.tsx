@@ -18,6 +18,7 @@ import {
   verifyModelDraftApi,
   withdrawModelDraftApi } from '@/api/rest/model';
 import type { ModelDraft, ModelRelease, ModelVerifyResult } from '@/api/rest/types';
+import { useProTableScrollY } from '@/hooks/useProTableScrollY';
 import ContentContainer from '@/layouts/components/PageContainer/ContentContainer';
 import ModelFormDrawer from './modules/model-form-drawer';
 import { getApiErrorMessage } from '../blacklist/modules/error-message';
@@ -34,6 +35,10 @@ const STATUS_COLOR: Record<string, string> = {
 const ModelPage = () => {
   const { t } = useTranslation('model');
   const actionRef = useRef<ActionType | undefined>(undefined);
+  const draftWrapRef = useRef<HTMLDivElement | null>(null);
+  const releaseWrapRef = useRef<HTMLDivElement | null>(null);
+  const draftScrollY = useProTableScrollY(draftWrapRef);
+  const releaseScrollY = useProTableScrollY(releaseWrapRef);
   const [tab, setTab] = useState<'drafts' | 'releases' | 'available' | 'image'>('drafts');
   const [drawerMode, setDrawerMode] = useState<'create' | 'edit' | null>(null);
   const [editing, setEditing] = useState<ModelDraft | null>(null);
@@ -353,6 +358,7 @@ const ModelPage = () => {
       key: 'drafts',
       label: t('tabDrafts'),
       children: (
+        <div ref={draftWrapRef} className="table-wrap" style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         <ProTable<ModelDraft>
           rowKey="id"
           headerTitle={t('tabDrafts')}
@@ -361,7 +367,7 @@ const ModelPage = () => {
           request={fetchDraftRows}
           search={{ labelWidth: 'auto' }}
           pagination={{ defaultPageSize: 20, showSizeChanger: true, showTotal: (v) => t('total', { total: v }) }}
-          scroll={{ x: 1500 }}
+          scroll={{ x: 1500, y: draftScrollY }}
           toolBarRender={() => [
             <Button
               key="create"
@@ -376,12 +382,14 @@ const ModelPage = () => {
             </Button>,
           ]}
         />
+        </div>
       ),
     },
     {
       key: 'releases',
       label: t('tabReleases'),
       children: (
+        <div ref={releaseWrapRef} className="table-wrap" style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         <ProTable<ModelRelease>
           rowKey="id"
           headerTitle={t('tabReleases')}
@@ -389,8 +397,9 @@ const ModelPage = () => {
           request={fetchReleaseRows}
           search={{ labelWidth: 'auto' }}
           pagination={{ defaultPageSize: 20, showSizeChanger: true, showTotal: (v) => t('total', { total: v }) }}
-          scroll={{ x: 1400 }}
+          scroll={{ x: 1400, y: releaseScrollY }}
         />
+        </div>
       ),
     },
     {
@@ -430,7 +439,7 @@ const ModelPage = () => {
   ];
 
   return (
-    <ContentContainer>
+    <ContentContainer className="table-page" style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <Tabs
         activeKey={tab}
         onChange={(k) => {

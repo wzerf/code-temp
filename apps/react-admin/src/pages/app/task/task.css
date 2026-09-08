@@ -1,0 +1,75 @@
+.task-page {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.task-page .ant-tabs {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.task-page .ant-tabs-content-holder {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.task-page .ant-tabs-content {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.task-page .ant-tabs-tabpane {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.task-tab-pane {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.task-table-wrap {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.task-table-wrap > .ant-pro-table {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.task-table-wrap .ant-table-body {
+  scrollbar-gutter: stable;
+}
+
+.task-table-wrap .ant-table-placeholder td {
+  background: var(--ant-color-bg-container) !important;
+}
+
+.task-table-wrap .ant-table-tbody > tr.ant-table-placeholder:hover > td {
+  background: var(--ant-color-bg-container) !important;
+}

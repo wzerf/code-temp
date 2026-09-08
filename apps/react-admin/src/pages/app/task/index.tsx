@@ -11,6 +11,7 @@ import ContentContainer from '@/layouts/components/PageContainer/ContentContaine
 import Forbidden from '@/pages/core/error/403';
 import { TaskConfigPanel } from './config';
 import { TaskExecutionPanel } from './execution';
+import './task.css';
 
 /** Tab 与 URL query、权限码映射 */
 const TASK_TAB_DEFS = [
@@ -147,7 +148,7 @@ const TaskSchedulePage = () => {
   }
 
   return (
-    <ContentContainer>
+    <ContentContainer className="task-page">
       <Tabs
         activeKey={activeKey}
         onChange={switchTab}
@@ -158,7 +159,7 @@ const TaskSchedulePage = () => {
             label: t(tab.labelKey),
             forceRender: mounted,
             children: mounted ? (
-              <div style={{ position: 'relative', minHeight: 240 }}>
+              <div className="task-tab-pane">
                 {activeKey === tab.key && showLoading ? (
                   <div
                     style={{
@@ -177,6 +178,12 @@ const TaskSchedulePage = () => {
                 <div
                   style={{
                     visibility: activeKey === tab.key && showLoading ? 'hidden' : 'visible',
+                    flex: 1,
+                    minHeight: 0,
+                    overflow: 'hidden',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    position: 'relative',
                   }}
                 >
                   {renderTaskTabPanel(tab.key)}

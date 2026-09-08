@@ -16,6 +16,7 @@ import {
   takeDownSkillMarketApi,
   withdrawSkillDraftApi } from '@/api/rest/skill';
 import type { SkillDraft, SkillRelease } from '@/api/rest/types';
+import { useProTableScrollY } from '@/hooks/useProTableScrollY';
 import ContentContainer from '@/layouts/components/PageContainer/ContentContainer';
 import SkillFormDrawer from './modules/skill-form-drawer';
 import SkillReleaseDetailDrawer from './modules/skill-release-detail-drawer';
@@ -37,6 +38,10 @@ const SkillPage = () => {
   const { t } = useTranslation('skill');
   const actionRef = useRef<ActionType | undefined>(undefined);
   const marketRef = useRef<ActionType | undefined>(undefined);
+  const draftWrapRef = useRef<HTMLDivElement | null>(null);
+  const releaseWrapRef = useRef<HTMLDivElement | null>(null);
+  const draftScrollY = useProTableScrollY(draftWrapRef);
+  const releaseScrollY = useProTableScrollY(releaseWrapRef);
   const [tab, setTab] = useState<'drafts' | 'releases' | 'market' | 'git'>('drafts');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editing, setEditing] = useState<SkillDraft | null>(null);
@@ -300,6 +305,7 @@ const SkillPage = () => {
       key: 'drafts',
       label: t('tabDrafts'),
       children: (
+        <div ref={draftWrapRef} className="table-wrap" style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         <ProTable<SkillDraft>
           rowKey="id"
           headerTitle={t('tabDrafts')}
@@ -308,7 +314,7 @@ const SkillPage = () => {
           request={fetchDraftRows}
           search={{ labelWidth: 'auto' }}
           pagination={{ defaultPageSize: 20, showSizeChanger: true, showTotal: (v) => t('total', { total: v }) }}
-          scroll={{ x: 1300 }}
+          scroll={{ x: 1300, y: draftScrollY }}
           toolBarRender={() => [
             <Button
               key="create"
@@ -323,12 +329,14 @@ const SkillPage = () => {
             </Button>,
           ]}
         />
+        </div>
       ),
     },
     {
       key: 'releases',
       label: t('tabReleases'),
       children: (
+        <div ref={releaseWrapRef} className="table-wrap" style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         <ProTable<SkillRelease>
           rowKey="id"
           headerTitle={t('tabReleases')}
@@ -337,8 +345,9 @@ const SkillPage = () => {
           request={fetchReleaseRows}
           search={{ labelWidth: 'auto' }}
           pagination={{ defaultPageSize: 20, showSizeChanger: true, showTotal: (v) => t('total', { total: v }) }}
-          scroll={{ x: 1000 }}
+          scroll={{ x: 1000, y: releaseScrollY }}
         />
+        </div>
       ),
     },
     {
@@ -361,7 +370,7 @@ const SkillPage = () => {
   ];
 
   return (
-    <ContentContainer>
+    <ContentContainer className="table-page" style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <Tabs
         activeKey={tab}
         onChange={(k) => {

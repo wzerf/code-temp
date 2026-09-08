@@ -3,6 +3,7 @@ import { Spin, Tabs } from 'antd';
 import { useSearchParams } from 'react-router-dom';
 import { useAccess } from '@/core/access';
 import ContentContainer from '@/layouts/components/PageContainer/ContentContainer';
+import '@/layouts/components/PageContainer/table-layout.css';
 import Forbidden from '@/pages/core/error/403';
 import { ApiLogPanel } from './api-log';
 import { LoginLogPanel } from './login-log';
@@ -148,7 +149,7 @@ const LogAuditPage = () => {
   }
 
   return (
-    <ContentContainer>
+    <ContentContainer className="table-page">
       <Tabs
         activeKey={activeKey}
         onChange={switchTab}
@@ -160,7 +161,7 @@ const LogAuditPage = () => {
             // 已访问强制保留 DOM，二次切换不重挂载
             forceRender: mounted,
             children: mounted ? (
-              <div style={{ position: 'relative', minHeight: 240 }}>
+              <div className="table-page-pane">
                 {activeKey === t.key && showLoading ? (
                   <div
                     style={{
@@ -179,6 +180,12 @@ const LogAuditPage = () => {
                 <div
                   style={{
                     visibility: activeKey === t.key && showLoading ? 'hidden' : 'visible',
+                    flex: 1,
+                    minHeight: 0,
+                    overflow: 'hidden',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    position: 'relative',
                   }}
                 >
                   {renderLogTabPanel(t.key)}

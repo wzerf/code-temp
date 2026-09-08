@@ -4,6 +4,7 @@ import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { ProTable } from '@ant-design/pro-components';
 import { listLoginLogsApi } from '@/api/rest/login-log';
 import type { LoginLogListItem, LoginLogSource } from '@/api/rest/types';
+import { useProTableScrollY } from '@/hooks/useProTableScrollY';
 import { formatDateTime } from '@/utils/date';
 import LoginLogDetailDrawer from './modules/detail-drawer';
 
@@ -17,6 +18,8 @@ const LOGIN_METHOD_OPTIONS = {
 /** 登录日志列表面板（供「日志审计」页 Tab 嵌入） */
 export function LoginLogPanel() {
   const actionRef = useRef<ActionType | undefined>(undefined);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const scrollY = useProTableScrollY(wrapRef);
   const [source, setSource] = useState<LoginLogSource>('hot');
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailRow, setDetailRow] = useState<LoginLogListItem | null>(null);
@@ -138,36 +141,39 @@ export function LoginLogPanel() {
 
   return (
     <>
-      <ProTable<LoginLogListItem>
-        actionRef={actionRef}
-        rowKey="id"
-        columns={columns}
-        request={fetchRows}
-        params={{ source }}
-        onRow={(record) => ({
-          onClick: () => openDetail(record),
-          style: { cursor: 'pointer' },
-        })}
-        search={{ labelWidth: 'auto', defaultCollapsed: false }}
-        pagination={{ defaultPageSize: 20, showSizeChanger: true }}
-        options={{ density: true, reload: true, setting: true }}
-        toolbar={{
-          menu: {
-            type: 'tab',
-            activeKey: source,
-            items: [
-              { key: 'hot', label: '热表' },
-              { key: 'archive', label: '归档' },
-            ],
-            onChange: (key) => {
-              setSource((key as LoginLogSource) || 'hot');
-              actionRef.current?.reload?.();
+      <div ref={wrapRef} className="table-wrap">
+        <ProTable<LoginLogListItem>
+          actionRef={actionRef}
+          rowKey="id"
+          columns={columns}
+          request={fetchRows}
+          params={{ source }}
+          onRow={(record) => ({
+            onClick: () => openDetail(record),
+            style: { cursor: 'pointer' },
+          })}
+          search={{ labelWidth: 'auto', defaultCollapsed: false }}
+          pagination={{ defaultPageSize: 20, showSizeChanger: true }}
+          options={{ density: true, reload: true, setting: true }}
+          scroll={{ y: scrollY }}
+          toolbar={{
+            menu: {
+              type: 'tab',
+              activeKey: source,
+              items: [
+                { key: 'hot', label: '热表' },
+                { key: 'archive', label: '归档' },
+              ],
+              onChange: (key) => {
+                setSource((key as LoginLogSource) || 'hot');
+                actionRef.current?.reload?.();
+              },
             },
-          },
-        }}
-        dateFormatter="string"
-        headerTitle="登录日志"
-      />
+          }}
+          dateFormatter="string"
+          headerTitle="登录日志"
+        />
+      </div>
       <LoginLogDetailDrawer
         open={detailOpen}
         row={detailRow}

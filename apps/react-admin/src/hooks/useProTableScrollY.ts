@@ -48,8 +48,22 @@ export function useProTableScrollY(
         // 安全边距（给分页器留出视觉呼吸空间，确保表格底线完整可见）
         const buffer = 24;
 
-        // 计算表格体可用高度
-        const availableHeight = Math.max(containerHeight - aboveSpace - belowSpace - buffer, 100);
+        const isEmpty = !!container.querySelector('.ant-empty');
+        const availableHeight = Math.max(containerHeight - aboveSpace - belowSpace - buffer, 120);
+        if (isEmpty) {
+          tableBody.style.maxHeight = `${availableHeight}px`;
+          tableBody.style.minHeight = `${availableHeight}px`;
+          tableBody.style.overflowY = 'hidden';
+          tableBody.style.overflowX = 'hidden';
+          const placeholderTd = container.querySelector('.ant-table-placeholder td') as HTMLElement | null;
+          if (placeholderTd) {
+            placeholderTd.style.height = `${Math.max(availableHeight - 20, 160)}px`;
+            placeholderTd.style.verticalAlign = 'middle';
+            placeholderTd.style.borderBottom = 'none';
+          }
+          return;
+        }
+
         tableBody.style.maxHeight = `${availableHeight}px`;
         tableBody.style.minHeight = `${availableHeight}px`;
 
@@ -60,6 +74,11 @@ export function useProTableScrollY(
           tableBody.style.overflowY = 'hidden';
         } else {
           tableBody.style.overflowY = 'auto';
+        }
+        if (tableBody.scrollWidth <= tableBody.clientWidth + 1) {
+          tableBody.style.overflowX = 'hidden';
+        } else {
+          tableBody.style.overflowX = 'auto';
         }
       });
     };

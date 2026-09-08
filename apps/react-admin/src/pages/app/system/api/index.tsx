@@ -17,6 +17,7 @@ import {
 import { listApisApi } from '@/api/rest/api';
 import type { HttpMethod, SysApi } from '@/api/rest/types';
 import { formatDateTime } from '@/utils/date';
+import { useProTableScrollY } from '@/hooks/useProTableScrollY';
 import ContentContainer from '@/layouts/components/PageContainer/ContentContainer';
 import ApiFormDrawer from './modules/api-form-drawer';
 
@@ -106,6 +107,8 @@ function collectExpandableKeys(nodes: ApiTreeNode[]): string[] {
 
 const ApiPage = () => {
   const actionRef = useRef<ActionType | undefined>(undefined);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const scrollY = useProTableScrollY(wrapRef);
   const reload = () => actionRef.current?.reload?.();
 
   // 接口列表由 ProTable 的 request 直接拉；这里只保留分组下拉（搜索框 valueEnum 用）
@@ -312,7 +315,8 @@ const ApiPage = () => {
   }, [allExpanded, allExpandableKeys]);
 
   return (
-    <ContentContainer scrollable>
+    <ContentContainer style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <div ref={wrapRef} className="table-wrap" style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <ProTable<ApiTreeNode>
         rowKey="rowKey"
         headerTitle="接口管理"
@@ -327,7 +331,7 @@ const ApiPage = () => {
           showSizeChanger: true,
           showTotal: (t) => `共 ${t} 个分组，${itemTotal} 条数据`,
         }}
-        scroll={{ x: 1200 }}
+        scroll={{ x: 1200, y: scrollY }}
         toolBarRender={() => [
           <Popconfirm
             key="sync"
@@ -371,6 +375,7 @@ const ApiPage = () => {
         tableAlertRender={false}
         dateFormatter="string"
       />
+      </div>
       <ApiFormDrawer
         open={drawerOpen}
         row={editing}

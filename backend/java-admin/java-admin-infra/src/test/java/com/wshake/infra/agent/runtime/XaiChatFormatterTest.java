@@ -2,6 +2,7 @@ package com.wshake.infra.agent.runtime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.wshake.infra.agent.formatter.XaiChatFormatter;
 import io.agentscope.core.message.AssistantMessage;
 import io.agentscope.core.message.SystemMessage;
 import io.agentscope.core.message.UserMessage;

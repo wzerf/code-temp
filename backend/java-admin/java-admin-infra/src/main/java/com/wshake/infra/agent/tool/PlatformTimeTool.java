@@ -1,4 +1,4 @@
-package com.wshake.infra.agent.runtime;
+package com.wshake.infra.agent.tool;
 
 import io.agentscope.core.message.ToolResultBlock;
 import io.agentscope.core.tool.AgentTool;

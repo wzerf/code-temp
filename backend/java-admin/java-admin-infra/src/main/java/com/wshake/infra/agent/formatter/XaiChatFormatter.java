@@ -1,10 +1,10 @@
-package com.wshake.infra.agent.runtime;
+package com.wshake.infra.agent.formatter;
 
 import io.agentscope.core.message.Msg;
 import io.agentscope.extensions.model.openai.dto.OpenAIMessage;
 import io.agentscope.extensions.model.openai.formatter.OpenAIChatFormatter;
 
-final class XaiChatFormatter extends OpenAIChatFormatter {
+public class XaiChatFormatter extends OpenAIChatFormatter {
 
     @Override
     protected OpenAIMessage convertMessage(Msg msg, boolean hasMedia) {

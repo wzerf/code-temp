@@ -155,21 +155,19 @@ public class AgentControlService {
         if (cmd.systemPrompt() != null) {
             row.setSystemPrompt(cmd.systemPrompt());
         }
-        // 复用模型管理同一套校验：image 字段走 merge，其它 modelConfig 走整体校验
-        if (cmd.imageProvider() != null
-                || cmd.imageBaseUrl() != null
-                || cmd.imageModelName() != null
-                || cmd.imagePlainSecret() != null) {
-            row.setModelConfig(mergeImageIntoModelConfig(
+        // 复用模型管理同一套校验：image/video 字段走 merge，其它 modelConfig 走整体校验
+        if (hasMediaOverlay(cmd) || cmd.modelConfig() != null) {
+            row.setModelConfig(mergeMediaIntoModelConfig(
                     row.getModelConfig(),
-                    null,
+                    cmd.modelConfig(),
                     cmd.imageProvider(),
                     cmd.imageBaseUrl(),
                     cmd.imageModelName(),
-                    cmd.imagePlainSecret()));
-        } else if (cmd.modelConfig() != null) {
-            row.setModelConfig(
-                    mergeImageIntoModelConfig(row.getModelConfig(), cmd.modelConfig(), null, null, null, null));
+                    cmd.imagePlainSecret(),
+                    cmd.videoProvider(),
+                    cmd.videoBaseUrl(),
+                    cmd.videoModelName(),
+                    cmd.videoPlainSecret()));
         }
         if (cmd.permissionPolicy() != null) {
             row.setPermissionPolicy(blankToNull(cmd.permissionPolicy()));
@@ -371,13 +369,17 @@ public class AgentControlService {
         row.setAgentDefinitionId(definitionId);
         row.setStatus(STATUS_DRAFT);
         row.setSystemPrompt(cmd.systemPrompt() == null ? "" : cmd.systemPrompt());
-        row.setModelConfig(mergeImageIntoModelConfig(
+        row.setModelConfig(mergeMediaIntoModelConfig(
                 null,
                 cmd.modelConfig(),
                 cmd.imageProvider(),
                 cmd.imageBaseUrl(),
                 cmd.imageModelName(),
-                cmd.imagePlainSecret()));
+                cmd.imagePlainSecret(),
+                cmd.videoProvider(),
+                cmd.videoBaseUrl(),
+                cmd.videoModelName(),
+                cmd.videoPlainSecret()));
         row.setPermissionPolicy(blankToNull(cmd.permissionPolicy()));
         row.setMemoryPolicy(blankToNull(cmd.memoryPolicy()));
         row.setCompressionPolicy(blankToNull(cmd.compressionPolicy()));
@@ -386,100 +388,161 @@ public class AgentControlService {
         return row;
     }
 
-    private String mergeImageIntoModelConfig(
+    private static boolean hasMediaOverlay(DraftRevisionCommand cmd) {
+        return cmd.imageProvider() != null
+                || cmd.imageBaseUrl() != null
+                || cmd.imageModelName() != null
+                || cmd.imagePlainSecret() != null
+                || cmd.videoProvider() != null
+                || cmd.videoBaseUrl() != null
+                || cmd.videoModelName() != null
+                || cmd.videoPlainSecret() != null;
+    }
+
+    private String mergeMediaIntoModelConfig(
             String baseModelConfig,
             String incomingModelConfig,
             String imageProvider,
             String imageBaseUrl,
             String imageModelName,
-            String imagePlainSecret) {
-        ObjectNode root;
-        if (incomingModelConfig != null) {
-            String trimmed = incomingModelConfig.trim();
-            if (trimmed.isEmpty()) return null;
-            try {
-                JsonNode parsed = objectMapper.readTree(trimmed);
-                if (!parsed.isObject()) throw BizException.of(ResultCode.PARAM_INVALID, "modelConfig 必须为 JSON 对象");
-                root = (ObjectNode) parsed;
-            } catch (BizException e) {
-                throw e;
-            } catch (Exception e) {
-                throw BizException.of(ResultCode.PARAM_INVALID, "modelConfig 必须为合法 JSON 对象");
-            }
-        } else if (baseModelConfig != null && !baseModelConfig.isBlank()) {
-            try {
-                JsonNode parsed = objectMapper.readTree(baseModelConfig);
-                if (parsed != null && parsed.isObject()) root = (ObjectNode) parsed.deepCopy();
-                else root = objectMapper.createObjectNode();
-            } catch (Exception e) {
-                root = objectMapper.createObjectNode();
-            }
-        } else {
-            root = objectMapper.createObjectNode();
-        }
-        boolean hasImageUpdate =
+            String imagePlainSecret,
+            String videoProvider,
+            String videoBaseUrl,
+            String videoModelName,
+            String videoPlainSecret) {
+        boolean imageUpdate =
                 imageProvider != null || imageBaseUrl != null || imageModelName != null || imagePlainSecret != null;
-        if (!hasImageUpdate) {
-            if (incomingModelConfig != null) validateModelConfigImage(root);
-            else if (!root.isEmpty()) validateModelConfigImage(root);
-            if (root.isEmpty()) return null;
-            return writeModelConfig(root);
+        boolean videoUpdate =
+                videoProvider != null || videoBaseUrl != null || videoModelName != null || videoPlainSecret != null;
+        ObjectNode root = readModelConfigRoot(baseModelConfig, incomingModelConfig, imageUpdate || videoUpdate);
+        if (root == null) return null;
+        preserveMediaSecrets(baseModelConfig, root);
+        if (imageUpdate) {
+            overlayMedia(root, "image", imageProvider, imageBaseUrl, imageModelName, imagePlainSecret, "请先配置生图密钥");
+        } else {
+            validateModelConfigMedia(root, "image", "请先配置生图密钥");
         }
-        JsonNode imageNode = root.get("image");
-        ObjectNode imageObj =
-                (imageNode != null && imageNode.isObject()) ? (ObjectNode) imageNode : objectMapper.createObjectNode();
-        if (imageProvider != null) {
-            if (imageProvider.isBlank()) imageObj.remove("provider");
-            else imageObj.put("provider", requireProviderForImage(imageProvider));
-        }
-        if (imageBaseUrl != null) {
-            if (imageBaseUrl.isBlank()) imageObj.remove("base_url");
-            else imageObj.put("base_url", requireHttpsUrl(imageBaseUrl));
-        }
-        if (imageModelName != null) {
-            if (imageModelName.isBlank()) imageObj.remove("model_name");
-            else imageObj.put("model_name", requireModelName(imageModelName));
-        }
-        if (imagePlainSecret != null) {
-            if (imagePlainSecret.isBlank()) imageObj.remove("encrypted_secret");
-            else imageObj.put("encrypted_secret", secretCipher.encrypt(requireSecret(imagePlainSecret)));
-        }
-        boolean hasAny = imageObj.has("provider")
-                || imageObj.has("base_url")
-                || imageObj.has("model_name")
-                || imageObj.has("encrypted_secret");
-        if (!hasAny) root.remove("image");
-        else {
-            root.set("image", imageObj);
-            validateModelConfigImage(root);
+        if (videoUpdate) {
+            overlayMedia(root, "video", videoProvider, videoBaseUrl, videoModelName, videoPlainSecret, "请先配置生视频密钥");
+        } else {
+            validateModelConfigMedia(root, "video", "请先配置生视频密钥");
         }
         if (root.isEmpty()) return null;
         return writeModelConfig(root);
     }
 
-    private void validateModelConfigImage(ObjectNode root) {
-        JsonNode image = root.get("image");
-        if (image == null || image.isNull() || image.isMissingNode()) return;
-        if (!image.isObject()) throw BizException.of(ResultCode.PARAM_INVALID, "modelConfig.image 必须为对象");
-        boolean hasAny = image.has("provider")
-                || image.has("base_url")
-                || image.has("model_name")
-                || image.has("encrypted_secret");
+    private ObjectNode readModelConfigRoot(String baseModelConfig, String incomingModelConfig, boolean hasOverlay) {
+        if (incomingModelConfig != null) {
+            String trimmed = incomingModelConfig.trim();
+            if (trimmed.isEmpty()) {
+                return hasOverlay ? objectMapper.createObjectNode() : null;
+            }
+            try {
+                JsonNode parsed = objectMapper.readTree(trimmed);
+                if (!parsed.isObject()) throw BizException.of(ResultCode.PARAM_INVALID, "modelConfig 必须为 JSON 对象");
+                return (ObjectNode) parsed;
+            } catch (BizException e) {
+                throw e;
+            } catch (Exception e) {
+                throw BizException.of(ResultCode.PARAM_INVALID, "modelConfig 必须为合法 JSON 对象");
+            }
+        }
+        if (baseModelConfig != null && !baseModelConfig.isBlank()) {
+            try {
+                JsonNode parsed = objectMapper.readTree(baseModelConfig);
+                if (parsed != null && parsed.isObject()) return (ObjectNode) parsed.deepCopy();
+            } catch (Exception e) {
+                return objectMapper.createObjectNode();
+            }
+        }
+        return objectMapper.createObjectNode();
+    }
+
+    /** 前端空密钥不会回传密文；从已有草稿补回 encrypted_secret，避免保存时把密钥冲掉。 */
+    private void preserveMediaSecrets(String baseModelConfig, ObjectNode root) {
+        if (baseModelConfig == null || baseModelConfig.isBlank()) return;
+        try {
+            JsonNode base = objectMapper.readTree(baseModelConfig);
+            if (base == null || !base.isObject()) return;
+            copySecretIfMissing((ObjectNode) base, root, "image");
+            copySecretIfMissing((ObjectNode) base, root, "video");
+        } catch (Exception e) {
+            // 已有配置损坏时忽略，后续 validate 会报错
+        }
+    }
+
+    private static void copySecretIfMissing(ObjectNode base, ObjectNode root, String key) {
+        JsonNode baseMedia = base.get(key);
+        JsonNode incoming = root.get(key);
+        if (baseMedia == null || !baseMedia.isObject() || incoming == null || !incoming.isObject()) return;
+        String incomingEnc = incoming.path("encrypted_secret").asText("").trim();
+        String baseEnc = baseMedia.path("encrypted_secret").asText("").trim();
+        if (incomingEnc.isBlank() && !baseEnc.isBlank()) {
+            ((ObjectNode) incoming).put("encrypted_secret", baseEnc);
+        }
+    }
+
+    private void overlayMedia(
+            ObjectNode root,
+            String key,
+            String provider,
+            String baseUrl,
+            String modelName,
+            String plainSecret,
+            String missingSecretMessage) {
+        JsonNode node = root.get(key);
+        ObjectNode obj = (node != null && node.isObject()) ? (ObjectNode) node : objectMapper.createObjectNode();
+        if (provider != null) {
+            if (provider.isBlank()) obj.remove("provider");
+            else obj.put("provider", requireProviderForMedia(provider, key));
+        }
+        if (baseUrl != null) {
+            if (baseUrl.isBlank()) obj.remove("base_url");
+            else obj.put("base_url", requireHttpsUrl(baseUrl));
+        }
+        if (modelName != null) {
+            if (modelName.isBlank()) obj.remove("model_name");
+            else obj.put("model_name", requireModelName(modelName));
+        }
+        if (plainSecret != null) {
+            if (plainSecret.isBlank()) obj.remove("encrypted_secret");
+            else obj.put("encrypted_secret", secretCipher.encrypt(requireSecret(plainSecret)));
+        }
+        boolean hasAny =
+                obj.has("provider") || obj.has("base_url") || obj.has("model_name") || obj.has("encrypted_secret");
+        if (!hasAny) root.remove(key);
+        else {
+            root.set(key, obj);
+            validateModelConfigMedia(root, key, missingSecretMessage);
+        }
+    }
+
+    private void validateModelConfigMedia(ObjectNode root, String key, String missingSecretMessage) {
+        JsonNode media = root.get(key);
+        if (media == null || media.isNull() || media.isMissingNode()) return;
+        if (!media.isObject()) throw BizException.of(ResultCode.PARAM_INVALID, "modelConfig." + key + " 必须为对象");
+        boolean hasAny = media.has("provider")
+                || media.has("base_url")
+                || media.has("model_name")
+                || media.has("encrypted_secret");
         if (!hasAny) return;
-        String provider = image.path("provider").asText("").trim();
-        String baseUrl = image.path("base_url").asText("").trim();
-        String modelName = image.path("model_name").asText("").trim();
-        String enc = image.path("encrypted_secret").asText("").trim();
-        if (provider.isBlank()) throw BizException.of(ResultCode.PARAM_INVALID, "modelConfig.image.provider 不能为空");
+        String provider = media.path("provider").asText("").trim();
+        String baseUrl = media.path("base_url").asText("").trim();
+        String modelName = media.path("model_name").asText("").trim();
+        String enc = media.path("encrypted_secret").asText("").trim();
+        if (provider.isBlank())
+            throw BizException.of(ResultCode.PARAM_INVALID, "modelConfig." + key + ".provider 不能为空");
         String normalized = provider.toLowerCase(Locale.ROOT);
         if ("xai".equals(normalized)) normalized = "openai-compatible";
         if (!"openai-compatible".equals(normalized))
-            throw BizException.of(ResultCode.PARAM_INVALID, "modelConfig.image.provider 仅支持 openai-compatible（兼容 xai）");
-        if (baseUrl.isBlank()) throw BizException.of(ResultCode.PARAM_INVALID, "modelConfig.image.base_url 不能为空");
+            throw BizException.of(
+                    ResultCode.PARAM_INVALID, "modelConfig." + key + ".provider 仅支持 openai-compatible（兼容 xai）");
+        if (baseUrl.isBlank()) throw BizException.of(ResultCode.PARAM_INVALID, "modelConfig." + key + ".base_url 不能为空");
         if (!baseUrl.startsWith("https://"))
-            throw BizException.of(ResultCode.PARAM_INVALID, "modelConfig.image.base_url 必须为 https 地址");
-        if (modelName.isBlank()) throw BizException.of(ResultCode.PARAM_INVALID, "modelConfig.image.model_name 不能为空");
-        if (enc.isBlank()) throw BizException.of(ResultCode.PARAM_INVALID, "请先配置生图密钥");
+            throw BizException.of(ResultCode.PARAM_INVALID, "modelConfig." + key + ".base_url 必须为 https 地址");
+        if (modelName.isBlank())
+            throw BizException.of(ResultCode.PARAM_INVALID, "modelConfig." + key + ".model_name 不能为空");
+        if (enc.isBlank()) throw BizException.of(ResultCode.PARAM_INVALID, missingSecretMessage);
     }
 
     private String writeModelConfig(ObjectNode root) {
@@ -490,11 +553,12 @@ public class AgentControlService {
         }
     }
 
-    private static String requireProviderForImage(String raw) {
+    private static String requireProviderForMedia(String raw, String key) {
         String t = raw == null ? null : raw.trim().toLowerCase(Locale.ROOT);
         if ("xai".equals(t)) return "openai-compatible";
         if (!"openai-compatible".equals(t))
-            throw BizException.of(ResultCode.PARAM_INVALID, "modelConfig.image.provider 仅支持 openai-compatible（兼容 xai）");
+            throw BizException.of(
+                    ResultCode.PARAM_INVALID, "modelConfig." + key + ".provider 仅支持 openai-compatible（兼容 xai）");
         return t;
     }
 
@@ -643,6 +707,10 @@ public class AgentControlService {
             String imageBaseUrl,
             String imageModelName,
             String imagePlainSecret,
+            String videoProvider,
+            String videoBaseUrl,
+            String videoModelName,
+            String videoPlainSecret,
             String remark) {}
 
     @io.github.linpeilie.annotations.AutoMapper(target = AgentDefinition.class)

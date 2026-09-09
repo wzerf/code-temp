@@ -283,6 +283,8 @@ export interface AssistantContent {
   toolCalls?: ToolCallView[];
   /** 生图结果（generate_image 返回的 base64 图片） */
   generatedImages?: Array<{ mimeType: string; b64: string; prompt?: string }>;
+  /** 生视频结果（generate_video 返回的 https URL） */
+  generatedVideos?: Array<{ url: string; mimeType?: string }>;
   /** RUN_ERROR 的错误信息 */
   error?: string;
   /** 触发 HITL 中断（RUN_FINISHED outcome.interrupts） */

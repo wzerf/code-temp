@@ -5,6 +5,8 @@ public final class AgentContext {
     private static final InheritableThreadLocal<AgentRunPlan> HOLDER = new InheritableThreadLocal<>();
     private static final java.util.concurrent.ConcurrentHashMap<Long, AgentRunPlan.ImageModelConfig>
             SESSION_IMAGE_MODELS = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final java.util.concurrent.ConcurrentHashMap<Long, AgentRunPlan.VideoModelConfig>
+            SESSION_VIDEO_MODELS = new java.util.concurrent.ConcurrentHashMap<>();
     private static final java.util.concurrent.ConcurrentHashMap<Long, AgentRunPlan> SESSION_PLANS =
             new java.util.concurrent.ConcurrentHashMap<>();
 
@@ -14,11 +16,7 @@ public final class AgentContext {
         HOLDER.set(plan);
         if (plan != null && plan.sessionId() != null) {
             SESSION_PLANS.put(plan.sessionId(), plan);
-            if (plan.imageModel() != null) {
-                SESSION_IMAGE_MODELS.put(plan.sessionId(), plan.imageModel());
-            } else {
-                SESSION_IMAGE_MODELS.remove(plan.sessionId());
-            }
+            rememberMedia(plan.sessionId(), plan);
         }
     }
 
@@ -26,11 +24,20 @@ public final class AgentContext {
         HOLDER.set(plan);
         if (sessionId != null && plan != null) {
             SESSION_PLANS.put(sessionId, plan);
-            if (plan.imageModel() != null) {
-                SESSION_IMAGE_MODELS.put(sessionId, plan.imageModel());
-            } else {
-                SESSION_IMAGE_MODELS.remove(sessionId);
-            }
+            rememberMedia(sessionId, plan);
+        }
+    }
+
+    private static void rememberMedia(Long sessionId, AgentRunPlan plan) {
+        if (plan.imageModel() != null) {
+            SESSION_IMAGE_MODELS.put(sessionId, plan.imageModel());
+        } else {
+            SESSION_IMAGE_MODELS.remove(sessionId);
+        }
+        if (plan.videoModel() != null) {
+            SESSION_VIDEO_MODELS.put(sessionId, plan.videoModel());
+        } else {
+            SESSION_VIDEO_MODELS.remove(sessionId);
         }
     }
 
@@ -104,6 +111,48 @@ public final class AgentContext {
         return HOLDER.get();
     }
 
+    public static AgentRunPlan.VideoModelConfig videoModelOrNull() {
+        AgentRunPlan plan = HOLDER.get();
+        if (plan != null && plan.videoModel() != null) {
+            return plan.videoModel();
+        }
+        if (!SESSION_PLANS.isEmpty()) {
+            return SESSION_PLANS.values().iterator().next().videoModel();
+        }
+        return null;
+    }
+
+    public static AgentRunPlan.VideoModelConfig videoModelOrNull(io.agentscope.core.tool.ToolCallParam param) {
+        if (param != null) {
+            try {
+                var rc = param.getRuntimeContext();
+                if (rc != null) {
+                    String sid = rc.getSessionId();
+                    if (sid != null && !sid.isBlank()) {
+                        Long id = Long.valueOf(sid.trim());
+                        AgentRunPlan.VideoModelConfig cfg = SESSION_VIDEO_MODELS.get(id);
+                        if (cfg != null) return cfg;
+                        AgentRunPlan p = SESSION_PLANS.get(id);
+                        if (p != null) return p.videoModel();
+                    }
+                    Object attr = rc.get("agui.threadId");
+                    if (attr instanceof String s && !s.isBlank()) {
+                        Long id = Long.valueOf(s.trim());
+                        AgentRunPlan.VideoModelConfig cfg = SESSION_VIDEO_MODELS.get(id);
+                        if (cfg != null) return cfg;
+                    }
+                }
+            } catch (Exception e) {
+                org.slf4j.LoggerFactory.getLogger(AgentContext.class).debug("videoModel resolve", e);
+            }
+        }
+        AgentRunPlan plan = HOLDER.get();
+        if (plan != null) return plan.videoModel();
+        if (!SESSION_PLANS.isEmpty())
+            return SESSION_PLANS.values().iterator().next().videoModel();
+        return null;
+    }
+
     public static void clear() {
         HOLDER.remove();
     }
@@ -115,6 +164,7 @@ public final class AgentContext {
     public static void evict(Long sessionId) {
         if (sessionId != null) {
             SESSION_IMAGE_MODELS.remove(sessionId);
+            SESSION_VIDEO_MODELS.remove(sessionId);
             SESSION_PLANS.remove(sessionId);
         }
     }

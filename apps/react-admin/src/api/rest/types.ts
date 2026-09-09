@@ -1139,6 +1139,14 @@ export interface SaveAgentRevisionRequest {
   permissionPolicy?: string;
   memoryPolicy?: string;
   compressionPolicy?: string;
+  imageProvider?: string;
+  imageBaseUrl?: string;
+  imageModelName?: string;
+  imagePlainSecret?: string;
+  videoProvider?: string;
+  videoBaseUrl?: string;
+  videoModelName?: string;
+  videoPlainSecret?: string;
   remark?: string;
 }
 

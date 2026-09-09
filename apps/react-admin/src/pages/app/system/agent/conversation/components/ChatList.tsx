@@ -50,6 +50,7 @@ function assistantHasVisibleBody(content: AssistantContent): boolean {
       content.thinking?.trim() ||
       (content.toolCalls?.length ?? 0) > 0 ||
       (content.generatedImages?.length ?? 0) > 0 ||
+      (content.generatedVideos?.length ?? 0) > 0 ||
       (content.waitingForApproval && content.interrupts?.length),
   );
 }
@@ -110,6 +111,24 @@ const GeneratedImages = memo(function GeneratedImages({ images }: { images: Arra
   );
 });
 
+const GeneratedVideos = memo(function GeneratedVideos({ videos }: { videos: Array<{ url: string; mimeType?: string }> }) {
+  if (!videos?.length) return null;
+  return (
+    <div style={{ display: 'grid', gap: 8, marginTop: 8, maxWidth: 640 }}>
+      {videos.map((vid, i) => (
+        <video
+          key={`${vid.url}-${i}`}
+          src={vid.url}
+          controls
+          playsInline
+          preload="metadata"
+          style={{ width: '100%', maxHeight: 360, borderRadius: 8, background: '#111', border: '1px solid #eee' }}
+        />
+      ))}
+    </div>
+  );
+});
+
 function AssistantBubbleContent({
   content,
   streaming,
@@ -136,6 +155,7 @@ function AssistantBubbleContent({
         <>
           <MdContent text={content.content} messageKey={messageKey} streaming={streaming} />
           <GeneratedImages images={content.generatedImages ?? []} />
+          <GeneratedVideos videos={content.generatedVideos ?? []} />
         </>
       )}
     </div>

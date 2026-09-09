@@ -32,6 +32,7 @@ export function applyAguiEvent(prev: AssistantContent | undefined, event: AguiEv
   const base: AssistantContent = prev && prev.role === 'assistant' ? { ...prev } : emptyAssistant();
   base.toolCalls = base.toolCalls ? [...base.toolCalls] : [];
   base.generatedImages = base.generatedImages ? [...base.generatedImages] : undefined;
+  base.generatedVideos = base.generatedVideos ? [...base.generatedVideos] : undefined;
 
   switch (event.type) {
     case 'RUN_STARTED':
@@ -171,13 +172,61 @@ export function applyAguiEvent(prev: AssistantContent | undefined, event: AguiEv
         if (!base.generatedImages?.length) {
           tryExtractImages(event as unknown);
         }
+        const pushVideo = (url: string | undefined) => {
+          if (!url || !url.startsWith('https://')) return;
+          const cleaned = url.replace(/[)\]>,;]+$/g, '');
+          if (base.generatedVideos?.some((x) => x.url === cleaned)) return;
+          base.generatedVideos ??= [];
+          base.generatedVideos.push({ url: cleaned, mimeType: 'video/mp4' });
+        };
+        const tryExtractVideos = (value: unknown) => {
+          if (value == null) return;
+          if (typeof value === 'string') {
+            const reLabel = /video_url:\s*(https:\/\/\S+)/gi;
+            let m: RegExpExecArray | null;
+            while ((m = reLabel.exec(value)) !== null) pushVideo(m[1]);
+            const reMp4 = /(https:\/\/[^\s"'<>]+?\.(?:mp4|webm|mov)(?:\?[^\s"'<>]*)?)/gi;
+            while ((m = reMp4.exec(value)) !== null) pushVideo(m[1]);
+            if ((value.trim().startsWith('{') || value.trim().startsWith('[')) && value.length < 500000) {
+              try {
+                tryExtractVideos(JSON.parse(value));
+              } catch { /* ignore */ }
+            }
+            return;
+          }
+          if (Array.isArray(value)) {
+            value.forEach(tryExtractVideos);
+            return;
+          }
+          if (typeof value === 'object') {
+            const rec = value as Record<string, unknown>;
+            if (typeof rec.video_url === 'string') pushVideo(rec.video_url);
+            if (rec.video && typeof rec.video === 'object') {
+              const v = rec.video as Record<string, unknown>;
+              if (typeof v.url === 'string') pushVideo(v.url);
+            }
+            if (typeof rec.url === 'string' && (String(rec.type ?? '').includes('video') || rec.url.includes('.mp4'))) {
+              pushVideo(rec.url);
+            }
+            if (typeof rec.text === 'string') tryExtractVideos(rec.text);
+            Object.values(rec).forEach((child) => {
+              if (child && typeof child === 'object') tryExtractVideos(child);
+            });
+          }
+        };
+        tryExtractVideos((ev as { result?: unknown }).result);
+        tryExtractVideos((ev as { output?: unknown }).output);
+        tryExtractVideos(ev.content);
         const rawContent = ev.content;
         const isImagePayload = rawContent != null && String(rawContent).length > 800 && (String(rawContent).includes('"type":"image"') || String(rawContent).includes('b64_json'));
+        const isVideoPayload = (base.generatedVideos?.length ?? 0) > 0 || (rawContent != null && String(rawContent).includes('video_url:'));
         tool.resultText = isImagePayload
           ? '图片已生成（见下方预览）'
-          : (rawContent != null && String(rawContent).length > 600
-              ? `${String(rawContent).slice(0, 600)}...`
-              : (rawContent ?? null));
+          : isVideoPayload
+            ? '视频已生成（见下方预览）'
+            : (rawContent != null && String(rawContent).length > 600
+                ? `${String(rawContent).slice(0, 600)}...`
+                : (rawContent ?? null));
         const endTs = normalizeTs(event.timestamp);
         if (tool.status === 'running') {
           tool.status = 'done';

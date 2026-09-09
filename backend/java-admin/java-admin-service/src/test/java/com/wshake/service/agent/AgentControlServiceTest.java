@@ -164,4 +164,113 @@ class AgentControlServiceTest {
                 .hasMessageContaining("已绑定同名");
         verify(skillBindRepo, never()).insert(any());
     }
+
+    @Test
+    void updateDraft_mergesVideoIntoModelConfig() {
+        AgentSecretCipher cipher = mock(AgentSecretCipher.class);
+        when(cipher.encrypt("sk-video")).thenReturn("enc-video");
+        service = new AgentControlService(
+                defRepo,
+                revRepo,
+                skillBindRepo,
+                mcpBindRepo,
+                skillReleaseRepo,
+                mcpReleaseRepo,
+                cipher,
+                new com.fasterxml.jackson.databind.ObjectMapper(),
+                new io.github.linpeilie.Converter());
+        AgentRevision draft = revision(10L, 1L, "DRAFT");
+        draft.setModelConfig("{\"default_model_release_id\":1}");
+        when(revRepo.findById(10L)).thenReturn(draft);
+
+        AgentControlService.DraftRevisionCommand cmd = new AgentControlService.DraftRevisionCommand(
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "openai-compatible",
+                "https://api.x.ai/v1",
+                "grok-imagine-video-1.5",
+                "sk-video",
+                null);
+        service.updateDraftRevision(10L, cmd);
+
+        org.mockito.ArgumentCaptor<AgentRevision> captor = org.mockito.ArgumentCaptor.forClass(AgentRevision.class);
+        verify(revRepo).update(captor.capture());
+        String json = captor.getValue().getModelConfig();
+        assertThat(json).contains("\"video\"");
+        assertThat(json).contains("grok-imagine-video-1.5");
+        assertThat(json).contains("enc-video");
+        assertThat(json).contains("default_model_release_id");
+    }
+
+    @Test
+    void updateDraft_keepsExistingVideoSecretWhenIncomingOmitsIt() {
+        AgentSecretCipher cipher = mock(AgentSecretCipher.class);
+        service = new AgentControlService(
+                defRepo,
+                revRepo,
+                skillBindRepo,
+                mcpBindRepo,
+                skillReleaseRepo,
+                mcpReleaseRepo,
+                cipher,
+                new com.fasterxml.jackson.databind.ObjectMapper(),
+                new io.github.linpeilie.Converter());
+        AgentRevision draft = revision(10L, 1L, "DRAFT");
+        draft.setModelConfig(
+                "{\"video\":{\"provider\":\"openai-compatible\",\"base_url\":\"https://api.x.ai/v1\",\"model_name\":\"grok-imagine-video\",\"encrypted_secret\":\"keep-me\"}}");
+        when(revRepo.findById(10L)).thenReturn(draft);
+
+        AgentControlService.DraftRevisionCommand cmd = new AgentControlService.DraftRevisionCommand(
+                null,
+                "{\"video\":{\"provider\":\"openai-compatible\",\"base_url\":\"https://api.x.ai/v1\",\"model_name\":\"grok-imagine-video-1.5\"}}",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
+        service.updateDraftRevision(10L, cmd);
+
+        org.mockito.ArgumentCaptor<AgentRevision> captor = org.mockito.ArgumentCaptor.forClass(AgentRevision.class);
+        verify(revRepo).update(captor.capture());
+        assertThat(captor.getValue().getModelConfig()).contains("keep-me");
+        assertThat(captor.getValue().getModelConfig()).contains("grok-imagine-video-1.5");
+    }
+
+    @Test
+    void updateDraft_rejectsIncompleteVideoConfig() {
+        AgentRevision draft = revision(10L, 1L, "DRAFT");
+        when(revRepo.findById(10L)).thenReturn(draft);
+        AgentControlService.DraftRevisionCommand cmd = new AgentControlService.DraftRevisionCommand(
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "openai-compatible",
+                "https://api.x.ai/v1",
+                "grok-imagine-video-1.5",
+                null,
+                null);
+        assertThatThrownBy(() -> service.updateDraftRevision(10L, cmd))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("生视频密钥");
+    }
 }

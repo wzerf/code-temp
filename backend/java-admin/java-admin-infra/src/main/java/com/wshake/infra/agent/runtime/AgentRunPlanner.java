@@ -92,6 +92,7 @@ public class AgentRunPlanner {
         // Revision ∪ Session 绑定合并（Skill/MCP 运行面装配）
         var binding = bindingLoader.load(revisionId, sessionId);
         AgentRunPlan.ImageModelConfig imageModel = parseImageModel(revision.getModelConfig());
+        AgentRunPlan.VideoModelConfig videoModel = parseVideoModel(revision.getModelConfig());
         long contextLength = release.getContextLength() != null && release.getContextLength() > 0
                 ? release.getContextLength()
                 : 500_000L;
@@ -111,6 +112,7 @@ public class AgentRunPlanner {
                 binding.skills(),
                 binding.mcps(),
                 imageModel,
+                videoModel,
                 contextLength);
     }
 
@@ -158,25 +160,40 @@ public class AgentRunPlanner {
     }
 
     private AgentRunPlan.ImageModelConfig parseImageModel(String modelConfig) {
-        if (modelConfig == null || modelConfig.isBlank())
-            return new AgentRunPlan.ImageModelConfig(null, null, null, null);
+        MediaFields f = parseMediaFields(modelConfig, "image");
+        return new AgentRunPlan.ImageModelConfig(f.provider, f.baseUrl, f.modelName, f.plainSecret);
+    }
+
+    private AgentRunPlan.VideoModelConfig parseVideoModel(String modelConfig) {
+        MediaFields f = parseMediaFields(modelConfig, "video");
+        return new AgentRunPlan.VideoModelConfig(f.provider, f.baseUrl, f.modelName, f.plainSecret);
+    }
+
+    private MediaFields parseMediaFields(String modelConfig, String key) {
+        if (modelConfig == null || modelConfig.isBlank()) return MediaFields.empty();
         try {
             JsonNode root = objectMapper.readTree(modelConfig);
-            JsonNode image = root == null ? null : root.get("image");
-            if (image == null || !image.isObject()) return new AgentRunPlan.ImageModelConfig(null, null, null, null);
-            String provider = image.path("provider").asText(null);
-            String baseUrl = image.path("base_url").asText(null);
-            String modelName = image.path("model_name").asText(null);
-            String enc = image.path("encrypted_secret").asText(null);
+            JsonNode node = root == null ? null : root.get(key);
+            if (node == null || !node.isObject()) return MediaFields.empty();
+            String provider = node.path("provider").asText(null);
+            String baseUrl = node.path("base_url").asText(null);
+            String modelName = node.path("model_name").asText(null);
+            String enc = node.path("encrypted_secret").asText(null);
             if (provider != null) provider = provider.trim();
             if (baseUrl != null) baseUrl = baseUrl.trim();
             if (modelName != null) modelName = modelName.trim();
             if (provider != null && provider.equalsIgnoreCase("xai")) provider = "openai-compatible";
             else if (provider != null) provider = provider.toLowerCase(java.util.Locale.ROOT);
             String plain = (enc == null || enc.isBlank()) ? null : secretCipher.decrypt(enc);
-            return new AgentRunPlan.ImageModelConfig(provider, baseUrl, modelName, plain);
+            return new MediaFields(provider, baseUrl, modelName, plain);
         } catch (Exception e) {
-            return new AgentRunPlan.ImageModelConfig(null, null, null, null);
+            return MediaFields.empty();
+        }
+    }
+
+    private record MediaFields(String provider, String baseUrl, String modelName, String plainSecret) {
+        static MediaFields empty() {
+            return new MediaFields(null, null, null, null);
         }
     }
 

@@ -51,6 +51,10 @@ interface DraftValues {
   imageBaseUrl?: string;
   imageModelName?: string;
   imagePlainSecret?: string;
+  videoProvider?: string;
+  videoBaseUrl?: string;
+  videoModelName?: string;
+  videoPlainSecret?: string;
   remark?: string;
 }
 
@@ -75,8 +79,11 @@ const AgentDetailDrawer = ({ open, agent, onClose, onChanged }: Props) => {
   const [mcpSecretInput, setMcpSecretInput] = useState('');
   const [pendingSkillId, setPendingSkillId] = useState<number | null>(null);
   const [imageEnabled, setImageEnabled] = useState(false);
+  const [videoEnabled, setVideoEnabled] = useState(false);
   const [probing, setProbing] = useState(false);
+  const [videoProbing, setVideoProbing] = useState(false);
   const [imageModelOptions, setImageModelOptions] = useState<string[]>([]);
+  const [videoModelOptions, setVideoModelOptions] = useState<string[]>([]);
   const syncingRef = useRef(false);
   const imageToModelConfig = (v: DraftValues) => {
     const baseRaw = v.modelConfig?.trim() ?? '';
@@ -115,6 +122,43 @@ const AgentDetailDrawer = ({ open, agent, onClose, onChanged }: Props) => {
     else base.image = next;
     return JSON.stringify(base, null, 2);
   };
+  const videoToModelConfig = (v: DraftValues) => {
+    const baseRaw = v.modelConfig?.trim() ?? '';
+    let base: Record<string, unknown> = {};
+    if (baseRaw) {
+      try {
+        const parsed = JSON.parse(baseRaw) as unknown;
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) base = parsed as Record<string, unknown>;
+      } catch {
+        return v.modelConfig ?? '';
+      }
+    }
+    const hasVideoFields = !!(v.videoProvider || v.videoBaseUrl || v.videoModelName || v.videoPlainSecret);
+    const hasVideoKey = Object.prototype.hasOwnProperty.call(base, 'video');
+    if (!hasVideoFields && !hasVideoKey) return Object.keys(base).length ? JSON.stringify(base, null, 2) : (baseRaw || '');
+    const prev = (base.video && typeof base.video === 'object' && !Array.isArray(base.video) ? base.video as Record<string, unknown> : {}) as Record<string, unknown>;
+    const next: Record<string, unknown> = { ...prev };
+    if (v.videoProvider !== undefined) {
+      if (!v.videoProvider) delete next.provider;
+      else next.provider = v.videoProvider;
+    }
+    if (v.videoBaseUrl !== undefined) {
+      if (!v.videoBaseUrl) delete next.base_url;
+      else next.base_url = v.videoBaseUrl;
+    }
+    if (v.videoModelName !== undefined) {
+      if (!v.videoModelName) delete next.model_name;
+      else next.model_name = v.videoModelName;
+    }
+    if (v.videoPlainSecret !== undefined) {
+      if (!v.videoPlainSecret) delete next.encrypted_secret;
+      else next.encrypted_secret = v.videoPlainSecret;
+    }
+    const hasAny = !!(next.provider || next.base_url || next.model_name || next.encrypted_secret);
+    if (!hasAny) delete base.video;
+    else base.video = next;
+    return JSON.stringify(base, null, 2);
+  };
   const modelConfigToImage = (raw?: string) => {
     if (!raw || !raw.trim()) return { provider: '', base_url: '', model_name: '', hasSecret: false };
     try {
@@ -126,6 +170,22 @@ const AgentDetailDrawer = ({ open, agent, onClose, onChanged }: Props) => {
         base_url: typeof image.base_url === 'string' ? image.base_url : '',
         model_name: typeof image.model_name === 'string' ? image.model_name : '',
         hasSecret: typeof image.encrypted_secret === 'string' ? !!image.encrypted_secret : false,
+      };
+    } catch {
+      return { provider: '', base_url: '', model_name: '', hasSecret: false };
+    }
+  };
+  const modelConfigToVideo = (raw?: string) => {
+    if (!raw || !raw.trim()) return { provider: '', base_url: '', model_name: '', hasSecret: false };
+    try {
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      const video = parsed?.video as Record<string, unknown> | undefined;
+      if (!video || typeof video !== 'object' || Array.isArray(video)) return { provider: '', base_url: '', model_name: '', hasSecret: false };
+      return {
+        provider: typeof video.provider === 'string' ? video.provider : '',
+        base_url: typeof video.base_url === 'string' ? video.base_url : '',
+        model_name: typeof video.model_name === 'string' ? video.model_name : '',
+        hasSecret: typeof video.encrypted_secret === 'string' ? !!video.encrypted_secret : false,
       };
     } catch {
       return { provider: '', base_url: '', model_name: '', hasSecret: false };
@@ -156,7 +216,9 @@ const AgentDetailDrawer = ({ open, agent, onClose, onChanged }: Props) => {
       if (nextDraft) {
         await loadBindings(nextDraft.id);
         const image = modelConfigToImage(nextDraft.modelConfig ?? '');
+        const video = modelConfigToVideo(nextDraft.modelConfig ?? '');
         if (image.model_name) setImageModelOptions((prev) => (prev.includes(image.model_name) ? prev : [...prev, image.model_name]));
+        if (video.model_name) setVideoModelOptions((prev) => (prev.includes(video.model_name) ? prev : [...prev, video.model_name]));
         draftForm.setFieldsValue({
           systemPrompt: nextDraft.systemPrompt ?? '',
           modelConfig: nextDraft.modelConfig ?? '',
@@ -167,12 +229,21 @@ const AgentDetailDrawer = ({ open, agent, onClose, onChanged }: Props) => {
           imageBaseUrl: image.base_url,
           imageModelName: image.model_name,
           imagePlainSecret: '',
+          videoProvider: video.provider,
+          videoBaseUrl: video.base_url,
+          videoModelName: video.model_name,
+          videoPlainSecret: '',
           remark: nextDraft.remark ?? '',
         });
         const enabled = !!(image.provider || image.base_url || image.model_name || image.hasSecret);
         setImageEnabled(enabled);
         if (!enabled) {
           draftForm.setFieldsValue({ imageProvider: undefined, imageBaseUrl: undefined, imageModelName: undefined, imagePlainSecret: undefined });
+        }
+        const videoOn = !!(video.provider || video.base_url || video.model_name || video.hasSecret);
+        setVideoEnabled(videoOn);
+        if (!videoOn) {
+          draftForm.setFieldsValue({ videoProvider: undefined, videoBaseUrl: undefined, videoModelName: undefined, videoPlainSecret: undefined });
         }
       } else {
         setSkillBindings([]);
@@ -220,33 +291,40 @@ const AgentDetailDrawer = ({ open, agent, onClose, onChanged }: Props) => {
   const onSaveDraft = async () => {
     if (!agentId || !draft) return;
     const values = await draftForm.validateFields();
-    const baseValues: DraftValues = imageEnabled ? values : { ...values, imageProvider: '', imageBaseUrl: '', imageModelName: '', imagePlainSecret: '' };
-    const merged = imageEnabled ? imageToModelConfig(baseValues) : (() => {
-      const raw = values.modelConfig ?? '';
-      if (!raw.trim()) return '';
+    let merged = values.modelConfig ?? '';
+    if (merged.trim()) {
       try {
-        const parsed = JSON.parse(raw) as Record<string, unknown>;
-        delete parsed.image;
-        return Object.keys(parsed).length ? JSON.stringify(parsed, null, 2) : '';
+        const parsed = JSON.parse(merged) as Record<string, unknown>;
+        if (!imageEnabled) delete parsed.image;
+        if (!videoEnabled) delete parsed.video;
+        merged = Object.keys(parsed).length ? JSON.stringify(parsed, null, 2) : '';
       } catch {
- return raw; 
-}
-    })();
-    const payload = { ...baseValues, modelConfig: merged, systemPrompt: values.systemPrompt ?? '' } as DraftValues & Record<string, unknown>;
+        /* 保存时后端会校验 */
+      }
+    }
+    let nextValues: DraftValues = { ...values, modelConfig: merged };
+    if (!imageEnabled) {
+      nextValues = { ...nextValues, imageProvider: '', imageBaseUrl: '', imageModelName: '', imagePlainSecret: '' };
+    }
+    if (!videoEnabled) {
+      nextValues = { ...nextValues, videoProvider: '', videoBaseUrl: '', videoModelName: '', videoPlainSecret: '' };
+    }
+    if (imageEnabled) merged = imageToModelConfig({ ...nextValues, modelConfig: merged });
+    if (videoEnabled) merged = videoToModelConfig({ ...nextValues, modelConfig: merged });
+    const payload = { ...nextValues, modelConfig: merged, systemPrompt: values.systemPrompt ?? '' } as DraftValues & Record<string, unknown>;
     if (!payload.imagePlainSecret) delete (payload as Record<string, unknown>).imagePlainSecret;
+    if (!payload.videoPlainSecret) delete (payload as Record<string, unknown>).videoPlainSecret;
     if (!imageEnabled) {
       delete (payload as Record<string, unknown>).imageProvider;
       delete (payload as Record<string, unknown>).imageBaseUrl;
       delete (payload as Record<string, unknown>).imageModelName;
       delete (payload as Record<string, unknown>).imagePlainSecret;
-    } else {
-      const hasImage = !!(payload.imageProvider || payload.imageBaseUrl || payload.imageModelName || payload.imagePlainSecret);
-      if (!hasImage && !(values.modelConfig && values.modelConfig.includes('"image"'))) {
-        delete (payload as Record<string, unknown>).imageProvider;
-        delete (payload as Record<string, unknown>).imageBaseUrl;
-        delete (payload as Record<string, unknown>).imageModelName;
-        delete (payload as Record<string, unknown>).imagePlainSecret;
-      }
+    }
+    if (!videoEnabled) {
+      delete (payload as Record<string, unknown>).videoProvider;
+      delete (payload as Record<string, unknown>).videoBaseUrl;
+      delete (payload as Record<string, unknown>).videoModelName;
+      delete (payload as Record<string, unknown>).videoPlainSecret;
     }
     try {
       await createOrUpdateDraft(payload as DraftValues);
@@ -501,24 +579,28 @@ const AgentDetailDrawer = ({ open, agent, onClose, onChanged }: Props) => {
             <Form.Item
               name="modelConfig"
               label={t('modelConfig')}
-              extra={t('modelConfigExtra', { defaultValue: '含默认模型与生图 image 配置，勾选后同步更新此处 JSON' })}
+              extra={t('modelConfigExtra', { defaultValue: '含默认模型与生图 image / 生视频 video 配置，勾选后同步更新此处 JSON' })}
             >
               <TextArea
                 rows={4}
                 style={{ fontFamily: 'monospace' }}
-                placeholder={'{"default_model_release_id": 1, "image": {"provider":"openai-compatible","base_url":"https://...","model_name":"...","encrypted_secret":"..."}}'}
+                placeholder={'{"default_model_release_id": 1, "image": {"provider":"openai-compatible","base_url":"https://...","model_name":"...","encrypted_secret":"..."}, "video": {"provider":"openai-compatible","base_url":"https://...","model_name":"...","encrypted_secret":"..."}}'}
                 onChange={(e) => {
                   if (syncingRef.current) return;
                   syncingRef.current = true;
                   try {
                     const image = modelConfigToImage(e.target.value);
+                    const video = modelConfigToVideo(e.target.value);
                     draftForm.setFieldsValue({
                       imageProvider: image.provider,
                       imageBaseUrl: image.base_url,
                       imageModelName: image.model_name,
+                      videoProvider: video.provider,
+                      videoBaseUrl: video.base_url,
+                      videoModelName: video.model_name,
                     });
-                    const enabled = !!(image.provider || image.base_url || image.model_name || image.hasSecret);
-                    setImageEnabled(enabled);
+                    setImageEnabled(!!(image.provider || image.base_url || image.model_name || image.hasSecret));
+                    setVideoEnabled(!!(video.provider || video.base_url || video.model_name || video.hasSecret));
                   } finally {
                     syncingRef.current = false;
                   }
@@ -679,6 +761,142 @@ const AgentDetailDrawer = ({ open, agent, onClose, onChanged }: Props) => {
               </Col>
             </Row>
             <Form.Item name="imageProvider" hidden>
+              <Input />
+            </Form.Item>
+          </>
+        )}
+        <Form.Item style={{ marginBottom: 8 }}>
+          <Checkbox
+            checked={videoEnabled}
+            onChange={(e) => {
+              const checked = e.target.checked;
+              setVideoEnabled(checked);
+              if (!checked) {
+                const raw = (draftForm.getFieldValue('modelConfig') as string) ?? '';
+                if (raw.trim()) {
+                  try {
+                    const parsed = JSON.parse(raw) as Record<string, unknown>;
+                    if (parsed.video) {
+                      delete parsed.video;
+                      syncingRef.current = true;
+                      draftForm.setFieldsValue({ modelConfig: Object.keys(parsed).length ? JSON.stringify(parsed, null, 2) : '' });
+                      syncingRef.current = false;
+                    }
+                  } catch { /* 忽略 JSON 错误，保存时后端会校验 */ }
+                }
+                draftForm.setFieldsValue({ videoProvider: undefined, videoBaseUrl: undefined, videoModelName: undefined, videoPlainSecret: undefined });
+              }
+            }}
+          >
+            {t('videoModel', { defaultValue: '生视频模型' })}
+          </Checkbox>
+          <Typography.Text type="secondary" style={{ fontSize: 12, marginLeft: 8 }}>
+            {t('videoModelHint', { defaultValue: '勾选后配置生视频 BaseUrl 与密钥，保存时同步写入模型配置 JSON 的 video 字段。' })}
+          </Typography.Text>
+        </Form.Item>
+        {videoEnabled && (
+          <>
+            <Row gutter={12}>
+              <Col span={12}>
+                <Form.Item name="videoBaseUrl" label={t('videoBaseUrl', { defaultValue: 'BaseUrl（HTTPS）' })}>
+                  <Input
+                    placeholder="https://api.example.com/v1"
+                    onChange={() => {
+                      if (syncingRef.current) return;
+                      syncingRef.current = true;
+                      try {
+                        const v = draftForm.getFieldsValue() as DraftValues;
+                        draftForm.setFieldsValue({ modelConfig: videoToModelConfig(v) });
+                      } finally {
+                        syncingRef.current = false;
+                      }
+                    }}
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item name="videoPlainSecret" label={t('videoSecret', { defaultValue: '密钥' })}>
+                  <Input.Password
+                    placeholder={t('secretPlaceholder')}
+                    autoComplete="new-password"
+                    onChange={() => {
+                      if (syncingRef.current) return;
+                      syncingRef.current = true;
+                      try {
+                        const v = draftForm.getFieldsValue() as DraftValues;
+                        draftForm.setFieldsValue({ modelConfig: videoToModelConfig(v) });
+                      } finally {
+                        syncingRef.current = false;
+                      }
+                    }}
+                  />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Row gutter={12}>
+              <Col span={16}>
+                <Form.Item name="videoModelName" label={t('videoModelName', { defaultValue: 'ModelName' })}>
+                  <Select
+                    showSearch
+                    allowClear
+                    placeholder={t('selectModelName', { defaultValue: '探测后选择' })}
+                    options={videoModelOptions.map((m) => ({ value: m, label: m }))}
+                    filterOption={(input, option) => (option?.label as string).toLowerCase().includes(input.toLowerCase())}
+                    onChange={() => {
+                      if (syncingRef.current) return;
+                      syncingRef.current = true;
+                      try {
+                        const v = draftForm.getFieldsValue() as DraftValues;
+                        draftForm.setFieldsValue({ modelConfig: videoToModelConfig(v) });
+                      } finally {
+                        syncingRef.current = false;
+                      }
+                    }}
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={8} style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: 24 }}>
+                <Button
+                  loading={videoProbing}
+                  onClick={async () => {
+                    const baseUrl = (draftForm.getFieldValue('videoBaseUrl') as string) ?? '';
+                    const plainSecret = (draftForm.getFieldValue('videoPlainSecret') as string) ?? '';
+                    if (!baseUrl) {
+                      message.error(t('probeNeedProviderAndUrl', { defaultValue: '请先填写 BaseUrl' }));
+                      return;
+                    }
+                    if (!baseUrl.startsWith('https://')) {
+                      message.error(t('probeNeedHttps', { defaultValue: 'BaseUrl 必须为 https 地址' }));
+                      return;
+                    }
+                    const inferredProvider = 'openai-compatible';
+                    draftForm.setFieldsValue({ videoProvider: inferredProvider });
+                    syncingRef.current = true;
+                    try {
+                      const v = draftForm.getFieldsValue() as DraftValues;
+                      draftForm.setFieldsValue({ modelConfig: videoToModelConfig({ ...v, videoProvider: inferredProvider }) });
+                    } finally {
+                      syncingRef.current = false;
+                    }
+                    setVideoProbing(true);
+                    try {
+                      const res = await probeModelCatalogApi({ provider: 'openai-compatible', baseUrl, plainSecret: plainSecret || undefined });
+                      const ids = res.remoteModelIds ?? [];
+                      setVideoModelOptions(ids);
+                      if (ids.length === 0) message.warning(t('probeEmpty', { defaultValue: '探测成功但远端目录为空' }));
+                      else message.success(t('probeCatalogSuccess', { count: ids.length, defaultValue: `探测成功，共 ${ids.length} 个模型` }));
+                    } catch (err) {
+                      message.error(`${t('verifyFailed', { defaultValue: '探测失败' })}：${getApiErrorMessage(err, t('unknownError'))}`);
+                    } finally {
+                      setVideoProbing(false);
+                    }
+                  }}
+                >
+                  {t('probeCatalog', { defaultValue: '探测模型' })}
+                </Button>
+              </Col>
+            </Row>
+            <Form.Item name="videoProvider" hidden>
               <Input />
             </Form.Item>
           </>

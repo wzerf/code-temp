@@ -132,6 +132,17 @@ app:
     rate-burst: ${IMAGE_RATE_BURST:5}
     max-image-bytes: ${IMAGE_MAX_BYTES:8388608}
     upload-to-storage: ${IMAGE_UPLOAD_TO_STORAGE:false}
+  video:
+    max-prompt-chars: ${VIDEO_MAX_PROMPT_CHARS:4000}
+    min-duration-seconds: ${VIDEO_MIN_DURATION:1}
+    max-duration-seconds: ${VIDEO_MAX_DURATION:15}
+    default-duration-seconds: ${VIDEO_DEFAULT_DURATION:5}
+    rate-window: ${VIDEO_RATE_WINDOW:1m}
+    rate-burst: ${VIDEO_RATE_BURST:3}
+    poll-interval: ${VIDEO_POLL_INTERVAL:5s}
+    poll-timeout: ${VIDEO_POLL_TIMEOUT:8m}
+    max-video-bytes: ${VIDEO_MAX_BYTES:52428800}
+    upload-to-storage: ${VIDEO_UPLOAD_TO_STORAGE:false}
   # 对象存储：dev 默认对接 compose MinIO（root 与 MINIO_ROOT_* 一致，无需进控制台建 Access Key）
   storage:
     type: ${STORAGE_TYPE:s3}

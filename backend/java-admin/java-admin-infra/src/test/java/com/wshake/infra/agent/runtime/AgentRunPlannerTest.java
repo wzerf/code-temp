@@ -173,4 +173,26 @@ class AgentRunPlannerTest {
                 .isInstanceOf(BizException.class)
                 .hasMessageContaining("无权");
     }
+
+    @Test
+    void parsesVideoModelFromRevisionConfig() {
+        AgentSession session = session(1L, 10L, null, 100L);
+        AgentRevision revision = revision(
+                20L,
+                "prompt",
+                "{\"default_model_release_id\":7001,\"video\":{\"provider\":\"xai\",\"base_url\":\"https://api.x.ai/v1\",\"model_name\":\"grok-imagine-video-1.5\",\"encrypted_secret\":\"enc-v\"}}",
+                "{\"allowedTools\":[]}");
+        AgentModelRelease release = release(7001L, 0L);
+        mockAssembleChain(session, revision, release, 20L);
+        when(secretCipher.decrypt("enc-v")).thenReturn("plain-video");
+
+        AgentRunPlan plan = planner.plan(session.getId(), 100L);
+
+        assertThat(plan.videoModel()).isNotNull();
+        assertThat(plan.videoModel().isConfigured()).isTrue();
+        assertThat(plan.videoModel().provider()).isEqualTo("openai-compatible");
+        assertThat(plan.videoModel().modelName()).isEqualTo("grok-imagine-video-1.5");
+        assertThat(plan.videoModel().plainSecret()).isEqualTo("plain-video");
+        assertThat(plan.imageModel().isConfigured()).isFalse();
+    }
 }

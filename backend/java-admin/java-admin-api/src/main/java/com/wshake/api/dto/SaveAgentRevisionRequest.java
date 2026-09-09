@@ -40,6 +40,18 @@ public class SaveAgentRevisionRequest {
     @Schema(description = "生图明文密钥（加密后写入 model_config.image.encrypted_secret）")
     private String imagePlainSecret;
 
+    @Schema(description = "生视频 Provider（写入 model_config.video.provider）")
+    private String videoProvider;
+
+    @Schema(description = "生视频 BaseUrl（写入 model_config.video.base_url，HTTPS）")
+    private String videoBaseUrl;
+
+    @Schema(description = "生视频模型名（写入 model_config.video.model_name）")
+    private String videoModelName;
+
+    @Schema(description = "生视频明文密钥（加密后写入 model_config.video.encrypted_secret）")
+    private String videoPlainSecret;
+
     @Size(max = 512)
     @Schema(description = "备注")
     private String remark;

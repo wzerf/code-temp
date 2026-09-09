@@ -226,6 +226,10 @@ public class AgentController {
                 req.getImageBaseUrl(),
                 req.getImageModelName(),
                 req.getImagePlainSecret(),
+                req.getVideoProvider(),
+                req.getVideoBaseUrl(),
+                req.getVideoModelName(),
+                req.getVideoPlainSecret(),
                 req.getRemark());
     }
 }

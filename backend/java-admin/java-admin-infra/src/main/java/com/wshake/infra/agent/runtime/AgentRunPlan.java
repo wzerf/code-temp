@@ -42,18 +42,29 @@ public record AgentRunPlan(
         List<SkillEntry> skills,
         List<McpEntry> mcps,
         ImageModelConfig imageModel,
+        VideoModelConfig videoModel,
         Long contextLength) {
 
     public record ImageModelConfig(String provider, String baseUrl, String modelName, String plainSecret) {
         public boolean isConfigured() {
-            return provider != null
-                    && !provider.isBlank()
-                    && baseUrl != null
-                    && !baseUrl.isBlank()
-                    && modelName != null
-                    && !modelName.isBlank()
-                    && plainSecret != null
-                    && !plainSecret.isBlank();
+            return isMediaConfigured(provider, baseUrl, modelName, plainSecret);
         }
+    }
+
+    public record VideoModelConfig(String provider, String baseUrl, String modelName, String plainSecret) {
+        public boolean isConfigured() {
+            return isMediaConfigured(provider, baseUrl, modelName, plainSecret);
+        }
+    }
+
+    private static boolean isMediaConfigured(String provider, String baseUrl, String modelName, String plainSecret) {
+        return provider != null
+                && !provider.isBlank()
+                && baseUrl != null
+                && !baseUrl.isBlank()
+                && modelName != null
+                && !modelName.isBlank()
+                && plainSecret != null
+                && !plainSecret.isBlank();
     }
 }

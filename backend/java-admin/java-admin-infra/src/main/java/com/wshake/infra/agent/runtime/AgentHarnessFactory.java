@@ -48,6 +48,7 @@ public class AgentHarnessFactory {
     private final GenerateImageTool generateImageTool;
     private final EditImageTool editImageTool;
     private final MultiEditImageTool multiEditImageTool;
+    private final GenerateVideoTool generateVideoTool;
 
     /** 平台白名单工具注册表：name → 工具实例。view_image 为常驻只读工具，不经白名单门控。 */
     private static final List<io.agentscope.core.tool.AgentTool> PLATFORM_TOOLS = List.of(new PlatformTimeTool());
@@ -65,6 +66,7 @@ public class AgentHarnessFactory {
         toolkit.registerTool(generateImageTool);
         toolkit.registerTool(editImageTool);
         toolkit.registerTool(multiEditImageTool);
+        toolkit.registerTool(generateVideoTool);
         // 绑定 MCP：握手 + 固定工具名单;失败即拒绝首启
         registerMcpClients(toolkit, plan);
         AgentStateStore stateStore = stateStoreProvider.stateStore();
@@ -82,6 +84,13 @@ public class AgentHarnessFactory {
                     + "- 首次出图用 generate_image；已有一张图后，任何\"改一下/去掉.../换成.../按这张图改\"都视为增量编辑，优先走 edit_image（单图）或 multi_edit_image（多图），不要回退到 generate_image 重绘整图。\n"
                     + "- 改图必须携带参考图：若上下文没有 image_url，先用 view_image 读取上一张生成图获得可访问链接，再调 edit_image；有多张参考则用 multi_edit_image。\n"
                     + "- 改图 prompt 必须显式约束\"仅对指定元素做最小改动，其余构图/主体/文字/色板/布局/比例保持不变\"，并保持与原图一致的 aspect_ratio/resolution；不要新增或移除未提及的元素。";
+        }
+        if (!sysPrompt.contains("generate_video")) {
+            sysPrompt = sysPrompt
+                    + "\n\n生视频指引：\n"
+                    + "- 用户要生成视频时用 generate_video；纯文生视频只传 prompt，可选 duration/aspect_ratio/resolution。\n"
+                    + "- 若基于已有图做动画，传 image_url（https）；不要用 generate_image 替代生视频。\n"
+                    + "- 视频生成耗时较长，同一需求只调用一次并等待结果，不要连续重复调用。";
         }
         int ctxWindow = plan.contextLength() != null && plan.contextLength() > 0
                 ? Math.toIntExact(Math.min(plan.contextLength(), Integer.MAX_VALUE))

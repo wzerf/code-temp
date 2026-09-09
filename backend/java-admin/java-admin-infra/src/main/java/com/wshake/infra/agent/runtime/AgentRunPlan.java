@@ -40,4 +40,20 @@ public record AgentRunPlan(
         String plainSecret,
         java.util.List<String> allowedTools,
         List<SkillEntry> skills,
-        List<McpEntry> mcps) {}
+        List<McpEntry> mcps,
+        ImageModelConfig imageModel,
+        Long contextLength) {
+
+    public record ImageModelConfig(String provider, String baseUrl, String modelName, String plainSecret) {
+        public boolean isConfigured() {
+            return provider != null
+                    && !provider.isBlank()
+                    && baseUrl != null
+                    && !baseUrl.isBlank()
+                    && modelName != null
+                    && !modelName.isBlank()
+                    && plainSecret != null
+                    && !plainSecret.isBlank();
+        }
+    }
+}

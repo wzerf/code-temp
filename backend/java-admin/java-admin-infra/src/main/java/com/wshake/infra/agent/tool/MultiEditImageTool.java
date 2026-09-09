@@ -2,11 +2,9 @@ package com.wshake.infra.agent.tool;
 
 import com.wshake.common.exception.BizException;
 import com.wshake.common.result.ResultCode;
+import com.wshake.infra.agent.runtime.AgentContext;
 import com.wshake.infra.imagegen.ImageGenAdapterRegistry;
 import com.wshake.infra.imagegen.ImageGenProperties;
-import com.wshake.service.agent.AgentSecretCipher;
-import com.wshake.service.entity.AgentModelRelease;
-import com.wshake.service.model.ModelControlService;
 import com.wshake.service.port.ImageGenerationPort;
 import io.agentscope.core.message.Base64Source;
 import io.agentscope.core.message.ImageBlock;
@@ -28,8 +26,6 @@ import reactor.core.publisher.Mono;
 @RequiredArgsConstructor
 public class MultiEditImageTool implements AgentTool {
 
-    private final ModelControlService modelControlService;
-    private final AgentSecretCipher secretCipher;
     private final ImageGenAdapterRegistry adapterRegistry;
     private final ImageGenProperties imageGenProperties;
 
@@ -55,7 +51,6 @@ public class MultiEditImageTool implements AgentTool {
         props.put(
                 "aspect_ratio", Map.of("type", "string", "enum", List.of("1:1", "16:9", "9:16", "4:3", "3:4", "auto")));
         props.put("resolution", Map.of("type", "string", "enum", List.of("1k", "2k")));
-        props.put("model_release_id", Map.of("type", "integer", "description", "可选，生图模型 Release id"));
         schema.put("properties", props);
         schema.put("required", List.of("prompt", "image_urls"));
         schema.put("additionalProperties", false);
@@ -69,6 +64,9 @@ public class MultiEditImageTool implements AgentTool {
 
     @Override
     public Mono<ToolResultBlock> callAsync(ToolCallParam param) {
+        var capturedModel = AgentContext.imageModelOrNull(param);
+        if (capturedModel == null) capturedModel = AgentContext.imageModelOrNull();
+        if (capturedModel != null && !capturedModel.isConfigured()) capturedModel = null;
         Map<String, Object> input = param.getInput() == null ? Map.of() : param.getInput();
         String prompt = input.get("prompt") == null
                 ? ""
@@ -97,20 +95,12 @@ public class MultiEditImageTool implements AgentTool {
                 ? null
                 : String.valueOf(input.get("resolution")).trim();
         if (resolution != null && resolution.isBlank()) resolution = null;
-        Long releaseId = null;
-        if (input.get("model_release_id") != null) {
-            try {
-                releaseId = Long.parseLong(String.valueOf(input.get("model_release_id")));
-            } catch (NumberFormatException e) {
-                return Mono.just(ToolResultBlock.error("model_release_id 必须为整数"));
-            }
-        }
         final String fp = prompt;
         final List<String> fu = List.copyOf(urls);
         final String fa = aspectRatio;
         final String fr = resolution;
-        final Long frId = releaseId;
-        return Mono.fromCallable(() -> doEdit(fp, fu, fa, fr, frId)).onErrorResume(e -> {
+        final var fc = capturedModel;
+        return Mono.fromCallable(() -> doEdit(fp, fu, fa, fr, fc)).onErrorResume(e -> {
             String msg = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
             log.warn("multi_edit_image failed: {}", msg);
             if (e instanceof BizException be) return Mono.just(ToolResultBlock.error(be.getMessage()));
@@ -119,24 +109,26 @@ public class MultiEditImageTool implements AgentTool {
     }
 
     private ToolResultBlock doEdit(
-            String prompt, List<String> imageUrls, String aspectRatio, String resolution, Long requestedReleaseId)
+            String prompt,
+            List<String> imageUrls,
+            String aspectRatio,
+            String resolution,
+            com.wshake.infra.agent.runtime.AgentRunPlan.ImageModelConfig captured)
             throws Exception {
-        Long userId = com.wshake.common.request.RequestContext.userIdOrNull();
-        AgentModelRelease release = resolveRelease(requestedReleaseId, userId);
-        if (release == null) {
-            throw BizException.of(ResultCode.PARAM_INVALID, "暂未配置生图模型，请在模型管理新建 code=image 的模型");
+        var imageModel = captured;
+        if (imageModel == null || !imageModel.isConfigured()) imageModel = AgentContext.imageModelOrNull();
+        if (imageModel == null || !imageModel.isConfigured()) {
+            throw BizException.of(
+                    ResultCode.PARAM_INVALID,
+                    "当前 Agent 未配置生图模型，请在 Agent 管理中编辑草稿→勾选生图并配置 BaseUrl/ModelName/密钥→发布；已有会话需新建会话或「固定 Revision」后重试");
         }
-        String plainSecret = secretCipher.decrypt(release.getEncryptedSecret());
-        if (plainSecret == null || plainSecret.isBlank()) {
-            throw BizException.of(ResultCode.PARAM_INVALID, "生图模型未配置密钥");
-        }
-        ImageGenerationPort port = adapterRegistry.forRelease(release);
+        ImageGenerationPort port = adapterRegistry.forImageModel(imageModel);
         ImageGenerationPort.ImageGenResult result = port.generate(new ImageGenerationPort.ImageGenCommand(
-                release.getId(),
-                release.getProvider(),
-                release.getBaseUrl(),
-                release.getModelName(),
-                plainSecret,
+                null,
+                imageModel.provider(),
+                imageModel.baseUrl(),
+                imageModel.modelName(),
+                imageModel.plainSecret(),
                 prompt,
                 null,
                 1,
@@ -152,19 +144,12 @@ public class MultiEditImageTool implements AgentTool {
         }
         if (blocks.isEmpty()) throw BizException.of(ResultCode.INTERNAL_ERROR, "多图改图返回为空");
         String text = result.revisedPrompt() != null && !result.revisedPrompt().isBlank()
-                ? "revised_prompt: " + result.revisedPrompt() + " | model: " + release.getModelName()
-                : "model: " + release.getModelName();
+                ? "revised_prompt: " + result.revisedPrompt() + " | model: " + imageModel.modelName()
+                : "model: " + imageModel.modelName();
         blocks.add(TextBlock.builder().text(text).build());
         @SuppressWarnings("unchecked")
         List blocksTyped = blocks;
         return ToolResultBlock.of(blocksTyped);
-    }
-
-    private AgentModelRelease resolveRelease(Long requestedReleaseId, Long userId) {
-        if (requestedReleaseId != null) return modelControlService.requireUsableRelease(requestedReleaseId, userId);
-        var pool = modelControlService.listAvailableFiltered(userId, "image");
-        if (pool == null || pool.isEmpty()) return null;
-        return modelControlService.requireUsableRelease(pool.getFirst().id(), userId);
     }
 
     private ImageBlock toImageBlock(ImageGenerationPort.ImageAsset asset) {

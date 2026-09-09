@@ -91,6 +91,10 @@ public class AgentRunPlanner {
         Long owner = session.getOwnerUserId() == null ? 0L : session.getOwnerUserId();
         // Revision ∪ Session 绑定合并（Skill/MCP 运行面装配）
         var binding = bindingLoader.load(revisionId, sessionId);
+        AgentRunPlan.ImageModelConfig imageModel = parseImageModel(revision.getModelConfig());
+        long contextLength = release.getContextLength() != null && release.getContextLength() > 0
+                ? release.getContextLength()
+                : 500_000L;
         return new AgentRunPlan(
                 sessionId,
                 owner,
@@ -105,7 +109,9 @@ public class AgentRunPlanner {
                 plainSecret,
                 parseAllowedTools(revision.getPermissionPolicy()),
                 binding.skills(),
-                binding.mcps());
+                binding.mcps(),
+                imageModel,
+                contextLength);
     }
 
     private AgentSession requireSession(Long sessionId) {
@@ -148,6 +154,29 @@ public class AgentRunPlanner {
             return v.isNumber() ? v.longValue() : null;
         } catch (Exception e) {
             return null;
+        }
+    }
+
+    private AgentRunPlan.ImageModelConfig parseImageModel(String modelConfig) {
+        if (modelConfig == null || modelConfig.isBlank())
+            return new AgentRunPlan.ImageModelConfig(null, null, null, null);
+        try {
+            JsonNode root = objectMapper.readTree(modelConfig);
+            JsonNode image = root == null ? null : root.get("image");
+            if (image == null || !image.isObject()) return new AgentRunPlan.ImageModelConfig(null, null, null, null);
+            String provider = image.path("provider").asText(null);
+            String baseUrl = image.path("base_url").asText(null);
+            String modelName = image.path("model_name").asText(null);
+            String enc = image.path("encrypted_secret").asText(null);
+            if (provider != null) provider = provider.trim();
+            if (baseUrl != null) baseUrl = baseUrl.trim();
+            if (modelName != null) modelName = modelName.trim();
+            if (provider != null && provider.equalsIgnoreCase("xai")) provider = "openai-compatible";
+            else if (provider != null) provider = provider.toLowerCase(java.util.Locale.ROOT);
+            String plain = (enc == null || enc.isBlank()) ? null : secretCipher.decrypt(enc);
+            return new AgentRunPlan.ImageModelConfig(provider, baseUrl, modelName, plain);
+        } catch (Exception e) {
+            return new AgentRunPlan.ImageModelConfig(null, null, null, null);
         }
     }
 

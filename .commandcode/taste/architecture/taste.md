@@ -7,3 +7,4 @@
 - Prefers adapter pattern behind a unified port/interface to isolate multi-vendor provider API differences. Confidence: 0.85
 - Prefers agent capabilities exposed as fine-grained single-purpose tools rather than one combined multi-purpose tool — explicitly asked to split image generation/editing out of a single tool into separate generate/edit/multi-edit tools. Confidence: 0.8
 - Prefers generic, non-specialized wording in agent system prompts/guidance — explicitly objected to hardcoding a concrete example object (e.g. trophy/奖杯) in general image-edit guidance, expecting generic placeholders like "某个元素" instead. Confidence: 0.85
+- When an implementation gets messy, prefers a full clean refactor that directly reuses the canonical module's existing logic (e.g., model management's validation/probe/encryption) over accumulating incremental divergent patches — explicitly demanded "完全重构，直接使用模型管理的逻辑实现不要越写越乱". Confidence: 0.85

@@ -1,16 +1,12 @@
 package com.wshake.infra.agent.tool;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Ascii;
 import com.google.common.base.Splitter;
 import com.wshake.common.exception.BizException;
 import com.wshake.common.result.ResultCode;
+import com.wshake.infra.agent.runtime.AgentContext;
 import com.wshake.infra.imagegen.ImageGenAdapterRegistry;
 import com.wshake.infra.imagegen.ImageGenProperties;
-import com.wshake.service.agent.AgentSecretCipher;
-import com.wshake.service.entity.AgentModelRelease;
-import com.wshake.service.model.ModelControlService;
 import com.wshake.service.port.ImageGenerationPort;
 import com.wshake.service.port.StoragePort;
 import io.agentscope.core.message.Base64Source;
@@ -47,14 +43,11 @@ public class GenerateImageTool implements AgentTool {
     private static final Set<String> ALLOWED_SIZES =
             Set.of("1024x1024", "1024x1792", "1792x1024", "512x512", "768x768");
 
-    private final ModelControlService modelControlService;
-    private final AgentSecretCipher secretCipher;
     private final ImageGenAdapterRegistry adapterRegistry;
     private final ImageGenProperties imageGenProperties;
     private final StringRedisTemplate stringRedisTemplate;
     private final StoragePort storagePort;
     private final OkHttpClient okHttpClient;
-    private final ObjectMapper objectMapper;
 
     @Override
     public String getName() {
@@ -94,7 +87,6 @@ public class GenerateImageTool implements AgentTool {
                         "description",
                         "xAI 生图宽高比"));
         props.put("resolution", Map.of("type", "string", "enum", List.of("1k", "2k"), "description", "xAI 分辨率"));
-        props.put("model_release_id", Map.of("type", "integer", "description", "可选，指定生图模型 Release id"));
         schema.put("properties", props);
         schema.put("required", List.of("prompt"));
         schema.put("additionalProperties", false);
@@ -108,6 +100,10 @@ public class GenerateImageTool implements AgentTool {
 
     @Override
     public Mono<ToolResultBlock> callAsync(ToolCallParam param) {
+        var capturedImageModel = AgentContext.imageModelOrNull(param);
+        if (capturedImageModel == null) {
+            capturedImageModel = AgentContext.imageModelOrNull();
+        }
         Map<String, Object> input = param.getInput() == null ? Map.of() : param.getInput();
         String prompt = input.get("prompt") == null
                 ? ""
@@ -141,14 +137,6 @@ public class GenerateImageTool implements AgentTool {
         String style = input.get("style") == null
                 ? null
                 : String.valueOf(input.get("style")).trim();
-        Long requestedReleaseId = null;
-        if (input.get("model_release_id") != null) {
-            try {
-                requestedReleaseId = Long.parseLong(String.valueOf(input.get("model_release_id")));
-            } catch (NumberFormatException e) {
-                return Mono.just(ToolResultBlock.error("model_release_id 必须为整数"));
-            }
-        }
         String aspectRatio = input.get("aspect_ratio") == null
                 ? null
                 : String.valueOf(input.get("aspect_ratio")).trim();
@@ -163,9 +151,9 @@ public class GenerateImageTool implements AgentTool {
         final int finalN = n;
         final String finalQuality = quality == null || quality.isBlank() ? null : quality;
         final String finalStyle = style == null || style.isBlank() ? null : style;
-        final Long finalReleaseId = requestedReleaseId;
         final String finalAspectRatio = aspectRatio;
         final String finalResolution = resolution;
+        final var finalImageModel = capturedImageModel;
 
         return Mono.fromCallable(() -> doGenerate(
                         finalPrompt,
@@ -175,8 +163,8 @@ public class GenerateImageTool implements AgentTool {
                         finalStyle,
                         finalAspectRatio,
                         finalResolution,
-                        finalReleaseId,
-                        capturedUserId))
+                        capturedUserId,
+                        finalImageModel))
                 .onErrorResume(e -> {
                     String msg = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
                     log.warn("generate_image failed: {}", msg);
@@ -195,28 +183,28 @@ public class GenerateImageTool implements AgentTool {
             String style,
             String aspectRatio,
             String resolution,
-            Long requestedReleaseId,
-            Long capturedUserId)
+            Long capturedUserId,
+            com.wshake.infra.agent.runtime.AgentRunPlan.ImageModelConfig imageModelParam)
             throws Exception {
         Long userId = capturedUserId;
         checkRateLimit(userId);
 
-        AgentModelRelease release = resolveRelease(requestedReleaseId, userId);
-        if (release == null) {
-            throw BizException.of(ResultCode.PARAM_INVALID, "暂未配置生图模型，请在模型管理新建 code=image 的模型");
+        var imageModel = imageModelParam;
+        if (imageModel == null || !imageModel.isConfigured()) {
+            imageModel = AgentContext.imageModelOrNull();
         }
-        enforceGuardrails(release, size, n);
-        String plainSecret = secretCipher.decrypt(release.getEncryptedSecret());
-        if (plainSecret == null || plainSecret.isBlank()) {
-            throw BizException.of(ResultCode.PARAM_INVALID, "生图模型未配置密钥");
+        if (imageModel == null || !imageModel.isConfigured()) {
+            throw BizException.of(
+                    ResultCode.PARAM_INVALID,
+                    "当前 Agent 未配置生图模型，请在 Agent 管理中编辑草稿→勾选生图并配置 BaseUrl/ModelName/密钥→发布；已有会话需新建会话或「固定 Revision」后重试");
         }
-        ImageGenerationPort port = adapterRegistry.forRelease(release);
+        ImageGenerationPort port = adapterRegistry.forImageModel(imageModel);
         ImageGenerationPort.ImageGenResult result = port.generate(new ImageGenerationPort.ImageGenCommand(
-                release.getId(),
-                release.getProvider(),
-                release.getBaseUrl(),
-                release.getModelName(),
-                plainSecret,
+                null,
+                imageModel.provider(),
+                imageModel.baseUrl(),
+                imageModel.modelName(),
+                imageModel.plainSecret(),
                 prompt,
                 size,
                 n,
@@ -254,8 +242,8 @@ public class GenerateImageTool implements AgentTool {
             throw BizException.of(ResultCode.INTERNAL_ERROR, "生图返回为空");
         }
         String text = result.revisedPrompt() != null && !result.revisedPrompt().isBlank()
-                ? "revised_prompt: " + result.revisedPrompt() + " | model: " + release.getModelName()
-                : "model: " + release.getModelName() + " size=" + size + " n=" + n;
+                ? "revised_prompt: " + result.revisedPrompt() + " | model: " + imageModel.modelName()
+                : "model: " + imageModel.modelName() + " size=" + size + " n=" + n;
         blocks.add(TextBlock.builder().text(text).build());
         @SuppressWarnings("unchecked")
         List blocksTyped = blocks;
@@ -285,49 +273,6 @@ public class GenerateImageTool implements AgentTool {
             return com.wshake.common.request.RequestContext.userIdOrNull();
         } catch (Exception e) {
             return null;
-        }
-    }
-
-    private AgentModelRelease resolveRelease(Long requestedReleaseId, Long userId) {
-        if (requestedReleaseId != null) {
-            return modelControlService.requireUsableRelease(requestedReleaseId, userId);
-        }
-        var pool = modelControlService.listAvailableFiltered(userId, "image");
-        if (pool == null || pool.isEmpty()) return null;
-        Long id = pool.getFirst().id();
-        return modelControlService.requireUsableRelease(id, userId);
-    }
-
-    private void enforceGuardrails(AgentModelRelease release, String size, int n) {
-        String pg = release.getParameterGuardrails();
-        if (pg == null || pg.isBlank()) return;
-        try {
-            JsonNode root = objectMapper.readTree(pg);
-            JsonNode sizeNode = root.path("size");
-            if (sizeNode.isArray() && !sizeNode.isEmpty()) {
-                boolean allowed = false;
-                for (JsonNode v : sizeNode) {
-                    if (size.equals(v.asText())) {
-                        allowed = true;
-                        break;
-                    }
-                }
-                if (!allowed) {
-                    throw BizException.of(ResultCode.PARAM_INVALID, "size 不在模型护栏允许范围");
-                }
-            }
-            JsonNode nNode = root.path("n");
-            if (nNode.isObject()) {
-                int min = nNode.path("min").asInt(1);
-                int max = nNode.path("max").asInt(4);
-                if (n < min || n > max) {
-                    throw BizException.of(ResultCode.PARAM_INVALID, "n 超出护栏范围 " + min + ".." + max);
-                }
-            }
-        } catch (BizException e) {
-            throw e;
-        } catch (Exception e) {
-            log.debug("guardrails parse failed: {}", e.getMessage());
         }
     }
 

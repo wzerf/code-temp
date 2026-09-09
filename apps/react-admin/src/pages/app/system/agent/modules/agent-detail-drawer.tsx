@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import {Alert, Button, Col, Drawer, Empty, Form, Input, List, Modal, Row, Select, Space, Spin, Table, Tabs, Tag, Typography } from 'antd';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {Alert, Button, Checkbox, Col, Drawer, Empty, Form, Input, List, Modal, Row, Select, Space, Spin, Table, Tabs, Tag, Typography } from 'antd';
 import { message } from '@/core/feedback/message';
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
@@ -20,6 +20,7 @@ import {
   unbindMcpFromRevisionApi,
   unbindSkillFromRevisionApi,
   updateAgentRevisionApi } from '@/api/rest/agent';
+import { probeModelCatalogApi } from '@/api/rest/model';
 import { fetchMcpMarket } from '@/api/hooks/mcp';
 import { fetchSkillBindable } from '@/api/hooks/skill';
 import McpOauthSection from '../../mcp/modules/mcp-oauth-section';
@@ -46,6 +47,10 @@ interface DraftValues {
   permissionPolicy?: string;
   memoryPolicy?: string;
   compressionPolicy?: string;
+  imageProvider?: string;
+  imageBaseUrl?: string;
+  imageModelName?: string;
+  imagePlainSecret?: string;
   remark?: string;
 }
 
@@ -69,6 +74,63 @@ const AgentDetailDrawer = ({ open, agent, onClose, onChanged }: Props) => {
   const [pendingMcpId, setPendingMcpId] = useState<number | null>(null);
   const [mcpSecretInput, setMcpSecretInput] = useState('');
   const [pendingSkillId, setPendingSkillId] = useState<number | null>(null);
+  const [imageEnabled, setImageEnabled] = useState(false);
+  const [probing, setProbing] = useState(false);
+  const [imageModelOptions, setImageModelOptions] = useState<string[]>([]);
+  const syncingRef = useRef(false);
+  const imageToModelConfig = (v: DraftValues) => {
+    const baseRaw = v.modelConfig?.trim() ?? '';
+    let base: Record<string, unknown> = {};
+    if (baseRaw) {
+      try {
+        const parsed = JSON.parse(baseRaw) as unknown;
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) base = parsed as Record<string, unknown>;
+      } catch {
+        return v.modelConfig ?? '';
+      }
+    }
+    const hasImageFields = !!(v.imageProvider || v.imageBaseUrl || v.imageModelName || v.imagePlainSecret);
+    const hasImageKey = Object.prototype.hasOwnProperty.call(base, 'image');
+    if (!hasImageFields && !hasImageKey) return Object.keys(base).length ? JSON.stringify(base, null, 2) : (baseRaw || '');
+    const prev = (base.image && typeof base.image === 'object' && !Array.isArray(base.image) ? base.image as Record<string, unknown> : {}) as Record<string, unknown>;
+    const next: Record<string, unknown> = { ...prev };
+    if (v.imageProvider !== undefined) {
+      if (!v.imageProvider) delete next.provider;
+      else next.provider = v.imageProvider;
+    }
+    if (v.imageBaseUrl !== undefined) {
+      if (!v.imageBaseUrl) delete next.base_url;
+      else next.base_url = v.imageBaseUrl;
+    }
+    if (v.imageModelName !== undefined) {
+      if (!v.imageModelName) delete next.model_name;
+      else next.model_name = v.imageModelName;
+    }
+    if (v.imagePlainSecret !== undefined) {
+      if (!v.imagePlainSecret) delete next.encrypted_secret;
+      else next.encrypted_secret = v.imagePlainSecret;
+    }
+    const hasAny = !!(next.provider || next.base_url || next.model_name || next.encrypted_secret);
+    if (!hasAny) delete base.image;
+    else base.image = next;
+    return JSON.stringify(base, null, 2);
+  };
+  const modelConfigToImage = (raw?: string) => {
+    if (!raw || !raw.trim()) return { provider: '', base_url: '', model_name: '', hasSecret: false };
+    try {
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      const image = parsed?.image as Record<string, unknown> | undefined;
+      if (!image || typeof image !== 'object' || Array.isArray(image)) return { provider: '', base_url: '', model_name: '', hasSecret: false };
+      return {
+        provider: typeof image.provider === 'string' ? image.provider : '',
+        base_url: typeof image.base_url === 'string' ? image.base_url : '',
+        model_name: typeof image.model_name === 'string' ? image.model_name : '',
+        hasSecret: typeof image.encrypted_secret === 'string' ? !!image.encrypted_secret : false,
+      };
+    } catch {
+      return { provider: '', base_url: '', model_name: '', hasSecret: false };
+    }
+  };
 
   const agentId = agent?.id;
 
@@ -93,14 +155,25 @@ const AgentDetailDrawer = ({ open, agent, onClose, onChanged }: Props) => {
       setSessions(sessionRes.items);
       if (nextDraft) {
         await loadBindings(nextDraft.id);
+        const image = modelConfigToImage(nextDraft.modelConfig ?? '');
+        if (image.model_name) setImageModelOptions((prev) => (prev.includes(image.model_name) ? prev : [...prev, image.model_name]));
         draftForm.setFieldsValue({
           systemPrompt: nextDraft.systemPrompt ?? '',
           modelConfig: nextDraft.modelConfig ?? '',
           permissionPolicy: nextDraft.permissionPolicy ?? '',
           memoryPolicy: nextDraft.memoryPolicy ?? '',
           compressionPolicy: nextDraft.compressionPolicy ?? '',
+          imageProvider: image.provider,
+          imageBaseUrl: image.base_url,
+          imageModelName: image.model_name,
+          imagePlainSecret: '',
           remark: nextDraft.remark ?? '',
         });
+        const enabled = !!(image.provider || image.base_url || image.model_name || image.hasSecret);
+        setImageEnabled(enabled);
+        if (!enabled) {
+          draftForm.setFieldsValue({ imageProvider: undefined, imageBaseUrl: undefined, imageModelName: undefined, imagePlainSecret: undefined });
+        }
       } else {
         setSkillBindings([]);
         setMcpBindings([]);
@@ -147,8 +220,36 @@ const AgentDetailDrawer = ({ open, agent, onClose, onChanged }: Props) => {
   const onSaveDraft = async () => {
     if (!agentId || !draft) return;
     const values = await draftForm.validateFields();
+    const baseValues: DraftValues = imageEnabled ? values : { ...values, imageProvider: '', imageBaseUrl: '', imageModelName: '', imagePlainSecret: '' };
+    const merged = imageEnabled ? imageToModelConfig(baseValues) : (() => {
+      const raw = values.modelConfig ?? '';
+      if (!raw.trim()) return '';
+      try {
+        const parsed = JSON.parse(raw) as Record<string, unknown>;
+        delete parsed.image;
+        return Object.keys(parsed).length ? JSON.stringify(parsed, null, 2) : '';
+      } catch {
+ return raw; 
+}
+    })();
+    const payload = { ...baseValues, modelConfig: merged, systemPrompt: values.systemPrompt ?? '' } as DraftValues & Record<string, unknown>;
+    if (!payload.imagePlainSecret) delete (payload as Record<string, unknown>).imagePlainSecret;
+    if (!imageEnabled) {
+      delete (payload as Record<string, unknown>).imageProvider;
+      delete (payload as Record<string, unknown>).imageBaseUrl;
+      delete (payload as Record<string, unknown>).imageModelName;
+      delete (payload as Record<string, unknown>).imagePlainSecret;
+    } else {
+      const hasImage = !!(payload.imageProvider || payload.imageBaseUrl || payload.imageModelName || payload.imagePlainSecret);
+      if (!hasImage && !(values.modelConfig && values.modelConfig.includes('"image"'))) {
+        delete (payload as Record<string, unknown>).imageProvider;
+        delete (payload as Record<string, unknown>).imageBaseUrl;
+        delete (payload as Record<string, unknown>).imageModelName;
+        delete (payload as Record<string, unknown>).imagePlainSecret;
+      }
+    }
     try {
-      await createOrUpdateDraft(values);
+      await createOrUpdateDraft(payload as DraftValues);
       message.success(t('updateSuccess'));
       load();
     } catch (err) {
@@ -397,13 +498,37 @@ const AgentDetailDrawer = ({ open, agent, onClose, onChanged }: Props) => {
         </Form.Item>
         <Row gutter={12}>
           <Col span={12}>
-            <Form.Item name="modelConfig" label={t('modelConfig')}>
-              <TextArea rows={3} style={{ fontFamily: 'monospace' }} placeholder="{}" />
+            <Form.Item
+              name="modelConfig"
+              label={t('modelConfig')}
+              extra={t('modelConfigExtra', { defaultValue: '含默认模型与生图 image 配置，勾选后同步更新此处 JSON' })}
+            >
+              <TextArea
+                rows={4}
+                style={{ fontFamily: 'monospace' }}
+                placeholder={'{"default_model_release_id": 1, "image": {"provider":"openai-compatible","base_url":"https://...","model_name":"...","encrypted_secret":"..."}}'}
+                onChange={(e) => {
+                  if (syncingRef.current) return;
+                  syncingRef.current = true;
+                  try {
+                    const image = modelConfigToImage(e.target.value);
+                    draftForm.setFieldsValue({
+                      imageProvider: image.provider,
+                      imageBaseUrl: image.base_url,
+                      imageModelName: image.model_name,
+                    });
+                    const enabled = !!(image.provider || image.base_url || image.model_name || image.hasSecret);
+                    setImageEnabled(enabled);
+                  } finally {
+                    syncingRef.current = false;
+                  }
+                }}
+              />
             </Form.Item>
           </Col>
           <Col span={12}>
             <Form.Item name="permissionPolicy" label={t('permissionPolicy')}>
-              <TextArea rows={3} style={{ fontFamily: 'monospace' }} placeholder={'{"allowedTools":[]}'} />
+              <TextArea rows={4} style={{ fontFamily: 'monospace' }} placeholder={'{"allowedTools":[]}'} />
             </Form.Item>
           </Col>
         </Row>
@@ -422,6 +547,142 @@ const AgentDetailDrawer = ({ open, agent, onClose, onChanged }: Props) => {
         <Typography.Paragraph type="secondary" style={{ fontSize: 12 }}>
           {t('policyHint')}
         </Typography.Paragraph>
+        <Form.Item style={{ marginBottom: 8 }}>
+          <Checkbox
+            checked={imageEnabled}
+            onChange={(e) => {
+              const checked = e.target.checked;
+              setImageEnabled(checked);
+              if (!checked) {
+                const raw = (draftForm.getFieldValue('modelConfig') as string) ?? '';
+                if (raw.trim()) {
+                  try {
+                    const parsed = JSON.parse(raw) as Record<string, unknown>;
+                    if (parsed.image) {
+                      delete parsed.image;
+                      syncingRef.current = true;
+                      draftForm.setFieldsValue({ modelConfig: Object.keys(parsed).length ? JSON.stringify(parsed, null, 2) : '' });
+                      syncingRef.current = false;
+                    }
+                  } catch { /* 忽略 JSON 错误，保存时后端会校验 */ }
+                }
+                draftForm.setFieldsValue({ imageProvider: undefined, imageBaseUrl: undefined, imageModelName: undefined, imagePlainSecret: undefined });
+              }
+            }}
+          >
+            {t('imageModel', { defaultValue: '生图模型' })}
+          </Checkbox>
+          <Typography.Text type="secondary" style={{ fontSize: 12, marginLeft: 8 }}>
+            {t('imageModelHint', { defaultValue: '勾选后配置生图 BaseUrl 与密钥，保存时同步写入模型配置 JSON 的 image 字段。' })}
+          </Typography.Text>
+        </Form.Item>
+        {imageEnabled && (
+          <>
+            <Row gutter={12}>
+              <Col span={12}>
+                <Form.Item name="imageBaseUrl" label={t('imageBaseUrl', { defaultValue: 'BaseUrl（HTTPS）' })}>
+                  <Input
+                    placeholder="https://api.example.com/v1"
+                    onChange={() => {
+                      if (syncingRef.current) return;
+                      syncingRef.current = true;
+                      try {
+                        const v = draftForm.getFieldsValue() as DraftValues;
+                        draftForm.setFieldsValue({ modelConfig: imageToModelConfig(v) });
+                      } finally {
+                        syncingRef.current = false;
+                      }
+                    }}
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item name="imagePlainSecret" label={t('imageSecret', { defaultValue: '密钥' })}>
+                  <Input.Password
+                    placeholder={t('secretPlaceholder')}
+                    autoComplete="new-password"
+                    onChange={() => {
+                      if (syncingRef.current) return;
+                      syncingRef.current = true;
+                      try {
+                        const v = draftForm.getFieldsValue() as DraftValues;
+                        draftForm.setFieldsValue({ modelConfig: imageToModelConfig(v) });
+                      } finally {
+                        syncingRef.current = false;
+                      }
+                    }}
+                  />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Row gutter={12}>
+              <Col span={16}>
+                <Form.Item name="imageModelName" label={t('imageModelName', { defaultValue: 'ModelName' })}>
+                  <Select
+                    showSearch
+                    allowClear
+                    placeholder={t('selectModelName', { defaultValue: '探测后选择' })}
+                    options={imageModelOptions.map((m) => ({ value: m, label: m }))}
+                    filterOption={(input, option) => (option?.label as string).toLowerCase().includes(input.toLowerCase())}
+                    onChange={() => {
+                      if (syncingRef.current) return;
+                      syncingRef.current = true;
+                      try {
+                        const v = draftForm.getFieldsValue() as DraftValues;
+                        draftForm.setFieldsValue({ modelConfig: imageToModelConfig(v) });
+                      } finally {
+                        syncingRef.current = false;
+                      }
+                    }}
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={8} style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: 24 }}>
+                <Button
+                  loading={probing}
+                  onClick={async () => {
+                    const baseUrl = (draftForm.getFieldValue('imageBaseUrl') as string) ?? '';
+                    const plainSecret = (draftForm.getFieldValue('imagePlainSecret') as string) ?? '';
+                    if (!baseUrl) {
+                      message.error(t('probeNeedProviderAndUrl', { defaultValue: '请先填写 BaseUrl' }));
+                      return;
+                    }
+                    if (!baseUrl.startsWith('https://')) {
+                      message.error(t('probeNeedHttps', { defaultValue: 'BaseUrl 必须为 https 地址' }));
+                      return;
+                    }
+                    const inferredProvider = 'openai-compatible';
+                    draftForm.setFieldsValue({ imageProvider: inferredProvider });
+                    syncingRef.current = true;
+                    try {
+                      const v = draftForm.getFieldsValue() as DraftValues;
+                      draftForm.setFieldsValue({ modelConfig: imageToModelConfig({ ...v, imageProvider: inferredProvider }) });
+                    } finally {
+                      syncingRef.current = false;
+                    }
+                    setProbing(true);
+                    try {
+                      const res = await probeModelCatalogApi({ provider: 'openai-compatible', baseUrl, plainSecret: plainSecret || undefined });
+                      const ids = res.remoteModelIds ?? [];
+                      setImageModelOptions(ids);
+                      if (ids.length === 0) message.warning(t('probeEmpty', { defaultValue: '探测成功但远端目录为空' }));
+                      else message.success(t('probeCatalogSuccess', { count: ids.length, defaultValue: `探测成功，共 ${ids.length} 个模型` }));
+                    } catch (err) {
+                      message.error(`${t('verifyFailed', { defaultValue: '探测失败' })}：${getApiErrorMessage(err, t('unknownError'))}`);
+                    } finally {
+                      setProbing(false);
+                    }
+                  }}
+                >
+                  {t('probeCatalog', { defaultValue: '探测模型' })}
+                </Button>
+              </Col>
+            </Row>
+            <Form.Item name="imageProvider" hidden>
+              <Input />
+            </Form.Item>
+          </>
+        )}
         <Space>
           <Button type="primary" onClick={onSaveDraft}>
             {t('save')}

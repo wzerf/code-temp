@@ -2,11 +2,9 @@ package com.wshake.infra.agent.tool;
 
 import com.wshake.common.exception.BizException;
 import com.wshake.common.result.ResultCode;
+import com.wshake.infra.agent.runtime.AgentContext;
 import com.wshake.infra.imagegen.ImageGenAdapterRegistry;
 import com.wshake.infra.imagegen.ImageGenProperties;
-import com.wshake.service.agent.AgentSecretCipher;
-import com.wshake.service.entity.AgentModelRelease;
-import com.wshake.service.model.ModelControlService;
 import com.wshake.service.port.ImageGenerationPort;
 import com.wshake.service.port.StoragePort;
 import io.agentscope.core.message.Base64Source;
@@ -33,8 +31,6 @@ import reactor.core.publisher.Mono;
 @RequiredArgsConstructor
 public class EditImageTool implements AgentTool {
 
-    private final ModelControlService modelControlService;
-    private final AgentSecretCipher secretCipher;
     private final ImageGenAdapterRegistry adapterRegistry;
     private final ImageGenProperties imageGenProperties;
     private final StoragePort storagePort;
@@ -59,7 +55,6 @@ public class EditImageTool implements AgentTool {
         props.put(
                 "aspect_ratio", Map.of("type", "string", "enum", List.of("1:1", "16:9", "9:16", "4:3", "3:4", "auto")));
         props.put("resolution", Map.of("type", "string", "enum", List.of("1k", "2k")));
-        props.put("model_release_id", Map.of("type", "integer", "description", "可选，生图模型 Release id"));
         schema.put("properties", props);
         schema.put("required", List.of("prompt", "image_url"));
         schema.put("additionalProperties", false);
@@ -73,6 +68,9 @@ public class EditImageTool implements AgentTool {
 
     @Override
     public Mono<ToolResultBlock> callAsync(ToolCallParam param) {
+        var capturedModel = AgentContext.imageModelOrNull(param);
+        if (capturedModel == null) capturedModel = AgentContext.imageModelOrNull();
+        if (capturedModel != null && !capturedModel.isConfigured()) capturedModel = null;
         Map<String, Object> input = param.getInput() == null ? Map.of() : param.getInput();
         String prompt = input.get("prompt") == null
                 ? ""
@@ -96,27 +94,17 @@ public class EditImageTool implements AgentTool {
                 ? null
                 : String.valueOf(input.get("resolution")).trim();
         if (resolution != null && resolution.isBlank()) resolution = null;
-        Long releaseId = null;
-        if (input.get("model_release_id") != null) {
-            try {
-                releaseId = Long.parseLong(String.valueOf(input.get("model_release_id")));
-            } catch (NumberFormatException e) {
-                return Mono.just(ToolResultBlock.error("model_release_id 必须为整数"));
-            }
-        }
-        final Long capturedUserId = com.wshake.common.request.RequestContext.userIdOrNull();
         final String fp = prompt;
         final String fu = imageUrl;
         final String fa = aspectRatio;
         final String fr = resolution;
-        final Long frId = releaseId;
-        return Mono.fromCallable(() -> doEdit(fp, fu, fa, fr, frId, capturedUserId))
-                .onErrorResume(e -> {
-                    String msg = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
-                    log.warn("edit_image failed: {}", msg);
-                    if (e instanceof BizException be) return Mono.just(ToolResultBlock.error(be.getMessage()));
-                    return Mono.just(ToolResultBlock.error("改图失败: " + msg));
-                });
+        final var fc = capturedModel;
+        return Mono.fromCallable(() -> doEdit(fp, fu, fa, fr, fc)).onErrorResume(e -> {
+            String msg = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+            log.warn("edit_image failed: {}", msg);
+            if (e instanceof BizException be) return Mono.just(ToolResultBlock.error(be.getMessage()));
+            return Mono.just(ToolResultBlock.error("改图失败: " + msg));
+        });
     }
 
     private ToolResultBlock doEdit(
@@ -124,26 +112,23 @@ public class EditImageTool implements AgentTool {
             String imageUrl,
             String aspectRatio,
             String resolution,
-            Long requestedReleaseId,
-            Long capturedUserId)
+            com.wshake.infra.agent.runtime.AgentRunPlan.ImageModelConfig captured)
             throws Exception {
-        Long userId = capturedUserId;
-        AgentModelRelease release = resolveRelease(requestedReleaseId, userId);
-        if (release == null) {
-            throw BizException.of(ResultCode.PARAM_INVALID, "暂未配置生图模型，请在模型管理新建 code=image 的模型");
-        }
-        String plainSecret = secretCipher.decrypt(release.getEncryptedSecret());
-        if (plainSecret == null || plainSecret.isBlank()) {
-            throw BizException.of(ResultCode.PARAM_INVALID, "生图模型未配置密钥");
+        var imageModel = captured;
+        if (imageModel == null || !imageModel.isConfigured()) imageModel = AgentContext.imageModelOrNull();
+        if (imageModel == null || !imageModel.isConfigured()) {
+            throw BizException.of(
+                    ResultCode.PARAM_INVALID,
+                    "当前 Agent 未配置生图模型，请在 Agent 管理中编辑草稿→勾选生图并配置 BaseUrl/ModelName/密钥→发布；已有会话需新建会话或「固定 Revision」后重试");
         }
         String resolvedUrl = ensurePublicImageUrl(imageUrl);
-        ImageGenerationPort port = adapterRegistry.forRelease(release);
+        ImageGenerationPort port = adapterRegistry.forImageModel(imageModel);
         ImageGenerationPort.ImageGenResult result = port.generate(new ImageGenerationPort.ImageGenCommand(
-                release.getId(),
-                release.getProvider(),
-                release.getBaseUrl(),
-                release.getModelName(),
-                plainSecret,
+                null,
+                imageModel.provider(),
+                imageModel.baseUrl(),
+                imageModel.modelName(),
+                imageModel.plainSecret(),
                 prompt,
                 null,
                 1,
@@ -159,26 +144,19 @@ public class EditImageTool implements AgentTool {
         }
         if (blocks.isEmpty()) throw BizException.of(ResultCode.INTERNAL_ERROR, "改图返回为空");
         String text = result.revisedPrompt() != null && !result.revisedPrompt().isBlank()
-                ? "revised_prompt: " + result.revisedPrompt() + " | model: " + release.getModelName()
-                : "model: " + release.getModelName();
+                ? "revised_prompt: " + result.revisedPrompt() + " | model: " + imageModel.modelName()
+                : "model: " + imageModel.modelName();
         blocks.add(TextBlock.builder().text(text).build());
         @SuppressWarnings("unchecked")
         List blocksTyped = blocks;
         return ToolResultBlock.of(blocksTyped);
     }
 
-    private AgentModelRelease resolveRelease(Long requestedReleaseId, Long userId) {
-        if (requestedReleaseId != null) return modelControlService.requireUsableRelease(requestedReleaseId, userId);
-        var pool = modelControlService.listAvailableFiltered(userId, "image");
-        if (pool == null || pool.isEmpty()) return null;
-        return modelControlService.requireUsableRelease(pool.getFirst().id(), userId);
-    }
-
     private String ensurePublicImageUrl(String imageUrl) {
         if (imageUrl.startsWith("https://")) {
             if (isStorageHost(imageUrl)) return imageUrl;
             try {
-                byte[] bytes = downloadToStorage(imageUrl, null);
+                byte[] bytes = downloadToStorage(imageUrl);
                 return uploadBytes(bytes, "image/png");
             } catch (Exception e) {
                 log.warn("edit_image: 参考图转存失败，回退直传原 URL: {}", e.getMessage());
@@ -204,15 +182,11 @@ public class EditImageTool implements AgentTool {
     }
 
     private boolean isStorageHost(String url) {
-        try {
-            String lower = url.toLowerCase();
-            return lower.contains("minio") || lower.contains("s3") || lower.contains("storage");
-        } catch (Exception e) {
-            return false;
-        }
+        String lower = url.toLowerCase(java.util.Locale.ROOT);
+        return lower.contains("minio") || lower.contains("s3") || lower.contains("storage");
     }
 
-    private byte[] downloadToStorage(String url, String fallbackMime) throws Exception {
+    private byte[] downloadToStorage(String url) throws Exception {
         java.net.URI uri = new java.net.URI(url);
         String host = uri.getHost();
         if (host == null || host.isBlank()) throw new IllegalArgumentException("image_url 缺少主机");

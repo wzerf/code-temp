@@ -28,6 +28,18 @@ public class SaveAgentRevisionRequest {
     @Schema(description = "压缩策略 JSON(首期非空即拒绝运行)")
     private String compressionPolicy;
 
+    @Schema(description = "生图 Provider（写入 model_config.image.provider）")
+    private String imageProvider;
+
+    @Schema(description = "生图 BaseUrl（写入 model_config.image.base_url，HTTPS）")
+    private String imageBaseUrl;
+
+    @Schema(description = "生图模型名（写入 model_config.image.model_name）")
+    private String imageModelName;
+
+    @Schema(description = "生图明文密钥（加密后写入 model_config.image.encrypted_secret）")
+    private String imagePlainSecret;
+
     @Size(max = 512)
     @Schema(description = "备注")
     private String remark;

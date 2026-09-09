@@ -1,6 +1,9 @@
 package com.wshake.service.agent;
 
 import com.easy.query.core.api.pagination.EasyPageResult;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.wshake.common.constant.PageLimits;
 import com.wshake.common.exception.BizException;
 import com.wshake.common.result.PageData;
@@ -19,6 +22,7 @@ import io.github.linpeilie.Converter;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,6 +48,8 @@ public class AgentControlService {
     private final AgentRevisionMcpBindingRepository revisionMcpBindingRepository;
     private final AgentSkillReleaseRepository skillReleaseRepository;
     private final AgentMcpReleaseRepository mcpReleaseRepository;
+    private final AgentSecretCipher secretCipher;
+    private final ObjectMapper objectMapper;
     private final Converter converter;
 
     // ---------- Agent 定义 ----------
@@ -149,8 +155,21 @@ public class AgentControlService {
         if (cmd.systemPrompt() != null) {
             row.setSystemPrompt(cmd.systemPrompt());
         }
-        if (cmd.modelConfig() != null) {
-            row.setModelConfig(blankToNull(cmd.modelConfig()));
+        // 复用模型管理同一套校验：image 字段走 merge，其它 modelConfig 走整体校验
+        if (cmd.imageProvider() != null
+                || cmd.imageBaseUrl() != null
+                || cmd.imageModelName() != null
+                || cmd.imagePlainSecret() != null) {
+            row.setModelConfig(mergeImageIntoModelConfig(
+                    row.getModelConfig(),
+                    null,
+                    cmd.imageProvider(),
+                    cmd.imageBaseUrl(),
+                    cmd.imageModelName(),
+                    cmd.imagePlainSecret()));
+        } else if (cmd.modelConfig() != null) {
+            row.setModelConfig(
+                    mergeImageIntoModelConfig(row.getModelConfig(), cmd.modelConfig(), null, null, null, null));
         }
         if (cmd.permissionPolicy() != null) {
             row.setPermissionPolicy(blankToNull(cmd.permissionPolicy()));
@@ -352,13 +371,151 @@ public class AgentControlService {
         row.setAgentDefinitionId(definitionId);
         row.setStatus(STATUS_DRAFT);
         row.setSystemPrompt(cmd.systemPrompt() == null ? "" : cmd.systemPrompt());
-        row.setModelConfig(blankToNull(cmd.modelConfig()));
+        row.setModelConfig(mergeImageIntoModelConfig(
+                null,
+                cmd.modelConfig(),
+                cmd.imageProvider(),
+                cmd.imageBaseUrl(),
+                cmd.imageModelName(),
+                cmd.imagePlainSecret()));
         row.setPermissionPolicy(blankToNull(cmd.permissionPolicy()));
         row.setMemoryPolicy(blankToNull(cmd.memoryPolicy()));
         row.setCompressionPolicy(blankToNull(cmd.compressionPolicy()));
         row.setRemark(cmd.remark() == null ? "" : cmd.remark().trim());
         row.setIsEnabled(1);
         return row;
+    }
+
+    private String mergeImageIntoModelConfig(
+            String baseModelConfig,
+            String incomingModelConfig,
+            String imageProvider,
+            String imageBaseUrl,
+            String imageModelName,
+            String imagePlainSecret) {
+        ObjectNode root;
+        if (incomingModelConfig != null) {
+            String trimmed = incomingModelConfig.trim();
+            if (trimmed.isEmpty()) return null;
+            try {
+                JsonNode parsed = objectMapper.readTree(trimmed);
+                if (!parsed.isObject()) throw BizException.of(ResultCode.PARAM_INVALID, "modelConfig 必须为 JSON 对象");
+                root = (ObjectNode) parsed;
+            } catch (BizException e) {
+                throw e;
+            } catch (Exception e) {
+                throw BizException.of(ResultCode.PARAM_INVALID, "modelConfig 必须为合法 JSON 对象");
+            }
+        } else if (baseModelConfig != null && !baseModelConfig.isBlank()) {
+            try {
+                JsonNode parsed = objectMapper.readTree(baseModelConfig);
+                if (parsed != null && parsed.isObject()) root = (ObjectNode) parsed.deepCopy();
+                else root = objectMapper.createObjectNode();
+            } catch (Exception e) {
+                root = objectMapper.createObjectNode();
+            }
+        } else {
+            root = objectMapper.createObjectNode();
+        }
+        boolean hasImageUpdate =
+                imageProvider != null || imageBaseUrl != null || imageModelName != null || imagePlainSecret != null;
+        if (!hasImageUpdate) {
+            if (incomingModelConfig != null) validateModelConfigImage(root);
+            else if (!root.isEmpty()) validateModelConfigImage(root);
+            if (root.isEmpty()) return null;
+            return writeModelConfig(root);
+        }
+        JsonNode imageNode = root.get("image");
+        ObjectNode imageObj =
+                (imageNode != null && imageNode.isObject()) ? (ObjectNode) imageNode : objectMapper.createObjectNode();
+        if (imageProvider != null) {
+            if (imageProvider.isBlank()) imageObj.remove("provider");
+            else imageObj.put("provider", requireProviderForImage(imageProvider));
+        }
+        if (imageBaseUrl != null) {
+            if (imageBaseUrl.isBlank()) imageObj.remove("base_url");
+            else imageObj.put("base_url", requireHttpsUrl(imageBaseUrl));
+        }
+        if (imageModelName != null) {
+            if (imageModelName.isBlank()) imageObj.remove("model_name");
+            else imageObj.put("model_name", requireModelName(imageModelName));
+        }
+        if (imagePlainSecret != null) {
+            if (imagePlainSecret.isBlank()) imageObj.remove("encrypted_secret");
+            else imageObj.put("encrypted_secret", secretCipher.encrypt(requireSecret(imagePlainSecret)));
+        }
+        boolean hasAny = imageObj.has("provider")
+                || imageObj.has("base_url")
+                || imageObj.has("model_name")
+                || imageObj.has("encrypted_secret");
+        if (!hasAny) root.remove("image");
+        else {
+            root.set("image", imageObj);
+            validateModelConfigImage(root);
+        }
+        if (root.isEmpty()) return null;
+        return writeModelConfig(root);
+    }
+
+    private void validateModelConfigImage(ObjectNode root) {
+        JsonNode image = root.get("image");
+        if (image == null || image.isNull() || image.isMissingNode()) return;
+        if (!image.isObject()) throw BizException.of(ResultCode.PARAM_INVALID, "modelConfig.image 必须为对象");
+        boolean hasAny = image.has("provider")
+                || image.has("base_url")
+                || image.has("model_name")
+                || image.has("encrypted_secret");
+        if (!hasAny) return;
+        String provider = image.path("provider").asText("").trim();
+        String baseUrl = image.path("base_url").asText("").trim();
+        String modelName = image.path("model_name").asText("").trim();
+        String enc = image.path("encrypted_secret").asText("").trim();
+        if (provider.isBlank()) throw BizException.of(ResultCode.PARAM_INVALID, "modelConfig.image.provider 不能为空");
+        String normalized = provider.toLowerCase(Locale.ROOT);
+        if ("xai".equals(normalized)) normalized = "openai-compatible";
+        if (!"openai-compatible".equals(normalized))
+            throw BizException.of(ResultCode.PARAM_INVALID, "modelConfig.image.provider 仅支持 openai-compatible（兼容 xai）");
+        if (baseUrl.isBlank()) throw BizException.of(ResultCode.PARAM_INVALID, "modelConfig.image.base_url 不能为空");
+        if (!baseUrl.startsWith("https://"))
+            throw BizException.of(ResultCode.PARAM_INVALID, "modelConfig.image.base_url 必须为 https 地址");
+        if (modelName.isBlank()) throw BizException.of(ResultCode.PARAM_INVALID, "modelConfig.image.model_name 不能为空");
+        if (enc.isBlank()) throw BizException.of(ResultCode.PARAM_INVALID, "请先配置生图密钥");
+    }
+
+    private String writeModelConfig(ObjectNode root) {
+        try {
+            return objectMapper.writeValueAsString(root);
+        } catch (Exception e) {
+            throw BizException.of(ResultCode.PARAM_INVALID, "modelConfig 序列化失败");
+        }
+    }
+
+    private static String requireProviderForImage(String raw) {
+        String t = raw == null ? null : raw.trim().toLowerCase(Locale.ROOT);
+        if ("xai".equals(t)) return "openai-compatible";
+        if (!"openai-compatible".equals(t))
+            throw BizException.of(ResultCode.PARAM_INVALID, "modelConfig.image.provider 仅支持 openai-compatible（兼容 xai）");
+        return t;
+    }
+
+    private static String requireModelName(String raw) {
+        String name = raw == null ? null : raw.trim();
+        if (name == null || name.isEmpty()) throw BizException.of(ResultCode.PARAM_INVALID, "modelName is required");
+        if (name.length() > 128) throw BizException.of(ResultCode.PARAM_INVALID, "modelName must be ≤ 128 chars");
+        return name;
+    }
+
+    private static String requireHttpsUrl(String raw) {
+        String url = raw == null ? null : raw.trim();
+        if (url == null || url.isEmpty()) throw BizException.of(ResultCode.PARAM_INVALID, "baseUrl is required");
+        if (!url.startsWith("https://")) throw BizException.of(ResultCode.PARAM_INVALID, "baseUrl 必须为 https 地址");
+        return url;
+    }
+
+    private static String requireSecret(String raw) {
+        String secret = raw == null ? null : raw.trim();
+        if (secret == null || secret.isEmpty()) throw BizException.of(ResultCode.PARAM_INVALID, "请先配置 API Key");
+        return secret;
     }
 
     private AgentRevision copyAsPublished(AgentRevision draft) {
@@ -482,6 +639,10 @@ public class AgentControlService {
             String permissionPolicy,
             String memoryPolicy,
             String compressionPolicy,
+            String imageProvider,
+            String imageBaseUrl,
+            String imageModelName,
+            String imagePlainSecret,
             String remark) {}
 
     @io.github.linpeilie.annotations.AutoMapper(target = AgentDefinition.class)

@@ -13,6 +13,7 @@ import io.agentscope.core.tool.Toolkit;
 import io.agentscope.extensions.model.openai.OpenAIChatModel;
 import io.agentscope.extensions.model.openai.formatter.OpenAIChatFormatter;
 import io.agentscope.harness.agent.HarnessAgent;
+import io.agentscope.harness.agent.memory.compaction.CompactionConfig;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -82,6 +83,9 @@ public class AgentHarnessFactory {
                     + "- 改图必须携带参考图：若上下文没有 image_url，先用 view_image 读取上一张生成图获得可访问链接，再调 edit_image；有多张参考则用 multi_edit_image。\n"
                     + "- 改图 prompt 必须显式约束\"仅对指定元素做最小改动，其余构图/主体/文字/色板/布局/比例保持不变\"，并保持与原图一致的 aspect_ratio/resolution；不要新增或移除未提及的元素。";
         }
+        int ctxWindow = plan.contextLength() != null && plan.contextLength() > 0
+                ? Math.toIntExact(Math.min(plan.contextLength(), Integer.MAX_VALUE))
+                : 500_000;
         var builder = HarnessAgent.builder()
                 .name(nz(plan.agentName()))
                 .agentId("platform-agent")
@@ -94,7 +98,9 @@ public class AgentHarnessFactory {
                         .endpointPath(plan.endpointPath())
                         .formatter(formatterFor(plan))
                         .stream(true)
+                        .contextWindowSize(ctxWindow)
                         .build())
+                .compaction(CompactionConfig.builder().triggerMessages(0).build())
                 .toolkit(toolkit)
                 .stateStore(stateStore)
                 .maxIters(properties.getMaxIters())

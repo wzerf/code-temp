@@ -85,12 +85,8 @@ export function applyAguiEvent(prev: AssistantContent | undefined, event: AguiEv
     }
 
     case 'TOOL_CALL_END': {
-      const ev = event as { toolCallId: string };
-      const tool = findTool(base, ev.toolCallId);
-      if (tool) {
-        tool.status = 'done';
-        tool.endedAt = normalizeTs(event.timestamp);
-      }
+      // 仅表示参数流结束，不代表执行完成；完成以 TOOL_CALL_RESULT 为准，
+      // 避免提前打 ✔ 且用 END 的时间戳算出 0.0 秒（特别是末尾工具）。
       return base;
     }
 
@@ -189,9 +185,8 @@ export function applyAguiEvent(prev: AssistantContent | undefined, event: AguiEv
         } else if (tool.endedAt == null) {
           tool.endedAt = endTs;
         }
-        if (tool.startedAt != null && tool.endedAt != null && tool.endedAt <= tool.startedAt) {
-          tool.endedAt = tool.startedAt + Math.max(1, endTs - tool.startedAt);
-          if (tool.endedAt <= tool.startedAt) tool.endedAt = Date.now();
+        if (tool.startedAt != null && tool.endedAt != null && tool.endedAt - tool.startedAt < 100) {
+          tool.endedAt = tool.startedAt + 100;
         }
       }
       return base;
@@ -227,6 +222,14 @@ export function applyAguiEvent(prev: AssistantContent | undefined, event: AguiEv
         base.waitingForApproval = true;
       } else {
         delete base.error;
+        const endTs = normalizeTs(event.timestamp);
+        for (const t of base.toolCalls ?? []) {
+          if (t.status === 'running') {
+            t.status = 'done';
+            t.endedAt = endTs;
+            if (t.startedAt != null && t.endedAt - t.startedAt < 100) t.endedAt = t.startedAt + 100;
+          }
+        }
       }
       return base;
     }
@@ -234,6 +237,16 @@ export function applyAguiEvent(prev: AssistantContent | undefined, event: AguiEv
     case 'RUN_ERROR': {
       const ev = event as { message: string };
       base.error = ev.message ?? '运行失败';
+      {
+        const endTs = normalizeTs(event.timestamp);
+        for (const t of base.toolCalls ?? []) {
+          if (t.status === 'running') {
+            t.status = 'error';
+            t.endedAt = endTs;
+            if (t.startedAt != null && t.endedAt - t.startedAt < 100) t.endedAt = t.startedAt + 100;
+          }
+        }
+      }
       return base;
     }
 

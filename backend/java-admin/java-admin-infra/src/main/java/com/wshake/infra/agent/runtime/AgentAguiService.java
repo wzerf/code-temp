@@ -86,8 +86,12 @@ public class AgentAguiService {
             return;
         }
         HarnessAgent agent = null;
+        AgentRunPlan plan;
         try {
-            agent = harnessFactory.create(runPlanner.plan(sessionId, requestUserId));
+            plan = runPlanner.plan(sessionId, requestUserId);
+            AgentContext.set(plan);
+            AgentContext.setForSession(sessionId, plan);
+            agent = harnessFactory.create(plan);
         } catch (Throwable t) {
             log.warn("agent assemble failed session={} cause={}", sessionId, t.toString());
             sendError(emitter, sessionId, runId, "运行准备失败: " + messageOf(t));
@@ -96,8 +100,11 @@ public class AgentAguiService {
             return;
         }
         HarnessAgent finalAgent = agent;
+        AgentRunPlan capturedPlan = plan;
         AtomicBoolean finished = new AtomicBoolean(false);
         try {
+            AgentContext.set(capturedPlan);
+            AgentContext.setForSession(sessionId, capturedPlan);
             AguiAdapterConfig config = AguiAdapterConfig.builder()
                     .enableReasoning(properties.isEmitReasoning())
                     .emitToolCallArgs(properties.isEmitToolCallArgs())
@@ -126,7 +133,10 @@ public class AgentAguiService {
                             },
                             () -> finish(finalAgent, finished, sessionId, runId, emitter, true));
             // 客户端断开/超时：中断 agent 执行（对齐 docs「取消必须停止执行」）
-            emitter.onCompletion(subscription::dispose);
+            emitter.onCompletion(() -> {
+                subscription.dispose();
+                AgentContext.clear(sessionId);
+            });
             emitter.onTimeout(() -> {
                 log.info("agui sse timeout session={} run={}, interrupting agent", sessionId, runId);
                 finalAgent.interrupt();
@@ -164,6 +174,7 @@ public class AgentAguiService {
         } catch (Exception ignore) {
             // close 失败不影响结果
         } finally {
+            AgentContext.clear(sessionId);
             emitter.complete();
         }
     }

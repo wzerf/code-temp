@@ -222,6 +222,10 @@ public class AgentController {
                 req.getPermissionPolicy(),
                 req.getMemoryPolicy(),
                 req.getCompressionPolicy(),
+                req.getImageProvider(),
+                req.getImageBaseUrl(),
+                req.getImageModelName(),
+                req.getImagePlainSecret(),
                 req.getRemark());
     }
 }

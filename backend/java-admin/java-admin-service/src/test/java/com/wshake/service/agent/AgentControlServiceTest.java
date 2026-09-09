@@ -47,6 +47,8 @@ class AgentControlServiceTest {
                 mcpBindRepo,
                 skillReleaseRepo,
                 mcpReleaseRepo,
+                mock(AgentSecretCipher.class),
+                new com.fasterxml.jackson.databind.ObjectMapper(),
                 new io.github.linpeilie.Converter());
     }
 

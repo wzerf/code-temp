@@ -195,10 +195,7 @@ export default function ChatList({ messages, empty, requesting, onResume }: Prop
     [messages, onResume],
   );
 
-  const waitingFirstToken = requesting && !messages.some((info) => {
-    if (info.message.role !== 'assistant') return false;
-    return assistantHasVisibleBody(info.message as AssistantContent);
-  });
+  const showThinking = requesting;
 
   const roleConfig = {
     user: {
@@ -225,7 +222,7 @@ export default function ChatList({ messages, empty, requesting, onResume }: Prop
         role={roleConfig as never}
         autoScroll
       />
-      {waitingFirstToken && (
+      {showThinking && (
         <Space className="agent-chat-typing">
           <Spin size="small" />
           <Text type="secondary" style={{ fontSize: 12 }}>

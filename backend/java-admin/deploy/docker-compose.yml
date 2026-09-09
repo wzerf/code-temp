@@ -198,8 +198,9 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
       GOMEMLIMIT: ${MINIO_GOMEMLIMIT:-425MiB}
-      # Console 从宿主机打开时，避免仍跳到容器内 :9000
-      MINIO_SERVER_URL: ${MINIO_SERVER_URL:-http://127.0.0.1:4900}
+      # 不要设 MINIO_SERVER_URL=http://127.0.0.1:4900：Console 在容器内用该地址连 API，
+      # 容器 loopback 没有 4900（API 在 :9000），登录会 503 "unable to login due to network error"。
+      # 浏览器跳转由 MINIO_BROWSER_REDIRECT_URL 控制。
       MINIO_BROWSER_REDIRECT_URL: ${MINIO_BROWSER_REDIRECT_URL:-http://127.0.0.1:4901}
     volumes:
       - minio_data:/data

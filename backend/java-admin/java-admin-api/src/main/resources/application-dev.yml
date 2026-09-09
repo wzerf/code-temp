@@ -36,12 +36,18 @@ spring:
       target: ${TEMPORAL_TARGET:127.0.0.1:4723}
     start-workers: ${TEMPORAL_START_WORKERS:true}
 
-# 本地存储默认写到进程工作目录 data/storage
+# 与 application.yml 一致：默认 compose MinIO，密钥对齐 MINIO_ROOT_*，无需进控制台
 app:
   storage:
-    type: ${STORAGE_TYPE:local}
+    type: ${STORAGE_TYPE:s3}
     local:
       base-path: ${STORAGE_LOCAL_BASE_PATH:./data/storage}
+    s3:
+      endpoint: ${STORAGE_S3_ENDPOINT:http://127.0.0.1:4900}
+      region: ${STORAGE_S3_REGION:us-east-1}
+      bucket: ${STORAGE_S3_BUCKET:java-admin}
+      access-key: ${STORAGE_S3_ACCESS_KEY:minioadmin}
+      secret-key: ${STORAGE_S3_SECRET_KEY:minioadmin}
 
 logging:
   # dev 噪音调低：root=INFO + 自包 DEBUG；Spring/Netty/Hikari 调 WARN/INFO

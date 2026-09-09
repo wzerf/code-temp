@@ -132,9 +132,9 @@ app:
     rate-burst: ${IMAGE_RATE_BURST:5}
     max-image-bytes: ${IMAGE_MAX_BYTES:8388608}
     upload-to-storage: ${IMAGE_UPLOAD_TO_STORAGE:false}
-  # 对象存储：local 默认；s3 对接 compose MinIO（127.0.0.1:4900）
+  # 对象存储：dev 默认对接 compose MinIO（root 与 MINIO_ROOT_* 一致，无需进控制台建 Access Key）
   storage:
-    type: ${STORAGE_TYPE:local}
+    type: ${STORAGE_TYPE:s3}
     local:
       base-path: ${STORAGE_LOCAL_BASE_PATH:./data/storage}
       public-base-url: ${STORAGE_LOCAL_PUBLIC_BASE_URL:}
@@ -142,8 +142,8 @@ app:
       endpoint: ${STORAGE_S3_ENDPOINT:http://127.0.0.1:4900}
       region: ${STORAGE_S3_REGION:us-east-1}
       bucket: ${STORAGE_S3_BUCKET:java-admin}
-      access-key: ${STORAGE_S3_ACCESS_KEY:}
-      secret-key: ${STORAGE_S3_SECRET_KEY:}
+      access-key: ${STORAGE_S3_ACCESS_KEY:minioadmin}
+      secret-key: ${STORAGE_S3_SECRET_KEY:minioadmin}
       public-base-url: ${STORAGE_S3_PUBLIC_BASE_URL:}
       path-style: ${STORAGE_S3_PATH_STYLE:true}
       presign-expire-seconds: ${STORAGE_S3_PRESIGN_EXPIRE_SECONDS:900}

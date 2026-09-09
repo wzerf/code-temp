@@ -2,6 +2,7 @@ package com.wshake.infra.storage;
 
 import com.wshake.service.port.StoragePort;
 import java.net.URI;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -12,6 +13,12 @@ import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3Configuration;
+import software.amazon.awssdk.services.s3.model.BucketAlreadyExistsException;
+import software.amazon.awssdk.services.s3.model.BucketAlreadyOwnedByYouException;
+import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
+import software.amazon.awssdk.services.s3.model.HeadBucketRequest;
+import software.amazon.awssdk.services.s3.model.NoSuchBucketException;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
 /**
@@ -19,6 +26,7 @@ import software.amazon.awssdk.services.s3.presigner.S3Presigner;
  *
  * @author wshake
  */
+@Slf4j
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(StorageProperties.class)
 public class StorageConfiguration {
@@ -91,6 +99,39 @@ public class StorageConfiguration {
     @ConditionalOnProperty(prefix = "app.storage", name = "type", havingValue = "s3")
     public StoragePort s3StoragePort(StorageProperties properties, S3Client s3Client, S3Presigner s3Presigner) {
         properties.validate();
+        ensureBucketExists(s3Client, properties.getS3().getBucket());
         return new S3StorageAdapter(properties, s3Client, s3Presigner);
+    }
+
+    /**
+     * 桶不存在则创建，避免新环境必须登录 MinIO 控制台手工建桶。
+     *
+     * @param s3Client S3 客户端
+     * @param bucket   桶名
+     */
+    static void ensureBucketExists(S3Client s3Client, String bucket) {
+        if (bucketExists(s3Client, bucket)) {
+            return;
+        }
+        try {
+            s3Client.createBucket(CreateBucketRequest.builder().bucket(bucket).build());
+            log.info("已创建 S3 bucket: {}", bucket);
+        } catch (BucketAlreadyOwnedByYouException | BucketAlreadyExistsException ex) {
+            log.debug("S3 bucket 已存在: {}", bucket);
+        }
+    }
+
+    private static boolean bucketExists(S3Client s3Client, String bucket) {
+        try {
+            s3Client.headBucket(HeadBucketRequest.builder().bucket(bucket).build());
+            return true;
+        } catch (NoSuchBucketException ex) {
+            return false;
+        } catch (S3Exception ex) {
+            if (ex.statusCode() == 404) {
+                return false;
+            }
+            throw ex;
+        }
     }
 }
